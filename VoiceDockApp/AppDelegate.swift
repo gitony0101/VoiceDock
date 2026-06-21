@@ -13,8 +13,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
     private var coordinator: SessionCoordinator?
+    private var hotKeyManager: HotKeyManager?
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        // Create coordinator first
+        coordinator = SessionCoordinator()
+
+        // Set up hotkey manager with callbacks to coordinator
+        hotKeyManager = HotKeyManager(
+            onStart: { [weak self] in
+                Task { @MainActor in
+                    self?.coordinator?.startRecording()
+                }
+            },
+            onStop: { [weak self] in
+                Task { @MainActor in
+                    self?.coordinator?.stopRecording()
+                }
+            }
+        )
+        _ = hotKeyManager?.register()
+
         // Set up menu bar item
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.squareLength)
         statusItem?.button?.title = "VoiceDock"
@@ -23,9 +42,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Set up popover
         popover = NSPopover()
         popover?.contentSize = NSSize(width: 300, height: 200)
-
-        // Create coordinator
-        coordinator = SessionCoordinator()
+        popover?.contentViewController = NSHostingController(
+            rootView: MenuBarView(coordinator: coordinator!)
+        )
     }
 
     @MainActor @objc func togglePopover() {

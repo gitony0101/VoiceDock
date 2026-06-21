@@ -46,6 +46,7 @@ struct MenuBarView: View {
         case .transcribing: return "Transcribing..."
         case .delivering: return "Delivering..."
         case .error(let message): return message
+        case .permissionRequired(let type): return "Permission Required: \(type)"
         }
     }
 
@@ -57,6 +58,7 @@ struct MenuBarView: View {
         case .transcribing: return .purple
         case .delivering: return .green
         case .error: return .red
+        case .permissionRequired: return .orange
         }
     }
 

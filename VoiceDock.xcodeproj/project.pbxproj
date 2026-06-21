@@ -10,6 +10,15 @@
 		A1000001 /* VoiceDockApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000001 /* VoiceDockApp.swift */; };
 		A1000002 /* AppDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000002 /* AppDelegate.swift */; };
 		A1000003 /* SessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000003 /* SessionCoordinator.swift */; };
+		A1000004 /* AudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000005 /* AudioCapture.swift */; };
+		A1000005 /* AudioNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000006 /* AudioNormalizer.swift */; };
+		A1000006 /* ASRProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000007 /* ASRProvider.swift */; };
+		A1000007 /* MLXAudioSTTProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000008 /* MLXAudioSTTProvider.swift */; };
+		A1000008 /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000009 /* HotKeyManager.swift */; };
+		A1000009 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000010 /* PermissionManager.swift */; };
+		A1000010 /* TranscriptDestination.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000011 /* TranscriptDestination.swift */; };
+		A1000011 /* MenuBarView.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000012 /* MenuBarView.swift */; };
+		A1000012 /* StatusPopover.swift in Sources */ = {isa = PBXBuildFile; fileRef = A2000013 /* StatusPopover.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXFileReference section */
@@ -17,6 +26,15 @@
 		A2000002 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		A2000003 /* SessionCoordinator.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCoordinator.swift; sourceTree = "<group>"; };
 		A2000004 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist.xml; path = Info.plist; sourceTree = "<group>"; };
+		A2000005 /* AudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioCapture.swift; sourceTree = "<group>"; };
+		A2000006 /* AudioNormalizer.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioNormalizer.swift; sourceTree = "<group>"; };
+		A2000007 /* ASRProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRProvider.swift; sourceTree = "<group>"; };
+		A2000008 /* MLXAudioSTTProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MLXAudioSTTProvider.swift; sourceTree = "<group>"; };
+		A2000009 /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
+		A2000010 /* PermissionManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManager.swift; sourceTree = "<group>"; };
+		A2000011 /* TranscriptDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDestination.swift; sourceTree = "<group>"; };
+		A2000012 /* MenuBarView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MenuBarView.swift; sourceTree = "<group>"; };
+		A2000013 /* StatusPopover.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = StatusPopover.swift; sourceTree = "<group>"; };
 		A3000001 /* VoiceDockApp */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoiceDockApp; sourceTree = BUILT_PRODUCTS_DIR; };
 /* End PBXFileReference section */
 
@@ -65,6 +83,8 @@
 		A5000004 /* ASR */ = {
 			isa = PBXGroup;
 			children = (
+				A2000007 /* ASRProvider.swift */,
+				A2000008 /* MLXAudioSTTProvider.swift */,
 			);
 			path = ASR;
 			sourceTree = "<group>";
@@ -72,6 +92,8 @@
 		A5000005 /* Audio */ = {
 			isa = PBXGroup;
 			children = (
+				A2000005 /* AudioCapture.swift */,
+				A2000006 /* AudioNormalizer.swift */,
 			);
 			path = Audio;
 			sourceTree = "<group>";
@@ -79,6 +101,9 @@
 		A5000006 /* Services */ = {
 			isa = PBXGroup;
 			children = (
+				A2000009 /* HotKeyManager.swift */,
+				A2000010 /* PermissionManager.swift */,
+				A2000011 /* TranscriptDestination.swift */,
 			);
 			path = Services;
 			sourceTree = "<group>";
@@ -86,6 +111,8 @@
 		A5000007 /* UI */ = {
 			isa = PBXGroup;
 			children = (
+				A2000012 /* MenuBarView.swift */,
+				A2000013 /* StatusPopover.swift */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -161,6 +188,15 @@
 				A1000001 /* VoiceDockApp.swift in Sources */,
 				A1000002 /* AppDelegate.swift in Sources */,
 				A1000003 /* SessionCoordinator.swift in Sources */,
+				A1000004 /* AudioCapture.swift in Sources */,
+				A1000005 /* AudioNormalizer.swift in Sources */,
+				A1000006 /* ASRProvider.swift in Sources */,
+				A1000007 /* MLXAudioSTTProvider.swift in Sources */,
+				A1000008 /* HotKeyManager.swift in Sources */,
+				A1000009 /* PermissionManager.swift in Sources */,
+				A1000010 /* TranscriptDestination.swift in Sources */,
+				A1000011 /* MenuBarView.swift in Sources */,
+				A1000012 /* StatusPopover.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

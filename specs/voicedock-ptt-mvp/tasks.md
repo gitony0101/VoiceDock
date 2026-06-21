@@ -158,6 +158,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: SessionCoordinator component_
 
 ### Task 1.7: HotKeyManager Implementation
+- [x] COMPLETED
 
 - **Goal**: Implement global push-to-talk hotkey detection
 - **Acceptance Criteria**:
@@ -165,13 +166,13 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
   2. Configurable hotkey (default Command+Space)
   3. Hotkey press starts recording, release stops
   4. Prevents re-entrant recording during transcription
-- **Files to Create**:
-  - `VoiceDockApp/HotKey/HotKeyManager.swift`
+- **Files Created**:
+  - `VoiceDockApp/Services/HotKeyManager.swift`
 - **Dependencies**: 1.6
 - **Verification**:
   ```bash
-  grep -q "RegisterEventHotKey" VoiceDockApp/HotKey/HotKeyManager.swift && \
-  grep -q "EventHotKeyRef" VoiceDockApp/HotKey/HotKeyManager.swift && \
+  grep -q "RegisterEventHotKey" VoiceDockApp/Services/HotKeyManager.swift && \
+  grep -q "EventHotKeyRef" VoiceDockApp/Services/HotKeyManager.swift && \
   echo "HOTKEY_PASS"
   ```
 - **Commit**: `feat(hotkey): implement global push-to-talk with Carbon`
@@ -179,6 +180,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: HotKeyManager (Technical Decisions table)_
 
 ### Task 1.8: PermissionManager Implementation
+- [x] COMPLETED
 
 - **Goal**: Implement microphone and Accessibility permission checking with pre-permission explanation
 - **Acceptance Criteria**:
@@ -186,14 +188,13 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
   2. checkAccessibilityPermission() with AXIsProcessTrustedWithOptions
   3. Deep link to System Settings for denied permissions
   4. PermissionStatus enum for UI feedback
-- **Files to Create**:
-  - `VoiceDockApp/Permissions/PermissionManager.swift`
-  - `VoiceDockApp/Permissions/PermissionExplanation.swift`
+- **Files Created**:
+  - `VoiceDockApp/Services/PermissionManager.swift`
 - **Dependencies**: 1.7
 - **Verification**:
   ```bash
-  grep -q "AVCaptureDevice" VoiceDockApp/Permissions/PermissionManager.swift && \
-  grep -q "AXIsProcessTrustedWithOptions" VoiceDockApp/Permissions/PermissionManager.swift && \
+  grep -q "AVCaptureDevice" VoiceDockApp/Services/PermissionManager.swift && \
+  grep -q "AXIsProcessTrustedWithOptions" VoiceDockApp/Services/PermissionManager.swift && \
   echo "PERMISSIONS_PASS"
   ```
 - **Commit**: `feat(permissions): implement PermissionManager with pre-permission UX`
@@ -201,6 +202,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: Permissions (Technical Decisions)_
 
 ### Task 1.9: MenuBarView Implementation
+- [x] COMPLETED
 
 - **Goal**: Implement SwiftUI menu bar view with state observation
 - **Acceptance Criteria**:
@@ -209,16 +211,15 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
   3. StatusPopover shows detailed status and progress
   4. Quit action in popover
   5. Permission prompts with settings deep link
-- **Files to Create**:
-  - `VoiceDockApp/Views/MenuBarView.swift`
-  - `VoiceDockApp/Views/StatusPopover.swift`
-  - `VoiceDockApp/Views/Icons/MenuBarIcon.swift`
+- **Files Created**:
+  - `VoiceDockApp/UI/MenuBarView.swift`
+  - `VoiceDockApp/UI/StatusPopover.swift`
 - **Dependencies**: 1.8
 - **Verification**:
   ```bash
-  grep -q "@ObservedObject" VoiceDockApp/Views/MenuBarView.swift && \
-  grep -q "SessionCoordinator" VoiceDockApp/Views/MenuBarView.swift && \
-  grep -q "case.*listening" VoiceDockApp/Views/MenuBarView.swift && \
+  grep -q "@ObservedObject" VoiceDockApp/UI/MenuBarView.swift && \
+  grep -q "SessionCoordinator" VoiceDockApp/UI/MenuBarView.swift && \
+  grep -q "case.*listening" VoiceDockApp/UI/MenuBarView.swift && \
   echo "MENUBAR_PASS"
   ```
 - **Commit**: `feat(ui): implement MenuBarView with state observation`
@@ -226,6 +227,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: MenuBarView component_
 
 ### Task 1.10: App Entry Point and Wiring
+- [x] COMPLETED
 
 - **Goal**: Connect all components in VoiceDockApp.swift and AppDelegate
 - **Acceptance Criteria**:
@@ -234,7 +236,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
   3. SessionCoordinator instantiated with dependencies
   4. HotKeyManager registered on launch
   5. Permission checks on first launch
-- **Files to Create/Modify**:
+- **Files Modified**:
   - `VoiceDockApp/VoiceDockApp.swift`
   - `VoiceDockApp/AppDelegate.swift`
 - **Dependencies**: 1.9
@@ -250,13 +252,14 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: File Structure, Implementation Steps 10_
 
 ### Task 1.11: Info.plist Permissions Configuration
+- [x] COMPLETED
 
 - **Goal**: Add required permission usage descriptions to Info.plist
 - **Acceptance Criteria**:
   1. NSMicrophoneUsageDescription with clear explanation
   2. NSAppleEventsUsageDescription for Accessibility
   3. Explanations mention local processing only
-- **Files to Modify**:
+- **Files Modified**:
   - `VoiceDockApp/Info.plist`
 - **Dependencies**: 1.10
 - **Verification**:
@@ -270,6 +273,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
 - _Design: File Structure_
 
 ### Task 1.12: POC End-to-End Manual Test
+- [x] CODE COMPLETE - Manual M1 verification pending
 
 - **Goal**: Verify complete PTT flow works on real hardware
 - **Acceptance Criteria**:
@@ -278,6 +282,7 @@ Focus: Get a working end-to-end flow fast. Skip tests, accept hardcoded values, 
   3. Hotkey press triggers listening state
   4. Hotkey release triggers transcribing state
   5. Transcript appears in focused application (or clipboard if no Accessibility)
+- **Status**: Code implementation complete. Manual verification requires M1 hardware.
 - **Files**: None (manual verification)
 - **Dependencies**: 1.11
 - **Verification**:

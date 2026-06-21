@@ -7,6 +7,7 @@
 
 import Foundation
 import Combine
+import AppKit
 
 /// Owns the workflow state and orchestrates the PTT session
 @MainActor
@@ -19,6 +20,7 @@ final class SessionCoordinator: ObservableObject {
         case transcribing
         case delivering
         case error(String)
+        case permissionRequired(String)
     }
 
     @Published private(set) var state: State = .idle
@@ -99,6 +101,19 @@ final class SessionCoordinator: ObservableObject {
             audioCapture?.cancel()
             await asrProvider?.unload()
             state = .idle
+        }
+    }
+
+    func quit() async {
+        await cleanup()
+        NSApplication.shared.terminate(self)
+    }
+
+    func requestPermission(type: String) {
+        if type == "microphone" {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")!)
+        } else if type == "accessibility" {
+            NSWorkspace.shared.open(URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility")!)
         }
     }
 }

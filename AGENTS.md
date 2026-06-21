@@ -367,3 +367,9 @@ DELIVERY_REPORT.md
 final local commit
 ```
 
+
+Before any file modification, verify that `pwd` equals
+`git rev-parse --show-toplevel` and that `.git` already exists.
+
+Never run `git init` in this project. If the repository-root check fails,
+stop without creating files.
