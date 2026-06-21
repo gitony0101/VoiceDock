@@ -1,0 +1,16 @@
+{
+  "source": "spec",
+  "name": "voicedock-ptt-mvp",
+  "basePath": "./specs/voicedock-ptt-mvp",
+  "phase": "tasks",
+  "taskIndex": 0,
+  "totalTasks": 28,
+  "taskIteration": 1,
+  "maxTaskIterations": 5,
+  "globalIteration": 1,
+  "maxGlobalIterations": 100,
+  "commitSpec": true,
+  "quickMode": true,
+  "discoveredSkills": [],
+  "awaitingApproval": true
+}

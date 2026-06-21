@@ -1,0 +1,7 @@
+.DS_Store
+*.swp
+*.swo
+*~
+specs/.current-spec
+specs/.current-epic
+**/.progress.md
