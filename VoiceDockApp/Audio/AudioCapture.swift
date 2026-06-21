@@ -29,7 +29,15 @@ final class AudioCapture {
 
     private func installTap() {
         let input = engine.inputNode
-        input.installTap(onBus: 0, bufferSize: 1024, format: nil) { [weak self] buffer, _ in
+        // Request 16 kHz mono Float32 format for ASR compatibility
+        let channelLayout = AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_Mono)!
+        let format = AVAudioFormat(
+            commonFormat: .pcmFormatFloat32,
+            sampleRate: 16_000,
+            interleaved: false,
+            channelLayout: channelLayout
+        )
+        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
             guard let self = self else { return }
             self.lock.lock()
             let recording = self.isRecording

@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 
+@MainActor
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
@@ -27,7 +28,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator = SessionCoordinator()
     }
 
-    @objc func togglePopover() {
+    @MainActor @objc func togglePopover() {
         guard let button = statusItem?.button, let popover = popover else { return }
 
         if popover.isShown {

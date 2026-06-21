@@ -28,6 +28,7 @@ final class SessionCoordinator: ObservableObject {
     private var asrProvider: ASRProvider?
     private var transcriptDestination: TranscriptDestination?
     private var audioBuffer: [Float] = []
+    private let lock = NSLock()
 
     init() {
         Task {
@@ -36,10 +37,22 @@ final class SessionCoordinator: ObservableObject {
     }
 
     private func initialize() async {
-        // TODO: Initialize dependencies
-        // audioCapture = AudioCapture()
-        // asrProvider = MLXAudioSTTProvider()
-        // transcriptDestination = TranscriptDestination()
+        do {
+            audioCapture = AudioCapture()
+            asrProvider = MLXAudioSTTProvider()
+            transcriptDestination = TranscriptDestination()
+
+            try await asrProvider?.load()
+            try await asrProvider?.warmup()
+
+            await MainActor.run {
+                state = .ready
+            }
+        } catch {
+            await MainActor.run {
+                state = .error("Failed to initialize: \(error.localizedDescription)")
+            }
+        }
     }
 
     nonisolated func startRecording() {
@@ -47,34 +60,45 @@ final class SessionCoordinator: ObservableObject {
             guard state == .ready || state == .idle else { return }
             state = .listening
             audioBuffer.removeAll()
-            // TODO: Start audio capture
+            audioCapture?.start()
         }
     }
 
     nonisolated func stopRecording() {
         Task { @MainActor in
             guard state == .listening else { return }
-            // TODO: Stop audio capture
+            audioBuffer = audioCapture?.stop() ?? []
             await transcribe()
         }
     }
 
     private func transcribe() async {
         state = .transcribing
-        // TODO: Call ASR provider
-        // let result = try? await asrProvider?.transcribe(audio: audioBuffer)
-        // await deliver(text: result)
+        do {
+            let result = try await asrProvider?.transcribe(audio: audioBuffer)
+            await deliver(text: result)
+        } catch {
+            await MainActor.run {
+                state = .error("Transcription failed: \(error.localizedDescription)")
+            }
+        }
     }
 
     private func deliver(text: String?) async {
         state = .delivering
-        // TODO: Paste to focused application
-        state = .ready
+        if let text = text {
+            transcriptDestination?.paste(text: text)
+        }
+        await MainActor.run {
+            state = .ready
+        }
     }
 
     nonisolated func cleanup() {
         Task { @MainActor in
-            // TODO: Clean up resources
+            audioCapture?.cancel()
+            await asrProvider?.unload()
+            state = .idle
         }
     }
 }
