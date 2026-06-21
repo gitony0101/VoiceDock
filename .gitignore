@@ -5,3 +5,7 @@
 specs/.current-spec
 specs/.current-epic
 **/.progress.md
+.build/
+DerivedData/
+*.xcworkspace
+!Package.resolved
