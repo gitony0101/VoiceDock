@@ -3,7 +3,7 @@
   "name": "voicedock-ptt-mvp",
   "basePath": "./specs/voicedock-ptt-mvp",
   "phase": "execution",
-  "taskIndex": 0,
+  "taskIndex": 28,
   "totalTasks": 28,
   "taskIteration": 1,
   "maxTaskIterations": 5,
@@ -11,5 +11,36 @@
   "maxGlobalIterations": 100,
   "commitSpec": true,
   "quickMode": true,
-  "discoveredSkills": []
+  "discoveredSkills": [],
+  "completedTasks": [
+    "1.1", "1.2", "1.3", "1.4", "1.5", "1.6", "1.7", "1.8", "1.9", "1.10", "1.11", "1.12",
+    "2.1", "2.2", "2.3", "2.4",
+    "3.1", "3.2", "3.3", "3.4", "3.5", "3.6",
+    "4.1", "4.2", "4.3",
+    "VE1", "VE2", "VE3", "VE4",
+    "6.1", "6.2",
+    "CARBON_BRIDGE_SYNTHETIC"
+  ],
+  "evidenceGates": {
+    "debugBuild": "PASS",
+    "allTests": "PASS (26 tests)",
+    "releaseBuild": "PASS",
+    "stableDistUpdated": "PASS",
+    "syntheticPressReleaseBridge": "PASS",
+    "coordinatorEntersLeavesListening": "PASS",
+    "zeroAudioReleaseAlive": "PASS",
+    "audioStopAlive": "PASS",
+    "threeSyntheticPTTCycles": "PASS",
+    "duplicateReleaseIgnored": "PASS",
+    "processStability": "PASS",
+    "carbonBoundaryDiagnostics": "PARTIAL - Stage A physical Carbon delivery requires owner test"
+  },
+  "pendingOwnerActions": [
+    {
+      "id": "GATE_B_PHYSICAL_CARBON_TEST",
+      "description": "Physical test of Carbon hotkey press/release delivery",
+      "instructions": "Launch dist/VoiceDock.app, grant Accessibility permission, press Control+Option+Space, verify menu bar shows listening state, release, verify transcript is pasted",
+      "evidenceRequired": "Visible menu bar state change and successful transcript paste into focused app"
+    }
+  ]
 }
