@@ -51,4 +51,44 @@ final class TranscriptDestinationTests: XCTestCase {
         // Actual key event testing requires Accessibility permissions
         sut.paste(text: "test", sendReturn: true)
     }
+
+    func testDeniedAccessibilityLeavesTranscriptOnClipboard() {
+        let testText = "Clipboard survives denied Accessibility"
+        var postedKeys: [CGKeyCode] = []
+        sut = TranscriptDestination(
+            isAccessibilityTrusted: { false },
+            postKeyboardEvent: { keyCode, _ in postedKeys.append(keyCode) }
+        )
+
+        NSPasteboard.general.clearContents()
+        sut.paste(text: testText, sendReturn: true)
+
+        XCTAssertEqual(NSPasteboard.general.string(forType: .string), testText)
+        XCTAssertTrue(postedKeys.isEmpty)
+    }
+
+    func testDeniedAccessibilityDoesNotSendPasteOrReturn() {
+        var postedKeys: [CGKeyCode] = []
+        sut = TranscriptDestination(
+            isAccessibilityTrusted: { false },
+            postKeyboardEvent: { keyCode, _ in postedKeys.append(keyCode) }
+        )
+
+        sut.paste(text: "No key events", sendReturn: true)
+
+        XCTAssertFalse(postedKeys.contains(0x09), "Denied Accessibility must not send Cmd-V")
+        XCTAssertFalse(postedKeys.contains(0x24), "Denied Accessibility must not send Return")
+    }
+
+    func testGrantedAccessibilitySendsPasteAndOptionalReturn() {
+        var postedKeys: [CGKeyCode] = []
+        sut = TranscriptDestination(
+            isAccessibilityTrusted: { true },
+            postKeyboardEvent: { keyCode, _ in postedKeys.append(keyCode) }
+        )
+
+        sut.paste(text: "Send events", sendReturn: true)
+
+        XCTAssertEqual(postedKeys, [0x09, 0x24])
+    }
 }

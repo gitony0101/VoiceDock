@@ -17,6 +17,7 @@
 //  (AppKit guarantees main-thread dispatch for these selectors).
 //
 
+import AppKit
 import XCTest
 @testable import VoiceDock
 
@@ -69,17 +70,47 @@ final class AppDelegateIsolationTests: XCTestCase {
     }
 
     /// End-to-end invocation through the exact AppKit dispatch path that
-    /// crashed in Candidate 1: performSelector (equivalent to sendAction) on
-    /// the main thread. With the nonisolated fix, this must complete without
-    /// trapping, even before the status item or popover are installed.
+    /// crashed in Candidate 4: performSelector (equivalent to sendAction) on
+    /// the main thread. The selector must schedule onto MainActor without
+    /// calling MainActor.assumeIsolated from the Objective-C trampoline.
     @MainActor
-    func testTogglePopoverInvocationDoesNotTrap() throws {
+    func testTogglePopoverInvocationDoesNotTrap() async throws {
         let appDelegate = AppDelegate()
         // performSelector on the main thread mimics AppKit's sendAction path.
-        // The nonisolated attribute means no MainActor executor verification
-        // runs; the body then assumes isolation and takes the button-nil
-        // guard path.
         appDelegate.perform(NSSelectorFromString("togglePopover:"), with: nil)
+        try await Task.sleep(nanoseconds: 50_000_000)
         // Reaching this line is the assertion: Candidate 1 crashed here.
+    }
+
+    func testAppDelegateSelectorsDoNotUseAssumeIsolated() throws {
+        let testFile = URL(fileURLWithPath: #filePath)
+        let repoRoot = testFile.deletingLastPathComponent().deletingLastPathComponent()
+        let sourceURL = repoRoot.appendingPathComponent("VoiceDockApp/AppDelegate.swift")
+        let source = try String(contentsOf: sourceURL)
+
+        XCTAssertFalse(
+            source.contains("MainActor.assumeIsolated"),
+            "AppKit selector trampolines must not use MainActor.assumeIsolated; Candidate 4 crashed in that runtime check."
+        )
+    }
+
+    @MainActor
+    func testActivationObserverInstallIsIdempotent() throws {
+        let appDelegate = AppDelegate()
+
+        appDelegate.installActivationObserverIfNeeded()
+        appDelegate.installActivationObserverIfNeeded()
+
+        XCTAssertEqual(appDelegate.activationObserverInstallCount, 1)
+        appDelegate.applicationWillTerminate(Notification(name: NSApplication.willTerminateNotification))
+    }
+
+    @MainActor
+    func testApplicationDidBecomeActiveRefreshesPermissions() throws {
+        let appDelegate = AppDelegate()
+
+        appDelegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
+
+        XCTAssertEqual(appDelegate.permissionRefreshReasonForTests, .applicationDidBecomeActive)
     }
 }

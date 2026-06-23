@@ -1,11 +1,123 @@
+# ============================================================
+# macOS
+# ============================================================
 .DS_Store
+.AppleDouble
+.LSOverride
+Icon?
+._*
+
+# ============================================================
+# Xcode user data and generated build products
+# ============================================================
+DerivedData/
+build/
+Build/
+*.xcuserstate
+*.xcuserdata/
+xcuserdata/
+*.xccheckout
+*.xcscmblueprint
+*.xcresult/
+*.xcarchive/
+*.dSYM/
+*.dSYM.zip
+
+# XcodeGen output: project.yml is authoritative
+VoiceDock.xcodeproj/
+
+# ============================================================
+# Swift Package Manager
+# ============================================================
+.build/
+Packages/
+.swiftpm/xcode/package.xcworkspace/xcuserdata/
+.swiftpm/xcode/xcuserdata/
+
+# Keep Package.resolved tracked.
+# Do not add Package.resolved here.
+
+# ============================================================
+# Application bundles and release artifacts
+# ============================================================
+dist/
+*.app/
+*.pkg
+*.dmg
+
+# ============================================================
+# Logs, crashes, diagnostics, profiling, and coverage
+# ============================================================
+*.log
+*.ips
+*.crash
+*.trace
+*.profraw
+*.profdata
+coverage/
+.coverage/
+
+.loop/evidence/**/*.log
+.loop/evidence/**/*.ips
+.loop/evidence/**/*.crash
+.loop/evidence/**/*.xcresult
+.loop/evidence/**/raw/
+.loop/evidence/**/tmp/
+
+# ============================================================
+# Local caches and temporary files
+# ============================================================
+.cache/
+tmp/
+.tmp/
+*.tmp
+*.temp
 *.swp
 *.swo
 *~
+
+# ============================================================
+# Local model files and ML caches
+# ============================================================
+models/
+model-cache/
+huggingface-cache/
+mlx-cache/
+*.gguf
+*.safetensors
+*.mlmodelc/
+
+# ============================================================
+# Secrets and environment-specific configuration
+# ============================================================
+.env
+.env.*
+!.env.example
+*.pem
+*.p12
+*.key
+secrets/
+credentials/
+
+# ============================================================
+# Claude Code local-only state
+# ============================================================
+.claude/settings.local.json
+.claude/.cache/
+
+# ============================================================
+# IDE-local files
+# ============================================================
+.idea/
+
+# ============================================================
+# Project-specific temporary files
+# ============================================================
 specs/.current-spec
 specs/.current-epic
 **/.progress.md
-.build/
-DerivedData/
+
+# ============================================================
+# Xcode workspace (generated)
+# ============================================================
 *.xcworkspace
-!Package.resolved

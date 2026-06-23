@@ -22,14 +22,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let permissions = PermissionManager()
     private var hasRequestedMicrophone = false
     private var menuClickCount = 0
+    private var activationObserver: NSObjectProtocol?
+    private(set) var activationObserverInstallCount = 0
 
     // Expose hotKeyManager for diagnostics
     var hotKeyManagerForDiagnostics: HotKeyManager? {
         return hotKeyManager
     }
 
+    var permissionRefreshReasonForTests: PermissionManager.RefreshReason {
+        permissions.lastRefreshReason
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
         logger.info("applicationDidFinishLaunching")
+
+        // P2-1 Fix: Clean up stale diagnostic logs from previous crashed session
+        cleanupDiagnosticFiles()
+        permissions.refresh(reason: .applicationLaunch)
 
         // Clear and initialize UI diagnostics file
         writeUIDiagnostic("=== VoiceDock UI Diagnostics Start ===")
@@ -39,6 +49,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Check for self-test mode
         let selfTestMode = ProcessInfo.processInfo.arguments.contains("--self-test-popover")
         writeUIDiagnostic("self_test_mode=\(selfTestMode)")
+
+        // P1 Fix: Listen for application activation to refresh permission state
+        installActivationObserverIfNeeded()
 
         // 1) Install the menu bar item FIRST so the app is visibly alive.
         installMenuBarItem()
@@ -51,6 +64,32 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self?.fullInitialize(selfTestMode: selfTestMode)
             }
         }
+    }
+
+    @objc public func applicationDidBecomeActive(_ notification: Notification) {
+        // P1 Fix: Refresh permission state when app becomes active
+        // This ensures UI updates after user returns from System Settings
+        handleApplicationDidBecomeActive()
+    }
+
+    private func handleApplicationDidBecomeActive() {
+        logger.info("applicationDidBecomeActive - refreshing permissions")
+        refreshPermissions(reason: .applicationDidBecomeActive)
+    }
+
+    func installActivationObserverIfNeeded() {
+        guard activationObserver == nil else { return }
+
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: NSApplication.didBecomeActiveNotification,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            Task { @MainActor in
+                self?.handleApplicationDidBecomeActive()
+            }
+        }
+        activationObserverInstallCount += 1
     }
 
     private func fullInitialize(selfTestMode: Bool) async {
@@ -73,7 +112,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             checkMicrophonePermission()
 
             // 4) Accessibility permission
-            checkAccessibilityPermission()
+            refreshPermissions(reason: .applicationLaunch)
 
             // 5) Run self-test if requested
             if selfTestMode {
@@ -106,7 +145,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("installMenuBarItem_start")
 
         let item = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-        writeUIDiagnostic("statusItem_created=\(item != nil)")
+        writeUIDiagnostic("statusItem_created=true")
 
         guard let button = item.button else {
             writeUIDiagnostic("ERROR: status_button_nil")
@@ -136,7 +175,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let rootView = MenuBarView(coordinator: coordinator, permissions: permissions)
         let controller = NSHostingController(rootView: rootView)
 
-        writeUIDiagnostic("content_view_controller_created=\(controller != nil)")
+        writeUIDiagnostic("content_view_controller_created=true")
 
         let popover = NSPopover()
         popover.behavior = .transient
@@ -249,8 +288,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             guard !hasRequestedMicrophone else { return }
             hasRequestedMicrophone = true
             Task { @MainActor in
-                let granted = await self.permissions.requestMicrophone()
+                let granted = await permissions.requestMicrophone()
                 logger.info("Microphone prompt result: \(String(describing: granted))")
+                self.refreshPermissions(reason: .microphoneRequestCompletion)
             }
         case .granted:
             logger.info("Microphone already granted")
@@ -259,19 +299,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    private func checkAccessibilityPermission() {
-        let trusted = permissions.checkAccessibility()
-        logger.info("Accessibility trusted: \(trusted)")
-        writeUIDiagnostic("accessibility_trusted=\(trusted)")
-        if trusted {
-            return
-        }
-        // Defer the prompt slightly so the menu bar item can render the UI first.
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { [weak self] in
-            guard let self = self else { return }
-            let prompted = self.permissions.requestAccessibilityIfNeeded()
-            logger.info("Accessibility prompt triggered: \(prompted == false ? "system dialog shown" : "already trusted")")
-        }
+    private func refreshPermissions(reason: PermissionManager.RefreshReason) {
+        permissions.refresh(reason: reason)
+        writeUIDiagnostic("accessibility_trusted=\(permissions.accessibilityStatus)")
+        ensureHotKeyRegisteredIfTrusted()
+    }
+
+    func requestAccessibilityFromUserAction() {
+        _ = permissions.requestAccessibilityIfNeeded()
+        refreshPermissions(reason: .accessibilityRequest)
+    }
+
+    private func ensureHotKeyRegisteredIfTrusted() {
+        guard permissions.accessibilityStatus else { return }
+        guard let coordinator else { return }
+        guard hotKeyManager?.registrationStatus != "success" else { return }
+
+        logger.info("Accessibility trusted; ensuring hotkey is registered")
+        hotKeyManager?.unregister()
+        installHotKey(against: coordinator)
     }
 
     private func makeCoordinator() -> SessionCoordinator? {
@@ -331,88 +377,95 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     }
 
     @objc nonisolated private func togglePopover(_ sender: Any?) {
-        // AppKit dispatches this on the main thread via sendAction:to:from:
-        // Use assumeIsolated to safely access @MainActor-isolated stored properties
-        // without triggering the executor verification check that crashed in Candidate 1
-        // (the DispatchMainExecutor.shared singleton's metadata was corrupted).
-        MainActor.assumeIsolated {
-            self.writeUIDiagnostic("togglePopover_called")
-            self.writeUIDiagnostic("main_thread=\(Thread.isMainThread)")
-
-            self.menuClickCount += 1
-            self.statusItem?.button?.title = "🎙︎\(self.menuClickCount)"
-            logger.info("Menu click count: \(self.menuClickCount)")
-            self.writeUIDiagnostic("menu_click_count=\(self.menuClickCount)")
-
-            guard let button = self.statusItem?.button else {
-                self.writeUIDiagnostic("toggle_failed_button_nil")
-                logger.error("togglePopover: button is nil")
-                return
-            }
-
-            self.writeUIDiagnostic("button_exists=true")
-            self.writeUIDiagnostic("button_window_exists=\(button.window != nil)")
-            self.writeUIDiagnostic("button_frame=\(button.bounds)")
-
-            guard let popover = self.popover else {
-                self.writeUIDiagnostic("toggle_failed_popover_nil")
-                logger.error("togglePopover: popover is nil")
-                return
-            }
-
-            self.writeUIDiagnostic("popover_exists=true")
-
-            guard popover.contentViewController != nil else {
-                self.writeUIDiagnostic("toggle_failed_content_controller_nil")
-                logger.error("togglePopover: contentViewController is nil")
-                return
-            }
-
-            self.writeUIDiagnostic("content_view_controller_exists=true")
-            self.writeUIDiagnostic("popover_is_shown_before=\(popover.isShown)")
-            self.writeUIDiagnostic("popover_content_size=\(popover.contentSize)")
-
-            if popover.isShown {
-                popover.performClose(nil)
-                self.writeUIDiagnostic("popover_performClose_called")
-                self.writeUIDiagnostic("popover_closed=true")
-                logger.info("Popover closed")
-                return
-            }
-
-            NSApplication.shared.activate(ignoringOtherApps: true)
-            self.writeUIDiagnostic("activate_ignoring_other_apps_called")
-
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            self.writeUIDiagnostic("popover_show_called")
-            self.writeUIDiagnostic("popover_is_shown_after=\(popover.isShown)")
-
-            if let popoverWindow = popover.contentViewController?.view.window {
-                self.writeUIDiagnostic("popover_window_frame=\(popoverWindow.frame)")
-                self.writeUIDiagnostic("popover_window_isVisible=\(popoverWindow.isVisible)")
-                self.writeUIDiagnostic("popover_window_isKeyWindow=\(popoverWindow.isKeyWindow)")
-            }
-
-            logger.info("Popover opened")
+        // AppKit selector trampolines are not a reliable place to assert the
+        // current Swift executor. Schedule onto MainActor instead.
+        Task { @MainActor [weak self] in
+            self?.togglePopoverOnMainActor()
         }
+    }
+
+    private func togglePopoverOnMainActor() {
+        writeUIDiagnostic("togglePopover_called")
+        writeUIDiagnostic("main_thread=\(Thread.isMainThread)")
+        refreshPermissions(reason: .popoverWillOpen)
+
+        menuClickCount += 1
+        statusItem?.button?.title = "🎙︎\(menuClickCount)"
+        logger.info("Menu click count: \(self.menuClickCount)")
+        writeUIDiagnostic("menu_click_count=\(menuClickCount)")
+
+        guard let button = statusItem?.button else {
+            writeUIDiagnostic("toggle_failed_button_nil")
+            logger.error("togglePopover: button is nil")
+            return
+        }
+
+        writeUIDiagnostic("button_exists=true")
+        writeUIDiagnostic("button_window_exists=\(button.window != nil)")
+        writeUIDiagnostic("button_frame=\(button.bounds)")
+
+        guard let popover = popover else {
+            writeUIDiagnostic("toggle_failed_popover_nil")
+            logger.error("togglePopover: popover is nil")
+            return
+        }
+
+        writeUIDiagnostic("popover_exists=true")
+
+        guard popover.contentViewController != nil else {
+            writeUIDiagnostic("toggle_failed_content_controller_nil")
+            logger.error("togglePopover: contentViewController is nil")
+            return
+        }
+
+        writeUIDiagnostic("content_view_controller_exists=true")
+        writeUIDiagnostic("popover_is_shown_before=\(popover.isShown)")
+        writeUIDiagnostic("popover_content_size=\(popover.contentSize)")
+
+        if popover.isShown {
+            popover.performClose(nil)
+            writeUIDiagnostic("popover_performClose_called")
+            writeUIDiagnostic("popover_closed=true")
+            logger.info("Popover closed")
+            return
+        }
+
+        NSApplication.shared.activate(ignoringOtherApps: true)
+        writeUIDiagnostic("activate_ignoring_other_apps_called")
+
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        writeUIDiagnostic("popover_show_called")
+        writeUIDiagnostic("popover_is_shown_after=\(popover.isShown)")
+
+        if let popoverWindow = popover.contentViewController?.view.window {
+            writeUIDiagnostic("popover_window_frame=\(popoverWindow.frame)")
+            writeUIDiagnostic("popover_window_isVisible=\(popoverWindow.isVisible)")
+            writeUIDiagnostic("popover_window_isKeyWindow=\(popoverWindow.isKeyWindow)")
+        }
+
+        logger.info("Popover opened")
     }
 
     // MARK: - Diagnostic Test Endpoint
     @objc nonisolated private func handleDiagnosticTest(_ notification: Notification) {
         let action = (notification.userInfo?["action"] as? String) ?? ""
-        MainActor.assumeIsolated {
-            self.writeUIDiagnostic("DIAGNOSTIC_TEST: \(action)")
+        Task { @MainActor [weak self] in
+            self?.handleDiagnosticTestOnMainActor(action: action)
+        }
+    }
 
-            switch action {
-            case "press":
-                self.hotKeyManager?.simulatePress()
-                self.writeUIDiagnostic("SIMULATE_PRESS_INVOKED")
-            case "release":
-                self.hotKeyManager?.simulateRelease()
-                self.writeUIDiagnostic("SIMULATE_RELEASE_INVOKED")
-            default:
-                break
-            }
+    private func handleDiagnosticTestOnMainActor(action: String) {
+        writeUIDiagnostic("DIAGNOSTIC_TEST: \(action)")
+
+        switch action {
+        case "press":
+            hotKeyManager?.simulatePress()
+            writeUIDiagnostic("SIMULATE_PRESS_INVOKED")
+        case "release":
+            hotKeyManager?.simulateRelease()
+            writeUIDiagnostic("SIMULATE_RELEASE_INVOKED")
+        default:
+            break
         }
     }
 
@@ -422,6 +475,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         coordinator?.cleanup()
         hotKeyManager?.unregister()
 
+        // P1 Fix: Remove notification observer
+        if let activationObserver {
+            NotificationCenter.default.removeObserver(activationObserver)
+            self.activationObserver = nil
+        }
+
         // P2-1 Fix: Clean up temporary diagnostic log files
         cleanupDiagnosticFiles()
     }
@@ -429,7 +488,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func cleanupDiagnosticFiles() {
         let paths = [
             uiDiagnosticsPath,
-            "/tmp/voicedock-runtime-diagnostics.log"
+            "/tmp/voicedock-runtime-diagnostics.log",
+            "/tmp/voicedock-permission-diagnostics.log"
         ]
 
         for path in paths {

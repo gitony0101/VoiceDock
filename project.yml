@@ -91,6 +91,7 @@ targets:
       - sdk: AppKit.framework
       - sdk: SwiftUI.framework
       - sdk: Carbon.framework
+      - sdk: Security.framework
 
   VoiceDockTests:
     type: bundle.unit-test

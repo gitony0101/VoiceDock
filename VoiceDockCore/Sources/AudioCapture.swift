@@ -20,6 +20,7 @@ public protocol AudioCaptureProtocol {
 /// Captures microphone audio using AVAudioEngine at 16 kHz mono Float32.
 public final class AudioCapture: AudioCaptureProtocol {
     private let engine = AVAudioEngine()
+    private let normalizer = AudioNormalizer()
     private let lock = NSLock()
 
     // P2-2 Fix: Buffer timeout protection (60 seconds max = ~1MB)
@@ -39,14 +40,8 @@ public final class AudioCapture: AudioCaptureProtocol {
         tapInstalled = true
 
         let input = engine.inputNode
-        let channelLayout = AVAudioChannelLayout(layoutTag: kAudioChannelLayoutTag_Mono)!
-        let format = AVAudioFormat(
-            commonFormat: .pcmFormatFloat32,
-            sampleRate: 16_000,
-            interleaved: false,
-            channelLayout: channelLayout
-        )
-        input.installTap(onBus: 0, bufferSize: 1024, format: format) { [weak self] buffer, _ in
+        let inputFormat = input.outputFormat(forBus: 0)
+        input.installTap(onBus: 0, bufferSize: 1024, format: inputFormat) { [weak self] buffer, _ in
             guard let self = self else { return }
             // Fast path: do not hold NSLock on the audio callback longer than 1 read.
             self.lock.lock()
@@ -58,9 +53,8 @@ public final class AudioCapture: AudioCaptureProtocol {
     }
 
     private func process(buffer: AVAudioPCMBuffer) {
-        guard let samples = buffer.floatChannelData?[0] else { return }
-        let count = Int(buffer.frameLength)
-        let snapshot = Array(UnsafeBufferPointer(start: samples, count: count))
+        guard let snapshot = normalizer.normalize(buffer: buffer), !snapshot.isEmpty else { return }
+        let count = snapshot.count
 
         lock.lock()
         // P2-2 Fix: Prevent unbounded buffer growth
