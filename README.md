@@ -2,102 +2,111 @@
 
 **Native macOS menu bar push-to-talk speech-to-text**
 
-VoiceDock is a native macOS application that provides global push-to-talk speech transcription. Press a keyboard shortcut, speak, and your speech is transcribed locally and pasted into the focused application.
+VoiceDock is a native macOS application that provides global push-to-talk speech transcription. Press a keyboard shortcut, speak, and your speech is transcribed locally, copied to the clipboard, and pasted into the focused application.
 
 ## Features
 
-- **Global Push-to-Talk**: Control+Option+Space triggers transcription from any app
-- **Local Processing**: All speech recognition runs on-device — no cloud upload
-- **Multilingual**: Supports English, Mandarin Chinese, and code-switched speech
-- **Privacy First**: No telemetry, no transcript history, no background network activity
-- **Menu Bar Design**: Lives in your menu bar, ready when you need it
+- **Global Push-to-Talk**: `Control+Option+Space`
+- **Local Processing**: Speech recognition runs on-device
+- **Multilingual**: English, Mandarin Chinese, and code-switched speech
+- **Clipboard Delivery**: Transcript is copied to the clipboard
+- **Automatic Paste**: Transcript can be inserted into the focused application
+- **Menu Bar App**: Lightweight macOS popover interface
+- **Privacy First**: No telemetry and no transcript history
 
 ## How It Works
 
 ```text
-1. Press Control+Option+Space (global hotkey)
-2. Speak into your microphone
-3. Release hotkey to stop
+1. Hold Control+Option+Space
+2. Speak into the microphone
+3. Release the shortcut
 4. Nemotron ASR transcribes locally
-5. Transcript copies to clipboard
-6. Automatic paste into focused app
-7. Optional Return key sent
+5. Transcript is copied to the clipboard
+6. Transcript is pasted into the focused app
+7. Return may be sent after paste in the current MVP build
 ```
 
 ## Current Status
 
-**Candidate 6** — First physically verified development baseline (frozen)
+**Candidate 6** is the first physically verified development baseline and the current rollback candidate.
 
-| Gate | Status |
-|------|--------|
-| Debug Build | ✅ PASS |
-| Release Build | ✅ PASS |
-| Unit Tests | ✅ 24 tests PASS (Mock-based) |
-| Gate B (Hotkey Stability) | ✅ PASS |
-| Gate C (Mandarin) | ✅ PASS |
-| Gate C (Mixed Chinese-English) | ✅ PASS |
-| Gate C (English) | ⏳ PENDING |
-| Gate C (Clipboard) | ⏳ PENDING |
-| Gate C (Automatic Paste) | ⏳ PENDING |
-| Gate C (Optional Return) | ⏳ PENDING |
-| Gate C (3-Session Stability) | ⏳ PENDING |
+| Verification item | Result |
+|---|---|
+| Debug build | PASS |
+| Release build | PASS |
+| Automated tests | PASS — 24 mock-based tests |
+| Gate B: hotkey press/release stability | PASS |
+| Mandarin transcription pipeline | PASS |
+| English transcription pipeline | PASS |
+| Mixed Chinese-English pipeline | PASS |
+| Clipboard delivery | PASS |
+| Automatic paste | PASS |
+| Return after paste | PASS |
+| Three consecutive sessions | PASS |
+| Process remained alive | PASS |
+| New Candidate 6 crash report | None observed |
 
-**Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
+### Recognition-quality notes
+
+The complete workflow is operational, but transcription quality is not yet uniformly polished:
+
+- Pure English can be accurate, but some phrases are misrecognized.
+- Mixed Chinese-English speech is preserved, but English words and product names may drift.
+- The product name `VoiceDock` has occasionally been recognized as variants such as `Voice Docks`, `VoyStock`, or similar text.
+
+Candidate 6 is therefore an **MVP baseline**, not the final polished release. Candidate 7 is planned for UI cleanup, safer Return behavior, branding assets, and recognition-quality documentation.
 
 ## Architecture
 
 ```text
-VoiceDockApp/ (UI Layer)
-├── VoiceDockApp.swift      @main entry point
-├── AppDelegate.swift       NSApplicationDelegate
-├── MenuBarView.swift       SwiftUI view
-├── HotKeyManager.swift     Carbon + NSEvent hybrid
-└── PermissionManager.swift TCC permission prompts
+VoiceDockApp/                    UI and macOS integration
+├── VoiceDockApp.swift           App entry point
+├── AppDelegate.swift            NSApplicationDelegate
+├── MenuBarView.swift            SwiftUI menu-bar popover
+├── HotKeyManager.swift          Carbon/NSEvent hotkey handling
+└── PermissionManager.swift      Microphone and Accessibility status
 
-VoiceDockCore/ (Business Logic Framework)
-├── ASRProvider.swift       Protocol
-├── MLXAudioSTTProvider.swift Nemotron implementation
-├── AudioCapture.swift      AVAudioEngine, 16 kHz mono Float32
-├── AudioNormalizer.swift   Format conversion
-├── TranscriptDestination.swift Clipboard + CGEvent paste
-├── SessionCoordinator.swift  State machine
-└── VoiceDockError.swift    Error types
+VoiceDockCore/                   Reusable business logic
+├── ASRProvider.swift            ASR protocol
+├── MLXAudioSTTProvider.swift    Nemotron/MLX implementation
+├── AudioCapture.swift           AVAudioEngine capture
+├── AudioNormalizer.swift        Hardware format to 16 kHz mono Float32
+├── TranscriptDestination.swift  Clipboard and CGEvent paste
+├── SessionCoordinator.swift     Session state machine
+└── VoiceDockError.swift         Error definitions
 ```
 
 ## System Requirements
 
 - macOS 14.0 or later
-- Apple Silicon (M1/M2/M3) — arm64 only
-- Microphone access
-- Accessibility permission (for paste simulation)
+- Apple Silicon Mac (`arm64`)
+- Microphone permission
+- Accessibility permission for simulated paste
 
 ## Dependencies
 
 | Dependency | Version | Purpose |
-|------------|---------|---------|
-| mlx-audio-swift | 3f6b055 | MLXAudioSTT, MLXAudioCore |
-| mlx-swift | 0.31.4 | MLX runtime |
-| ASR Model | nemotron-3.5-asr-streaming-0.6b-8bit | Local transcription |
+|---|---|---|
+| `mlx-audio-swift` | revision `3f6b055` | MLX audio and ASR integration |
+| `mlx-swift` | `0.31.4` | MLX runtime |
+| Nemotron ASR | `nemotron-3.5-asr-streaming-0.6b-8bit` | Local speech recognition |
 
 ## Build Instructions
 
 ### Prerequisites
 
 ```bash
-# Install XcodeGen (if not installed)
 brew install xcodegen
-
-# Ensure Xcode command line tools are installed
 xcode-select --install
 ```
 
-### Generate Xcode Project
+### Generate the Xcode project
 
 ```bash
 xcodegen generate
 ```
 
-### Build Debug
+### Build
 
 ```bash
 xcodebuild -project VoiceDock.xcodeproj \
@@ -105,11 +114,7 @@ xcodebuild -project VoiceDock.xcodeproj \
   -configuration Debug \
   -destination 'platform=macOS' \
   build
-```
 
-### Build Release
-
-```bash
 xcodebuild -project VoiceDock.xcodeproj \
   -scheme VoiceDock \
   -configuration Release \
@@ -117,88 +122,53 @@ xcodebuild -project VoiceDock.xcodeproj \
   build
 ```
 
-### Run Tests
+### Test
 
 ```bash
+swift package describe
+swift build
+swift test
+
 xcodebuild -project VoiceDock.xcodeproj \
   -scheme VoiceDock \
   -destination 'platform=macOS' \
   test
 ```
 
-### Swift Package Manager (Tests Only)
-
-```bash
-swift package describe
-swift build
-swift test
-```
-
 ## Permissions
 
-VoiceDock requires two macOS permissions:
+### Microphone
 
-### Microphone Permission
+Used to capture audio for local transcription.
 
-**Purpose**: Capture audio for transcription
+### Accessibility
 
-**XML Key**: `NSMicrophoneUsageDescription`
-
-**User Prompt**: "VoiceDock needs microphone access to transcribe your speech locally. No audio is sent to the cloud or stored."
-
-### Accessibility Permission
-
-**Purpose**: Simulate paste (Cmd+V) into focused applications using CGEvents
-
-**API**: `AXIsProcessTrusted()` / `AXIsProcessTrustedWithOptions()`
-
-**Note**: This is **Accessibility** permission — not Apple Events. The app will guide you to System Settings → Privacy & Security → Accessibility.
+Used to simulate paste with CGEvents. VoiceDock does not use Accessibility as a substitute for Apple Events; the required permission is explicitly macOS Accessibility permission.
 
 ## Privacy
 
-VoiceDock defaults to:
+VoiceDock is designed around local processing:
 
-- ✅ Local microphone processing only
-- ✅ No telemetry
-- ✅ No transcript history
-- ✅ No cloud upload
-- ✅ No background network activity (except explicit model download)
+- Local microphone processing
+- No telemetry
+- No transcript history
+- No cloud transcription
+- No background upload of audio or transcripts
+
+The first model download may require network access.
 
 ## Known Limitations
 
-### Current MVP Scope
+- Candidate 6 still displays a diagnostic character counter in the popover.
+- Some bottom-button labels are truncated in the current UI.
+- Return-after-paste is active in the current MVP and can execute text when Terminal is focused. Candidate 7 should expose a clear switch and default Return to **off**.
+- Recognition quality varies by phrase, accent, and code-switching.
+- Product-name recognition is not yet vocabulary-adapted.
+- The first model download is large.
+- Intel Macs are not supported.
+- Signing and notarization are not yet part of this checkpoint.
 
-**Included**:
-- Global push-to-talk (Control+Option+Space)
-- English transcription
-- Mandarin transcription
-- Mixed Chinese-English transcription
-- Clipboard output + automatic paste
-- Optional Return key
-
-**Excluded** (future releases):
-- Voice Activity Detection (VAD)
-- Automatic endpointing
-- Partial streaming transcripts
-- Model selection/switching
-- Model registry/management
-- AI assistant / chat
-- Conversation history
-- Text-to-speech (TTS)
-- Signing/notarization
-
-### Technical Limitations
-
-- Carbon hotkey registration may fall back to NSEvent (app-local only) on some systems
-- Accessibility permission required for paste simulation
-- Model download required on first launch (~500MB)
-- arm64 only — no Intel Mac support
-
-## Verification Evidence
-
-Full verification evidence is maintained in `.loop/evidence/candidates/`.
-
-### Candidate 6 Identity
+## Candidate 6 Identity
 
 ```text
 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
@@ -206,38 +176,29 @@ CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
 Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 ```
 
-### Verified Tests (Candidate 6)
+The `.app` bundle, models, crash reports, raw logs, and local build products are intentionally excluded from the repository.
 
-```text
-swift package describe: PASS
-swift build: PASS
-swift test: PASS (24 Mock-based tests)
-xcodegen generate: PASS
-xcodebuild Debug build: PASS
-xcodebuild Debug test: PASS (24 tests)
-xcodebuild Release build: PASS
-codesign verify: PASS
-Info.plist lint: PASS
-Gate B (hotkey stability): PASS
-Gate C (Mandarin): PASS ("好了，好，你能听到吗？")
-Gate C (Mixed Chinese-English): PASS (pipeline verified)
-```
+## Next Milestone: Candidate 7
+
+Planned work:
+
+- Remove the visible character counter
+- Improve popover layout and button labels
+- Add explicit paste and Return controls
+- Default Return-after-paste to off
+- Add the VoiceDock icon and updated screenshots
+- Preserve Candidate 6 as the rollback baseline
+- Re-run automated and physical verification
 
 ## Project Governance
 
-This project follows structured engineering practices:
-
-- `AGENTS.md` — Engineering constitution
-- `CLAUDE.md` — Build system and project instructions
-- `PLANS.md` — Roadmap and milestones
-- `.loop/DECISIONS.md` — Technical decisions
-- `.loop/NOW.md` — Current execution state
-- `.loop/HANDOFF.md` — Session handoff notes
+- `AGENTS.md` — engineering rules
+- `CLAUDE.md` — project-specific build instructions
+- `PLANS.md` — roadmap
+- `.loop/DECISIONS.md` — durable technical decisions
+- `.loop/NOW.md` — current execution state
+- `.loop/HANDOFF.md` — session handoff
 
 ## License
 
-MIT License — see LICENSE file (if present)
-
-## Trademark Notice
-
-VoiceDock is a development project name. All trademarks belong to their respective owners.
+MIT License.
