@@ -3,7 +3,9 @@
 **Build:** Candidate 7 Phase A Development Review Build  
 **Status:** NOT FROZEN — NOT RELEASE — PHYSICAL REVIEW REQUIRED  
 **Date:** 2026-06-23  
-**Source Commit:** `8ded5108be22425f822031a792fc04b97801ff14`
+**Review Build Source:** Working tree after commit `b0ce2abff33023ad2c0cb49ac8e66991e5abe7b0` (Phase A implementation) + `99db8850b1576af1150869b18e702ca821986564` (docs update)
+
+**Note:** This review build was created from the working tree before the final documentation commit. The exact built artifact SHA-256 is the authoritative identity for physical verification.
 
 ---
 
