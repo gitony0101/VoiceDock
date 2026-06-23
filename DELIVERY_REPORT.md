@@ -8,9 +8,9 @@
 
 ## Executive Summary
 
-VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text. The current Candidate 6 build has passed all automated gates and partial physical verification. Remaining Gate C tests pending.
+VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text. Candidate 6 has passed all automated gates and partial physical verification. Remaining Gate C tests pending.
 
-**This is NOT a final release report.** Candidate 7 will be the final release after UI cleanup and complete Gate C verification.
+**This is NOT a final release report.** Candidate 6 is the **first physically verified development baseline** and verified rollback candidate. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
 
 ---
 
@@ -50,19 +50,15 @@ Optional Return key sent
 |------------|--------|------|
 | swift package describe | ✅ PASS | 2026-06-23 |
 | swift build | ✅ PASS | 2026-06-23 |
-| swift test | ✅ PASS (20 XCTest) | 2026-06-23 |
+| swift test | ✅ PASS (24 Mock-based tests) | 2026-06-23 |
 | xcodegen generate | ✅ PASS | 2026-06-23 |
 | xcodebuild Debug build | ✅ PASS | 2026-06-23 |
-| xcodebuild Debug test | ✅ PASS (58 tests) | 2026-06-23 |
+| xcodebuild Debug test | ✅ PASS (24 tests) | 2026-06-23 |
 | xcodebuild Release build | ✅ PASS | 2026-06-23 |
 | codesign verify | ✅ PASS | 2026-06-23 |
 | Info.plist lint | ✅ PASS | 2026-06-23 |
 
-**Test Inventory Breakdown**:
-- SwiftPM XCTest: 20 tests
-- Xcode XCTest: 34 tests
-- Xcode Swift Testing: 24 tests
-- **Total**: 58 tests (all Mock-based)
+**Note**: All tests use `MockASRProvider` and `MockAudioCapture`. No test exercises the real ASR pipeline.
 
 ---
 
@@ -86,8 +82,9 @@ Optional Return key sent
 | Test | Result | Transcript Observed |
 |------|--------|---------------------|
 | Mandarin | ✅ PASS | "好了，好，你能听到吗？" |
+| Mixed Chinese-English | ✅ PASS | Pipeline verified |
 | English | ⏳ PENDING | — |
-| Mixed Chinese-English | ⏳ PENDING | — |
+| Clipboard verification | ⏳ PENDING | — |
 | Automatic paste | ⏳ PENDING | — |
 | Optional Return | ⏳ PENDING | — |
 | 3-session stability | ⏳ PENDING | — |
@@ -195,7 +192,7 @@ Languages: English, Mandarin Chinese, code-switched
 
 ### Test Coverage
 
-- All 58 tests use `MockASRProvider` and `MockAudioCapture`
+- All 24 tests use `MockASRProvider` and `MockAudioCapture`
 - No test exercises real ASR pipeline
 - No real microphone audio capture tests
 - No performance measurements (latency, memory)
@@ -203,7 +200,7 @@ Languages: English, Mandarin Chinese, code-switched
 ### Physical Verification
 
 - English transcription: PENDING
-- Mixed Chinese-English: PENDING
+- Clipboard verification: PENDING
 - Automatic paste: PENDING
 - Optional Return: PENDING
 - 3-session stability: PENDING
@@ -246,7 +243,7 @@ VoiceDock defaults to:
 | 3 | Superseded | Summary only |
 | 4 | Crashed | **KEEP** — Root cause evidence |
 | 5 | Superseded | Summary only |
-| 6 | Verified baseline | **KEEP** — Rollback candidate |
+| 6 | Verified baseline | **KEEP** — Rollback candidate, first physically verified development baseline |
 | 7 | Final release | Target |
 
 After Candidate 7 verification:
@@ -307,9 +304,9 @@ xcodebuild -project VoiceDock.xcodeproj \
 
 ## Conclusion
 
-Candidate 6 represents the first physically verified stable baseline. All automated gates pass. Gate B (hotkey stability) confirmed. Mandarin transcription verified.
+Candidate 6 represents the first physically verified development baseline. All automated gates pass. Gate B (hotkey stability) confirmed. Mandarin and mixed Chinese-English transcription verified.
 
-**NOT FINAL RELEASE** — Complete Gate C verification and final UI cleanup required for Candidate 7.
+**NOT FINAL RELEASE** — Candidate 6 is the verified rollback candidate. Complete Gate C verification and final UI cleanup required for Candidate 7.
 
 ---
 

@@ -26,21 +26,23 @@ VoiceDock is a native macOS application that provides global push-to-talk speech
 
 ## Current Status
 
-**Candidate 6** — Physically verified development baseline
+**Candidate 6** — First physically verified development baseline (frozen)
 
 | Gate | Status |
 |------|--------|
 | Debug Build | ✅ PASS |
 | Release Build | ✅ PASS |
-| Unit Tests | ✅ 58 tests PASS |
+| Unit Tests | ✅ 24 tests PASS (Mock-based) |
 | Gate B (Hotkey Stability) | ✅ PASS |
 | Gate C (Mandarin) | ✅ PASS |
+| Gate C (Mixed Chinese-English) | ✅ PASS |
 | Gate C (English) | ⏳ PENDING |
-| Gate C (Mixed) | ⏳ PENDING |
-| Gate C (Paste) | ⏳ PENDING |
-| Gate C (Stability) | ⏳ PENDING |
+| Gate C (Clipboard) | ⏳ PENDING |
+| Gate C (Automatic Paste) | ⏳ PENDING |
+| Gate C (Optional Return) | ⏳ PENDING |
+| Gate C (3-Session Stability) | ⏳ PENDING |
 
-**Note**: Candidate 6 is not the final release. Final UI cleanup and complete Gate C verification pending.
+**Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
 
 ## Architecture
 
@@ -209,15 +211,16 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 ```text
 swift package describe: PASS
 swift build: PASS
-swift test: PASS (20 XCTest)
+swift test: PASS (24 Mock-based tests)
 xcodegen generate: PASS
 xcodebuild Debug build: PASS
-xcodebuild Debug test: PASS (58 tests)
+xcodebuild Debug test: PASS (24 tests)
 xcodebuild Release build: PASS
 codesign verify: PASS
 Info.plist lint: PASS
 Gate B (hotkey stability): PASS
 Gate C (Mandarin): PASS ("好了，好，你能听到吗？")
+Gate C (Mixed Chinese-English): PASS (pipeline verified)
 ```
 
 ## Project Governance

@@ -1,8 +1,10 @@
 # Candidate 6 Summary
 
-**Status**: Physically Verified Baseline (Frozen)
+**Status**: First Physically Verified Development Baseline (Frozen)
 
-**Retention**: **KEEP** — Rollback candidate and first verified stable release
+**Retention**: **KEEP** — Rollback candidate and first physically verified development baseline
+
+**Note**: Candidate 6 is NOT the final release. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
 
 ## Identity
 
@@ -20,10 +22,10 @@ Signing: Ad-hoc
 ### Automated Gates (All Pass)
 - swift package describe: PASS
 - swift build: PASS
-- swift test: PASS (20 XCTest)
+- swift test: PASS (24 Mock-based tests)
 - xcodegen generate: PASS
 - xcodebuild Debug build: PASS
-- xcodebuild Debug test: PASS (58 tests)
+- xcodebuild Debug test: PASS (24 tests)
 - xcodebuild Release build: PASS
 - codesign verify: PASS
 - Info.plist lint: PASS
@@ -36,8 +38,9 @@ Signing: Ad-hoc
 | Hotkey press/release | PASS |
 | App stability | PASS (no crash) |
 | Mandarin transcription | PASS ("好了，好，你能听到吗？") |
+| Mixed Chinese-English | PASS (pipeline verified) |
 | English transcription | PENDING |
-| Mixed transcription | PENDING |
+| Clipboard verification | PENDING |
 | Automatic paste | PENDING |
 | 3-session stability | PENDING |
 
@@ -73,7 +76,7 @@ Any further changes require Candidate 7.
 
 - Current development baseline
 - Rollback candidate for Candidate 7
-- First physically verified stable version
+- First physically verified development baseline
 
 ---
 

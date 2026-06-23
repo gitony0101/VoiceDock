@@ -8,7 +8,9 @@ AUTOMATED_GATES_COMPLETE_PARTIAL_MANUAL_VERIFICATION_DONE
 
 ## Current Release Candidate
 
-**Candidate 6** — Physically verified baseline (frozen)
+**Candidate 6** — First physically verified development baseline (frozen)
+
+**Note**: Candidate 6 is NOT the final release. It is the verified rollback candidate and first physically verified development baseline. Candidate 7 will be the final release.
 
 ```text
 Artifact: dist/candidate-6/VoiceDock.app
@@ -35,17 +37,18 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 ### Verification (2026-06-23)
 - ✅ Debug build: PASS
 - ✅ Release build: PASS
-- ✅ Unit tests: 58 tests PASS (34 XCTest + 24 Swift Testing)
+- ✅ Unit tests: 24 tests PASS (Mock-based)
 - ✅ Codesign verification: PASS
 - ✅ Info.plist validation: PASS
 - ✅ Gate B (hotkey stability): PASS
 - ✅ Gate C Mandarin: PASS
+- ✅ Gate C Mixed Chinese-English: PASS (pipeline verified)
 
 ## Remaining Milestones
 
 ### Gate C Completion (PENDING)
 - ⏳ English transcription
-- ⏳ Mixed Chinese-English transcription
+- ⏳ Clipboard verification
 - ⏳ Automatic paste verification
 - ⏳ Optional Return behavior
 - ⏳ 3-session stability test

@@ -12,6 +12,12 @@ Repository governance task completed. The VoiceDock codebase is now clean, docum
 
 ---
 
+## Candidate 6 Status
+
+**Candidate 6 is the first physically verified development baseline and verified rollback candidate.**
+
+**Note**: Candidate 6 is NOT the final release. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
+
 ## Commits Created
 
 ### Commit 1: Source Code and Tests
@@ -50,7 +56,7 @@ Candidate evidence:
 - candidate-1/2/3: Superseded summaries
 - candidate-4: Crashed - root cause preserved (MainActor failure)
 - candidate-5: Never tested - superseded summary
-- candidate-6: Verified baseline - full evidence preserved
+- candidate-6: Verified baseline - full evidence preserved (first physically verified development baseline)
 
 Crash provenance:
 - All crashes matched Candidate 4 UUID (646d1bd8...)
@@ -134,7 +140,7 @@ The following categories are now properly ignored:
 | 3 | Superseded | Summary only |
 | 4 | Crashed | **KEEP** - Root cause evidence |
 | 5 | Superseded | Summary only |
-| 6 | Verified baseline | **KEEP** - Full artifact (rollback) |
+| 6 | Verified baseline | **KEEP** - Full artifact (rollback, first physically verified development baseline) |
 | 7 | Final release | Target |
 
 ---

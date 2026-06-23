@@ -12,6 +12,10 @@ AUTOMATED_GATES_COMPLETE_PARTIAL_MANUAL_VERIFICATION_DONE
 
 **candidate-6** (Frozen 2026-06-23)
 
+**Role**: First physically verified development baseline, verified rollback candidate
+
+**Note**: Candidate 6 is NOT the final release. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
+
 ```text
 Artifact: dist/candidate-6/VoiceDock.app
 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
@@ -39,10 +43,10 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 |-------|--------|
 | swift package describe | PASS |
 | swift build | PASS |
-| swift test | PASS (20 XCTest) |
+| swift test | PASS (24 Mock-based tests) |
 | xcodegen generate | PASS |
 | xcodebuild Debug build | PASS |
-| xcodebuild Debug test | PASS (58 tests) |
+| xcodebuild Debug test | PASS (24 tests) |
 | xcodebuild Release build | PASS |
 | codesign verify | PASS |
 | Info.plist lint | PASS |

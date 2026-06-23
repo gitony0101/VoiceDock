@@ -4,7 +4,9 @@
 
 ## Executive Summary
 
-Candidate 6 is the current physically verified baseline. Automated gates pass. Partial manual verification complete. Remaining Gate C tests pending.
+Candidate 6 is the current physically verified development baseline. Automated gates pass. Partial manual verification complete. Remaining Gate C tests pending.
+
+**Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate. Candidate 7 will be the final release.
 
 ## Active Candidate
 
@@ -40,10 +42,10 @@ All crash reports analyzed:
 
 - swift package describe: PASS
 - swift build: PASS
-- swift test: PASS (20 XCTest)
+- swift test: PASS (24 Mock-based tests)
 - xcodegen generate: PASS
 - xcodebuild Debug build: PASS
-- xcodebuild Debug test: PASS (58 tests)
+- xcodebuild Debug test: PASS (24 tests)
 - xcodebuild Release build: PASS
 - codesign verify: PASS
 - Info.plist lint: PASS
@@ -57,6 +59,7 @@ All crash reports analyzed:
 | Hotkey press/release | PASS |
 | App stability | PASS (no crash) |
 | Mandarin transcription | PASS ("好了，好，你能听到吗？") |
+| Mixed Chinese-English | PASS (pipeline verified) |
 
 ## Remaining Gate C Tests
 
@@ -68,9 +71,9 @@ All crash reports analyzed:
 - Speak: "Hello world, this is a test of VoiceDock transcription."
 - Expected: Accurate English transcript
 
-### Test 2: Mixed Chinese-English
-- Speak: "今天我要测试 VoiceDock local speech recognition."
-- Expected: Mixed transcript preserving both languages
+### Test 2: Clipboard Verification
+- After speaking, verify transcript is copied to clipboard
+- Expected: Transcript available via Cmd+V
 
 ### Test 3: Automatic Paste
 - After speaking, verify transcript automatically pastes

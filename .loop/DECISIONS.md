@@ -62,12 +62,14 @@
 **Decision (2026-06-23)**: Three-tier retention:
 
 1. **Final Product**: `dist/VoiceDock.app` (Candidate 7 target)
-2. **Rollback Baseline**: `dist/archive/candidate-6/VoiceDock.app`
+2. **Rollback Baseline**: `dist/archive/candidate-6/VoiceDock.app` (first physically verified development baseline)
 3. **Light Evidence**: Summaries for Candidates 1-5
 
 **Implication**: After Candidate 7 verification:
 - Keep: Candidate 6 (rollback), Candidate 4 crash evidence
 - Delete: Candidate 1-3, 5 full `.app` bundles (retain summaries only)
+
+**Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate.
 
 ---
 
