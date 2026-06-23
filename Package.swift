@@ -9,23 +9,29 @@ let package = Package(
         .macOS(.v14)
     ],
     products: [
-        .executable(
-            name: "VoiceDock",
-            targets: ["VoiceDockApp"])
+        .library(
+            name: "VoiceDockCore",
+            targets: ["VoiceDockCore"])
     ],
     dependencies: [
-        .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", branch: "main")
+        .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", revision: "3f6b0553188a921f635df54b5e20442001037336"),
+        .package(url: "https://github.com/ml-explore/mlx-swift.git", exact: "0.31.4")
     ],
     targets: [
-        .executableTarget(
-            name: "VoiceDockApp",
+        .target(
+            name: "VoiceDockCore",
             dependencies: [
-                .product(name: "MLXAudioSTT", package: "mlx-audio-swift")
+                .product(name: "MLXAudioSTT", package: "mlx-audio-swift"),
+                .product(name: "MLXAudioCore", package: "mlx-audio-swift"),
+                .product(name: "MLX", package: "mlx-swift")
             ],
-            path: "VoiceDockApp"),
+            path: "VoiceDockCore/Sources"),
         .testTarget(
-            name: "VoiceDockAppTests",
-            dependencies: ["VoiceDockApp"],
-            path: "VoiceDockAppTests")
+            name: "VoiceDockCoreTests",
+            dependencies: ["VoiceDockCore"],
+            path: "VoiceDockAppTests",
+            exclude: [
+                "HotKeyManagerTests.swift"
+            ])
     ]
 )

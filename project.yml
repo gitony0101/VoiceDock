@@ -1,0 +1,132 @@
+name: VoiceDock
+options:
+  bundleIdPrefix: com.voicedock
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+
+settings:
+  base:
+    SWIFT_VERSION: "6.0"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    CODE_SIGN_STYLE: Automatic
+    CODE_SIGN_IDENTITY: "-"
+    DEVELOPMENT_TEAM: ""
+    ARCHS: "arm64"
+    ONLY_ACTIVE_ARCH: NO
+    EXCLUDED_ARCHS: "x86_64"
+
+packages:
+  mlx-audio-swift:
+    url: https://github.com/Blaizzy/mlx-audio-swift.git
+    revision: 3f6b0553188a921f635df54b5e20442001037336
+
+targets:
+  VoiceDockCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: VoiceDockCore/Sources
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voicedock.core
+        PRODUCT_NAME: VoiceDockCore
+        DYLIB_COMPATIBILITY_VERSION: "1.0.0"
+        DYLIB_CURRENT_VERSION: "1.0.0"
+        INSTALL_PATH: "@rpath"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_TESTABILITY: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@loader_path/Frameworks"
+        DEFINES_MODULE: YES
+        DYLIB_INSTALL_NAME_BASE: "@rpath"
+    dependencies:
+      - package: mlx-audio-swift
+        product: MLXAudioSTT
+      - package: mlx-audio-swift
+        product: MLXAudioCore
+      - package: mlx-audio-swift
+        product: MLX
+
+  VoiceDock:
+    type: application
+    platform: macOS
+    sources:
+      - path: VoiceDockApp
+        excludes:
+          - "**/*.md"
+          - "Core"
+    info:
+      path: VoiceDockApp/Info.plist
+      properties:
+        NSMicrophoneUsageDescription: "VoiceDock needs microphone access to transcribe your speech locally. No audio is sent to the cloud or stored."
+        LSUIElement: true
+        CFBundleShortVersionString: "0.1.0"
+        LSMinimumSystemVersion: "14.0"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voicedock.app
+        PRODUCT_NAME: VoiceDock
+        ASSETCATALOG_COMPILER_APPICON_NAME: ""
+        ENABLE_HARDENED_RUNTIME: NO
+        GENERATE_INFOPLIST_FILE: NO
+        INFOPLIST_FILE: VoiceDockApp/Info.plist
+        ENABLE_TESTABILITY: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@executable_path/../Frameworks"
+        CODE_SIGN_STYLE: Manual
+        CODE_SIGN_IDENTITY: "-"
+        CODE_SIGNING_REQUIRED: YES
+        CODE_SIGNING_ALLOWED: YES
+    dependencies:
+      - target: VoiceDockCore
+        embed: true
+      - sdk: AVFoundation.framework
+      - sdk: AppKit.framework
+      - sdk: SwiftUI.framework
+      - sdk: Carbon.framework
+
+  VoiceDockTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: VoiceDockAppTests
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voicedock.tests
+        GENERATE_INFOPLIST_FILE: YES
+        ENABLE_TESTABILITY: YES
+        LD_RUNPATH_SEARCH_PATHS:
+          - "$(inherited)"
+          - "@loader_path/../Frameworks"
+          - "@executable_path/../Frameworks"
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+    dependencies:
+      - target: VoiceDockCore
+        link: true
+      - target: VoiceDock
+        link: true
+
+schemes:
+  VoiceDock:
+    build:
+      targets:
+        VoiceDock: all
+        VoiceDockTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      gatherCoverageData: false
+      targets:
+        - VoiceDockTests
+    archive:
+      config: Release

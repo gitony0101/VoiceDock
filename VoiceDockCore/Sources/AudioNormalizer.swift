@@ -8,11 +8,13 @@
 import AVFoundation
 
 /// Converts audio to canonical 16 kHz mono Float32 format
-struct AudioNormalizer {
+public struct AudioNormalizer {
     private let targetSampleRate: Double = 16_000
     private let targetChannels: AVAudioChannelCount = 1
 
-    func normalize(buffer: AVAudioPCMBuffer) -> [Float]? {
+    public init() {}
+
+    public func normalize(buffer: AVAudioPCMBuffer) -> [Float]? {
         guard buffer.frameLength > 0 else { return nil }
 
         guard let inputData = buffer.floatChannelData else { return nil }
@@ -39,7 +41,7 @@ struct AudioNormalizer {
         return result
     }
 
-    func normalize(samples: [Float]) -> [Float] {
+    public func normalize(samples: [Float]) -> [Float] {
         return samples
     }
 }

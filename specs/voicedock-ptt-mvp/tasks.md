@@ -664,6 +664,16 @@ Add unit tests, integration tests, and manual verification.
 - Manual M1 verification deferred to Task 3.5
 - No Swift 6 strict concurrency checking initially
 
+### Popover Fix (2026-06-22)
+
+Fixed popover not appearing issue by making AudioCapture tap installation lazy.
+
+**Problem**: `AudioCapture()` was calling `installTap()` synchronously in its initializer, which blocked app initialization when accessing the audio device.
+
+**Solution**: Deferred tap installation to first `start()` call via `ensureTapInstalled()` method.
+
+**Evidence**: Self-test passes with `SELF_TEST_OPEN: PASS` and `SELF_TEST_CLOSE: PASS`.
+
 ### Production TODOs
 
 - Swift 6 strict concurrency verification
@@ -681,7 +691,23 @@ Add unit tests, integration tests, and manual verification.
 4. Optimal audio buffer size for latency vs CPU? → Profile at Task 3.5
 5. Does Nemotron auto-detect mixed Chinese-English? → Test at Task 3.5
 
-\-\-\-
+## Gate B Physical Hotkey Verification (2026-06-22)
+
+**Preparation complete:**
+- Info.plist updated with NSAppleEventsUsageDescription
+- HotKeyManager uses Carbon backend (RegisterEventHotKey)
+- Hotkey registered: Control+Option+Space (keyCode 49)
+- Accessibility trusted: true (pre-granted)
+- Backend: Carbon
+- Registration status: success
+
+**Pending physical verification:**
+- Press/release counters match physical input
+- UI enters Listening state on press
+- UI leaves Listening state on release
+- No duplicate callbacks from key repeat
+
+---
 
 _Acceptance Criteria referenced: AC-1.1 through AC-10.9, FR-1.1 through FR-7.6, NFR-1.1 through NFR-4.5_
 _Designed from: design.md, requirements.md, research.md, AGENTS.md, VOICEDOCK_MASTER_PROMPT.md_

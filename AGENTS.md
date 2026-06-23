@@ -373,3 +373,144 @@ Before any file modification, verify that `pwd` equals
 
 Never run `git init` in this project. If the repository-root check fails,
 stop without creating files.
+
+## Generated Xcode Project Contract
+
+VoiceDock uses XcodeGen.
+
+`project.yml` is the single source of truth for:
+
+* Xcode targets
+* target dependencies
+* Swift Package dependencies
+* build settings
+* schemes
+* Info.plist properties
+* entitlements
+
+Never manually patch `VoiceDock.xcodeproj/project.pbxproj`.
+
+Never alternate between hand-editing Info.plist and having XcodeGen overwrite it. Choose one configuration source and keep it authoritative.
+
+After every `project.yml` change, run:
+
+```bash
+xcodegen generate
+xcodebuild -list -project VoiceDock.xcodeproj
+```
+
+Validate the effective application Info.plist using `plutil -lint`.
+
+Do not install or upgrade system-wide development tools unless a required command has actually failed because the component is missing.
+
+## Build and Test Matrix
+
+The native application gate requires:
+
+```bash
+xcodegen generate
+
+xcodebuild \
+  -project VoiceDock.xcodeproj \
+  -scheme VoiceDock \
+  -configuration Debug \
+  -destination 'platform=macOS' \
+  build
+
+xcodebuild \
+  -project VoiceDock.xcodeproj \
+  -scheme VoiceDock \
+  -configuration Release \
+  -destination 'platform=macOS' \
+  build
+```
+
+Automated logic tests may run through SwiftPM when `Package.swift` is the deliberate test harness:
+
+```bash
+swift test
+```
+
+An Xcode test target is desirable but is not itself a product requirement.
+
+Do not create a major framework or target restructuring solely to satisfy tooling if the existing test harness provides equivalent deterministic coverage.
+
+However:
+
+* do not delete working tests merely to make a build pass
+* do not claim `xcodebuild test` passed unless an Xcode test target actually ran
+* do not claim SwiftPM tests validate application packaging or runtime behavior
+* do not maintain separate duplicate implementations for SwiftPM and Xcode
+
+## Evidence Gate
+
+A task is complete only when its evidence exists.
+
+The following are not sufficient evidence by themselves:
+
+* files were generated
+* code compiled once
+* `swift build` passed
+* mocks passed
+* a summary says the feature is complete
+* the implementation looks correct
+
+Native application evidence must include:
+
+* the exact built `VoiceDock.app` path
+* successful Debug Xcode build
+* successful Release Xcode build
+* successful launch of the actual `.app`
+* menu bar process remains alive
+* relevant automated test output
+* truthful runtime and manual evidence
+
+When manual verification remains outstanding, use the status:
+
+```text
+AUTOMATED_GATES_COMPLETE_MANUAL_VERIFICATION_PENDING
+```
+
+Do not output `VOICEDOCK_COMPLETE`.
+
+## Runtime Delivery Priority
+
+Before additional architecture refactoring, verify the real vertical slice:
+
+```text
+launch VoiceDock.app
+→ grant permissions
+→ activate global push-to-talk
+→ capture real microphone audio
+→ normalize audio
+→ run Nemotron locally
+→ obtain transcript
+→ copy transcript
+→ paste into the focused application
+→ optionally send Return
+```
+
+Refactoring is justified only when it:
+
+* fixes a verified defect
+* removes a concrete concurrency or safety risk
+* enables required testing
+* enables the end-to-end product flow
+* reduces demonstrated duplication
+
+Do not refactor merely to satisfy an imagined future architecture.
+
+## Autonomous Continuation
+
+Do not ask whether to continue to the next normal task or phase.
+
+Continue automatically until:
+
+* the active MVP acceptance criteria are verified, or
+* a genuine owner-only action is required
+
+When owner action is required, request only:
+
+1. the exact action
+2. the expected visible result
+3. the exact response needed to resume

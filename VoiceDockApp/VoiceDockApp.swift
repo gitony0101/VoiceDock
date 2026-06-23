@@ -6,11 +6,11 @@
 //
 
 import SwiftUI
+import VoiceDockCore
 
 @main
 struct VoiceDockApp: App {
     @NSApplicationDelegateAdaptor(AppDelegate.self) var appDelegate
-    @StateObject private var coordinator = SessionCoordinator()
 
     var body: some Scene {
         Settings {
