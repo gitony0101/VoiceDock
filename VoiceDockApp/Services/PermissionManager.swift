@@ -63,4 +63,31 @@ struct PermissionManager {
         logger.info("Accessibility request OSStatus=\(result)")
         return result
     }
+
+    // P1-1 Fix: Poll for Accessibility permission with timeout
+    // Returns true if granted within timeout, false otherwise
+    @MainActor
+    public func ensureAccessibilityPermission(timeoutSeconds: Int = 30) async -> Bool {
+        // Immediate check
+        if AXIsProcessTrusted() {
+            logger.info("Accessibility already trusted")
+            return true
+        }
+
+        // Prompt user
+        _ = requestAccessibilityIfNeeded()
+
+        // Poll for permission grant (user may take time in System Settings)
+        logger.info("Polling for Accessibility permission (timeout: \(timeoutSeconds)s)...")
+        for _ in 0..<timeoutSeconds {
+            try? await Task.sleep(nanoseconds: 1_000_000_000)  // 1 second
+            if AXIsProcessTrusted() {
+                logger.info("Accessibility granted after polling")
+                return true
+            }
+        }
+
+        logger.warning("Accessibility not granted within \(timeoutSeconds) seconds")
+        return false
+    }
 }

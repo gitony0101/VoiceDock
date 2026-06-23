@@ -57,7 +57,8 @@ public final class SessionCoordinator: ObservableObject {
         do {
             if asrProvider != nil {
                 state = .loadingModel
-                try await asrProvider?.load()
+                // P2-4 Fix: Add retry logic for model load (network issues)
+                try await loadModelWithRetry()
                 try await asrProvider?.warmup()
             } else {
                 logger.warning("No ASR provider; skipping model load (test path).")
@@ -71,6 +72,33 @@ public final class SessionCoordinator: ObservableObject {
             state = .failed(message)
             logger.error("\(message, privacy: .public)")
         }
+    }
+
+    // P2-4 Fix: Retry logic for model loading with exponential backoff
+    private func loadModelWithRetry() async throws {
+        let maxRetries = 3
+        var lastError: Error?
+
+        for attempt in 1...maxRetries {
+            do {
+                logger.info("Loading ASR model (attempt \(attempt)/\(maxRetries))...")
+                try await asrProvider?.load()
+                logger.info("ASR model loaded successfully")
+                return
+            } catch {
+                lastError = error
+                logger.warning("Model load attempt \(attempt) failed: \(error.localizedDescription)")
+
+                if attempt < maxRetries {
+                    // Exponential backoff: 2s, 4s, 8s...
+                    let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                    logger.info("Retrying in \(delay / 1_000_000_000) seconds...")
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
+        }
+
+        throw lastError ?? VoiceDockError.modelLoadFailed(underlying: nil)
     }
 
     public func startRecording() {
@@ -128,14 +156,38 @@ public final class SessionCoordinator: ObservableObject {
             state = .ready
             return
         }
+
+        // P2-4 Fix: Retry transcription on transient errors
         do {
-            let result = try await asrProvider?.transcribe(audio: audioBuffer)
+            let result = try await transcribeWithRetry()
             await deliver(text: result)
         } catch {
             let message = "Transcription failed: \(error.localizedDescription)"
             state = .failed(message)
             logger.error("\(message, privacy: .public)")
         }
+    }
+
+    // P2-4 Fix: Retry logic for transcription with exponential backoff
+    private func transcribeWithRetry() async throws -> String {
+        let maxRetries = 2
+        var lastError: Error?
+
+        for attempt in 1...maxRetries {
+            do {
+                return try await asrProvider?.transcribe(audio: audioBuffer) ?? ""
+            } catch {
+                lastError = error
+                logger.warning("Transcription attempt \(attempt) failed: \(error.localizedDescription)")
+
+                if attempt < maxRetries {
+                    let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
+                    try? await Task.sleep(nanoseconds: delay)
+                }
+            }
+        }
+
+        throw lastError ?? VoiceDockError.transcriptionFailed(underlying: nil)
     }
 
     private func deliver(text: String?) async {

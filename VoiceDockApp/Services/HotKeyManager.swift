@@ -124,13 +124,14 @@ final class HotKeyManager {
                 logger.info("Carbon hotkey registered: Control+Option+Space")
             } else {
                 carbonStatus = "RegisterEventHotKey failed: \(status)"
-                logger.error("Carbon RegisterEventHotKey failed: \(status)")
+                // P1-2 Fix: Diagnose Carbon error codes
+                diagnoseCarbonFailure(status, stage: "RegisterEventHotKey")
                 RemoveEventHandler(handlerRef)
                 carbonEventHandlerRef = nil
             }
         } else {
             carbonStatus = "InstallEventHandler failed: \(status)"
-            logger.error("Carbon InstallEventHandler failed: \(status)")
+            diagnoseCarbonFailure(status, stage: "InstallEventHandler")
         }
 
         self.isCarbonBackend = carbonSucceeded
@@ -178,6 +179,40 @@ final class HotKeyManager {
         }
 
         return OSStatus(eventNotHandledErr)
+    }
+
+    // P1-2 Fix: Diagnose Carbon error codes
+    private func diagnoseCarbonFailure(_ status: OSStatus, stage: String) {
+        // Carbon error codes as OSStatus (Int32)
+        let paramErrValue: OSStatus = -9878
+        let invalidIndexErrValue: OSStatus = -9873
+        let permErrValue: OSStatus = -600
+
+        switch status {
+        case paramErrValue:
+            logger.warning("Carbon \(stage) failed: paramErr (-9878)")
+            logger.warning("  Possible causes:")
+            logger.warning("  - Accessibility permission not granted")
+            logger.warning("  - Invalid event type or modifiers")
+            logger.warning("  - Hotkey conflict with system or another app")
+            logger.warning("  Falling back to NSEvent monitors (app-local only)")
+        case invalidIndexErrValue:
+            logger.warning("Carbon \(stage) failed: invalidIndexErr (-9873)")
+            logger.warning("  Event type not supported by Carbon")
+        case permErrValue:
+            logger.warning("Carbon \(stage) failed: permErr (-600)")
+            logger.warning("  Permission denied by system")
+        default:
+            logger.error("Carbon \(stage) failed: unknown error \(status)")
+            logger.error("  This is a non-standard Carbon error code")
+        }
+
+        // Update status for diagnostics
+        if stage == "RegisterEventHotKey" {
+            carbonStatus = "failed: \(status)"
+        } else {
+            carbonStatus = "failed: \(status) (\(stage))"
+        }
     }
 
     private func writeRuntimeDiagnostic(_ message: String) {

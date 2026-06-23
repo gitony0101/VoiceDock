@@ -421,5 +421,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("=== VoiceDock UI Diagnostics End ===")
         coordinator?.cleanup()
         hotKeyManager?.unregister()
+
+        // P2-1 Fix: Clean up temporary diagnostic log files
+        cleanupDiagnosticFiles()
+    }
+
+    private func cleanupDiagnosticFiles() {
+        let paths = [
+            uiDiagnosticsPath,
+            "/tmp/voicedock-runtime-diagnostics.log"
+        ]
+
+        for path in paths {
+            let url = URL(fileURLWithPath: path)
+            try? FileManager.default.removeItem(at: url)
+        }
+        logger.info("Diagnostic files cleaned up")
     }
 }

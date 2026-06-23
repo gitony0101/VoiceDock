@@ -22,6 +22,10 @@ public final class AudioCapture: AudioCaptureProtocol {
     private let engine = AVAudioEngine()
     private let lock = NSLock()
 
+    // P2-2 Fix: Buffer timeout protection (60 seconds max = ~1MB)
+    private let maxBufferSeconds = 60.0
+    private let maxSamples: Int = Int(16_000 * 60.0)  // 960,000 samples
+
     private var audioBuffer: [Float] = []
     private var isRecording = false
     private var tapInstalled = false
@@ -59,6 +63,15 @@ public final class AudioCapture: AudioCaptureProtocol {
         let snapshot = Array(UnsafeBufferPointer(start: samples, count: count))
 
         lock.lock()
+        // P2-2 Fix: Prevent unbounded buffer growth
+        // If approaching limit, remove oldest samples (FIFO)
+        if audioBuffer.count + count > maxSamples {
+            let samplesToRemove = min(count, maxSamples / 2)
+            if samplesToRemove > 0 {
+                audioBuffer.removeFirst(samplesToRemove)
+                logger.warning("Audio buffer limit reached, removed \(samplesToRemove) old samples")
+            }
+        }
         audioBuffer.append(contentsOf: snapshot)
         lock.unlock()
     }
