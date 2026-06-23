@@ -10,7 +10,7 @@ import VoiceDockCore
 
 struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
-    let permissions: PermissionManager
+    @ObservedObject var permissions: PermissionManager
     @State private var showDiagnostics = false
 
     var body: some View {
@@ -49,12 +49,32 @@ struct MenuBarView: View {
             VStack(alignment: .leading, spacing: 4) {
                 permissionRow(
                     name: "Microphone",
-                    status: permissions.checkMicrophone()
+                    status: permissions.microphoneStatus
                 )
                 permissionRow(
                     name: "Accessibility",
-                    status: permissions.checkAccessibility() ? .granted : .denied
+                    status: permissions.accessibilityStatus ? .granted : .denied
                 )
+
+                // P1 Fix: Show troubleshooting hint if permissions appear stale
+                if !permissions.accessibilityStatus {
+                    Text("⚠️ If Accessibility is enabled in System Settings but shows \"denied\" here:")
+                        .font(.caption2)
+                        .foregroundColor(.orange)
+                        .multilineTextAlignment(.leading)
+                    Text("1. Quit VoiceDock completely (Cmd+Q)")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("2. Remove any duplicate VoiceDock entries from Accessibility settings")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("3. Re-add exactly: dist/VoiceDock.app")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                    Text("4. Relaunch and click \"Refresh Permissions\"")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
             }
 
             // Hotkey Diagnostics
@@ -93,6 +113,24 @@ struct MenuBarView: View {
                         Text("Release count: \(hk.releaseCount)")
                     }
                     .font(.caption)
+
+                    // App Identity for TCC debugging
+                    Divider()
+                    Text("App Identity (for TCC verification)")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    HStack {
+                        Text("Bundle ID:")
+                        Text(Bundle.main.bundleIdentifier ?? "unknown")
+                    }
+                    .font(.caption2)
+                    HStack {
+                        Text("Executable:")
+                        Text(Bundle.main.executablePath ?? "unknown")
+                    }
+                    .font(.caption2)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
 
                     // Test button
                     Button("Test Coordinator Callbacks") {
@@ -152,10 +190,16 @@ struct MenuBarView: View {
                 Button("Retry") {
                     Task { @MainActor in
                         await coordinator.retry()
+                        permissions.refresh(reason: .retry)
                     }
                 }
                 .font(.caption)
                 .disabled(!isReadyOrFailed)
+                Spacer()
+                Button("Refresh Permissions") {
+                    permissions.refresh(reason: .manualRefresh)
+                }
+                .font(.caption)
                 Spacer()
                 Button("Quit") {
                     coordinator.quit()
@@ -165,6 +209,11 @@ struct MenuBarView: View {
         }
         .padding()
         .frame(width: 340, height: 420)
+        .onAppear {
+            // P1 Fix: Refresh permission state when popover appears
+            // This ensures live status is shown after user returns from System Settings
+            permissions.refresh(reason: .popoverWillOpen)
+        }
     }
 
     private var stateText: String {
@@ -237,16 +286,31 @@ struct MenuBarView: View {
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
             NSWorkspace.shared.open(url)
         }
+        // Schedule a refresh for when the user likely returns from Settings
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak permissions] in
+            permissions?.refresh(reason: .settingsReturn)
+        }
     }
 
     private func openAccessibilitySettings() {
+        if let appDelegate = NSApp.delegate as? AppDelegate {
+            appDelegate.requestAccessibilityFromUserAction()
+        } else {
+            _ = permissions.requestAccessibilityIfNeeded()
+        }
+
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
+        }
+        // Schedule a refresh for when the user likely returns from Settings
+        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak permissions] in
+            permissions?.refresh(reason: .settingsReturn)
         }
     }
 }
 
 #Preview {
+    let perm = PermissionManager()
     let coord = SessionCoordinator(audioCapture: nil, asrProvider: nil, transcriptDestination: nil)
-    return MenuBarView(coordinator: coord, permissions: PermissionManager())
+    return MenuBarView(coordinator: coord, permissions: perm)
 }

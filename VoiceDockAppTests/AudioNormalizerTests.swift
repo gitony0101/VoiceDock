@@ -56,7 +56,7 @@ final class AudioNormalizerTests: XCTestCase {
 
         let result = sut.normalize(buffer: buffer)
         XCTAssertNotNil(result)
-        XCTAssertEqual(result?.count, Int(frameCount), "Should preserve sample count")
+        XCTAssertEqual(result?.count, 4, "Should resample 44.1 kHz mono input to 16 kHz")
     }
 
     func testNormalizeStereoBufferDownmix() {
@@ -78,9 +78,29 @@ final class AudioNormalizerTests: XCTestCase {
 
         let result = sut.normalize(buffer: buffer)
         XCTAssertNotNil(result)
-        XCTAssertEqual(result?.count, Int(frameCount), "Should preserve sample count")
+        XCTAssertEqual(result?.count, 4, "Should resample 44.1 kHz stereo input to 16 kHz")
         // Downmixed value should be (0.5 + 0.3) / 2 = 0.4
         let firstSample = result?[0] ?? 0
         XCTAssertEqual(firstSample, 0.4, accuracy: 0.001, "Should downmix stereo to mono")
+    }
+
+    func testNormalizeHardwareInput48kTo16kMono() {
+        let sampleRate: Double = 48_000
+        let frameCount: AVAudioFrameCount = 4_800
+        let buffer = AVAudioPCMBuffer(
+            pcmFormat: AVAudioFormat(commonFormat: .pcmFormatFloat32, sampleRate: sampleRate, channels: 1, interleaved: false)!,
+            frameCapacity: frameCount
+        )!
+
+        let channelData = buffer.floatChannelData![0]
+        for index in 0..<Int(frameCount) {
+            channelData[index] = Float(index % 100) / 100.0
+        }
+        buffer.frameLength = frameCount
+
+        let result = sut.normalize(buffer: buffer)
+
+        XCTAssertNotNil(result)
+        XCTAssertEqual(result?.count, 1_600, "48 kHz input must normalize to 16 kHz sample count")
     }
 }
