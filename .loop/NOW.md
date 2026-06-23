@@ -1,6 +1,6 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED, PR #4 OPEN)
 
 ## Status
 
@@ -78,14 +78,18 @@ Status: Frozen, physically verified
 | Mixed-language recognition accuracy | PARTIAL |
 | VoiceDock product-name recognition | NEEDS IMPROVEMENT |
 
+## Repository Status
+
+**PR #4:** OPEN — awaiting owner review and merge
+**Branch:** `feat/candidate7-release-polish` → `main`
+**Documentation commit:** `9d2f1a3861d54bf19a814175973a666b55e038b8`
+
 ## Next Action
 
-**Repository submission in progress.** 
+**Awaiting owner review and merge of PR #4.**
 
-After owner verification complete:
-1. ✅ Owner verification results documented
-2. ⏳ Status documents updated
-3. ⏳ Safety checks passed
-4. ⏳ Documentation commit created
-5. ⏳ Branch pushed
-6. ⏳ Pull Request created
+After PR #4 merges:
+1. Sync local `main` branch
+2. Create dedicated Phase B branch for branding/icon work
+3. Begin Phase B (icon integration, README polish)
+4. After Phase B complete: freeze Candidate 7, perform physical verification

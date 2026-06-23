@@ -10,7 +10,7 @@ CANDIDATE7_PHASE_A_OWNER_VERIFIED
 
 **Candidate 6** — First physically verified development baseline (frozen, rollback)
 
-**Candidate 7 Phase A** — Owner verified, repository submission in progress
+**Candidate 7 Phase A** — Owner verified, PR #4 open awaiting review
 
 ```text
 Candidate 6 Artifact: dist/candidate-6/VoiceDock.app
@@ -74,19 +74,23 @@ Candidate 7 Phase A.1 CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
 - ✅ Debug and Release builds pass
 - ✅ Owner UI retest: PASS
 
-### Repository Submission (In Progress)
+### Repository Submission — PR #4 OPEN, AWAITING OWNER REVIEW
 
 - ✅ Owner verification results documented
 - ✅ Status documents updated
-- ⏳ Safety checks pending
-- ⏳ Documentation commit pending
-- ⏳ Branch push pending
-- ⏳ Pull Request creation pending
+- ✅ Safety checks passed
+- ✅ Documentation commit created (`9d2f1a3861d54bf19a814175973a666b55e038b8`)
+- ✅ Branch pushed to `origin/feat/candidate7-release-polish`
+- ✅ PR #4 created: "feat: complete Candidate 7 Phase A UI and delivery safety"
+- ⏳ PR review and merge: PENDING (owner action required)
 
 ## Remaining Milestones
 
-### Candidate 7 Phase B (PENDING — After Repository Submission)
+### Candidate 7 Phase B (PENDING — After PR #4 Merge)
 
+- [ ] PR #4 merged to `main`
+- [ ] Local `main` branch synchronized
+- [ ] Dedicated Phase B branch created
 - [ ] VoiceDock icon integration
 - [ ] Updated README icon and screenshots
 - [ ] Recognition quality documentation improvements

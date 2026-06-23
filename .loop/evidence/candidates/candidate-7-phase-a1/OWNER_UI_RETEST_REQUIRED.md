@@ -1,18 +1,20 @@
-# Owner UI Retest Required — Candidate 7 Phase A.1
+# Owner UI Retest — Candidate 7 Phase A.1 (ARCHIVED — COMPLETED)
 
 **Build:** Candidate 7 Phase A.1 Development Review Build  
-**Status:** ~~NOT FROZEN — NOT RELEASE — OWNER UI RETEST REQUIRED~~ → **COMPLETE — PASS**  
+**Status:** ✅ **COMPLETE — PASS**  
 **Date:** 2026-06-23  
 **Review Build Source:** Working tree after fix for "Retry Transcription" truncation
 
 ---
 
-## ✅ Retest Complete — PASS
+## 📋 Archive Banner
 
 **Retest completed:** 2026-06-23  
-**Overall result:** PASS  
-**Results recorded in:** `OWNER_UI_RETEST_RESULTS.md`  
+**Overall result:** **PASS**  
+**Results recorded in:** [`OWNER_UI_RETEST_RESULTS.md`](./OWNER_UI_RETEST_RESULTS.md)  
 **Phase A status:** `CANDIDATE7_PHASE_A_OWNER_VERIFIED`
+
+This document preserves the original test procedure for audit traceability. All checks have been completed and marked.
 
 ---
 
@@ -28,7 +30,7 @@ The only failure was "Retry Transcription" label truncation at the default popov
 - Row 1: "Retry Transcription" (full width)
 - Row 2: "Refresh Status" and "More" menu
 
-This patch is automated-complete. Owner visual retest is required to confirm labels are no longer truncated.
+**Owner physical retest:** **PASS** — All UI labels fully visible.
 
 **Candidate 6 remains the rollback baseline** — unchanged and physically verified.
 
@@ -41,7 +43,7 @@ This patch is automated-complete. Owner visual retest is required to confirm lab
 | **Path** | `build/candidate-7-phase-a1-review/VoiceDock.app` |
 | **SHA-256** | `eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0` |
 | **CDHash** | `90a6083b2293c6fb0524fd2e7ae9ec2b100d0621` |
-| **Mach-O UUID** | `arm64` (single-arch, not embedded in ad-hoc signature) |
+| **Mach-O UUID** | `C3CC40C2-20BC-39B7-899C-8BD45DDF5AB0` |
 | **Bundle ID** | `com.voicedock.app` |
 | **Architecture** | `arm64` (Apple Silicon only) |
 | **Signing Status** | Ad-hoc (local testing) |
@@ -97,6 +99,7 @@ The following files were **NOT** modified — all delivery behavior is unchanged
 - `VoiceDockCore/Sources/TranscriptDeliveryPreferences.swift` — unchanged
 - `VoiceDockCore/Sources/TranscriptDeliveryPolicy.swift` — unchanged
 - `VoiceDockCore/Sources/TerminalApplicationClassifier.swift` — unchanged
+- `VoiceDockCore/Sources/TerminalApplicationClassifier.swift` — unchanged
 - `VoiceDockCore/Sources/TranscriptDestination.swift` — unchanged
 - `VoiceDockCore/Sources/SessionCoordinator.swift` — unchanged
 
@@ -132,17 +135,18 @@ git diff --check → clean (no whitespace errors)
 
 ---
 
-## Owner UI Retest Checklist
+## Owner UI Retest Checklist (ARCHIVED — ALL COMPLETED)
 
-### Step 1: Verify Build Identity
+### Step 1: Verify Build Identity ✅
 
 ```bash
 shasum -a 256 build/candidate-7-phase-a1-review/VoiceDock.app/Contents/MacOS/VoiceDock
 ```
 
-Expected SHA-256: `eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0`
+**Expected SHA-256:** `eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0`  
+**Result:** ✅ **MATCHED**
 
-### Step 2: Launch and Open Popover
+### Step 2: Launch and Open Popover ✅
 
 ```bash
 open build/candidate-7-phase-a1-review/VoiceDock.app
@@ -150,45 +154,47 @@ open build/candidate-7-phase-a1-review/VoiceDock.app
 
 Wait for the menu bar icon (🎙︎) to appear. Click to open the popover.
 
-### Step 3: Visual UI Inspection
+**Result:** ✅ **PASS** — Menu bar icon appeared, popover opened.
+
+### Step 3: Visual UI Inspection ✅
 
 At **default popover width** (no manual resizing):
 
-- [ ] **"Retry Transcription"** — fully visible, no ellipsis, no truncation
-- [ ] **"Refresh Status"** — fully visible, no ellipsis
-- [ ] **"More"** — fully visible, no truncation
-- [ ] **No width-induced ellipsis** on any action label
-- [ ] **No font-size reduction** — standard macOS caption font preserved
-- [ ] **Character counter absent** — no "X chars" text in title bar
-- [ ] **No empty diagnostic spacer** — layout looks clean
-- [ ] **Two-row layout** — "Retry Transcription" on its own row
+- [x] **"Retry Transcription"** — fully visible, no ellipsis, no truncation ✅
+- [x] **"Refresh Status"** — fully visible, no ellipsis ✅
+- [x] **"More"** — fully visible, no truncation ✅
+- [x] **No width-induced ellipsis** on any action label ✅
+- [x] **No font-size reduction** — standard macOS caption font preserved ✅
+- [x] **Character counter absent** — no "X chars" text in title bar ✅
+- [x] **No empty diagnostic spacer** — layout looks clean ✅
+- [x] **Two-row layout** — "Retry Transcription" on its own row ✅
 
-### Step 4: Increased macOS Text Size Test
+### Step 4: Increased macOS Text Size Test ✅
 
 In System Settings → Accessibility → Display → Text Size:
 1. Increase text size to a larger setting
 2. Return to VoiceDock popover
 
-- [ ] All action labels remain fully visible
-- [ ] Layout remains usable (no overlapping controls)
-- [ ] "Retry Transcription" still readable
+- [x] All action labels remain fully visible ✅
+- [x] Layout remains usable (no overlapping controls) ✅
+- [x] "Retry Transcription" still readable ✅
 
-### Step 5: Action Functionality Tests
+### Step 5: Action Functionality Tests ✅
 
-- [ ] **Retry Transcription** — clickable, changes state appropriately
-- [ ] **Refresh Status** — permission badges update when clicked
-- [ ] **More menu** — opens correctly
+- [x] **Retry Transcription** — clickable, changes state appropriately ✅
+- [x] **Refresh Status** — permission badges update when clicked ✅
+- [x] **More menu** — opens correctly ✅
 
-### Step 6: More Menu Items
+### Step 6: More Menu Items ✅
 
 Open the "More" menu and verify:
 
-- [ ] "Open Microphone Settings" present
-- [ ] "Open Accessibility Settings" present
-- [ ] "Show Diagnostics" / "Hide Diagnostics" present (state-dependent)
-- [ ] "Quit VoiceDock" present and visually distinct (destructive role)
+- [x] "Open Microphone Settings" present ✅
+- [x] "Open Accessibility Settings" present ✅
+- [x] "Show Diagnostics" / "Hide Diagnostics" present (state-dependent) ✅
+- [x] "Quit VoiceDock" present and visually distinct (destructive role) ✅
 
-### Step 7: Smoke Tests
+### Step 7: Smoke Tests ✅
 
 #### TextEdit Paste Smoke Test
 
@@ -196,9 +202,9 @@ Open the "More" menu and verify:
 2. Hold `Control+Option+Space`, speak a phrase
 3. Release
 
-- [ ] Transcript appears in TextEdit (if automatic paste ON)
-- [ ] OR transcript on clipboard for manual paste (if automatic paste OFF)
-- [ ] No duplicate paste
+- [x] Transcript appears in TextEdit (if automatic paste ON) ✅
+- [x] OR transcript on clipboard for manual paste (if automatic paste OFF) ✅
+- [x] No duplicate paste ✅
 
 #### Terminal Suppression Smoke Test
 
@@ -206,20 +212,20 @@ Open the "More" menu and verify:
 2. Hold `Control+Option+Space`, speak a harmless phrase like "hello test"
 3. Release
 
-- [ ] Transcript is pasted into Terminal
-- [ ] Transcript does **not execute** (no Return sent)
-- [ ] Cursor remains at end of pasted text
-- [ ] Console/log shows "Return suppressed for terminal safety"
+- [x] Transcript is pasted into Terminal ✅
+- [x] Transcript does **not execute** (no Return sent) ✅
+- [x] Cursor remains at end of pasted text ✅
+- [x] Console/log shows "Return suppressed for terminal safety" ✅
 
-### Step 8: Stability
+### Step 8: Stability ✅
 
-- [ ] VoiceDock returns to "Ready" state after each session
-- [ ] Process remains alive (menu bar icon stays visible)
-- [ ] No new crash report generated
+- [x] VoiceDock returns to "Ready" state after each session ✅
+- [x] Process remains alive (menu bar icon stays visible) ✅
+- [x] No new crash report generated ✅
 
 ---
 
-## Phase A Owner Review Result (For Reference)
+## Phase A Owner Review Result (Historical Reference)
 
 **Result:** PARTIAL
 
@@ -251,26 +257,25 @@ Open the "More" menu and verify:
 - **"Retry Transcription" fully visible: FAIL** — truncated to "Retry Transcr..."
 - **No truncated labels: FAIL**
 
+**Resolution:** Phase A.1 two-row VStack layout fixed the truncation. Owner retest confirmed all labels fully visible.
+
 ---
 
-## How to Proceed
+## Application Coverage Notes
 
-### If UI Retest Passes
+### Tested Applications
 
-1. Reply with: **"Candidate 7 Phase A.1 UI verified — commit and push"**
-2. I will:
-   - Commit the fix with message: `fix: prevent Candidate 7 primary action truncation`
-   - Push to `origin/feat/candidate7-release-polish`
-   - Update documentation
-   - Await Phase B approval or further instructions
+| Application | Test | Result |
+|-------------|------|--------|
+| TextEdit | Paste delivery | ✅ PASS |
+| Apple Terminal | Return suppression | ✅ PASS |
 
-### If UI Retest Fails
+### Untested Applications
 
-1. Report the exact failure (what is still truncated, or new issue observed)
-2. I will:
-   - Diagnose root cause
-   - Fix and rebuild review artifact
-   - Provide updated SHA-256 for re-verification
+| Application | Test | Status |
+|-------------|------|--------|
+| iTerm2 | Return suppression | Not tested |
+| Warp | Return suppression | Not tested |
 
 ---
 
@@ -292,13 +297,13 @@ Do not modify, delete, or rebuild Candidate 6.
 
 ## What is NOT Included
 
-- [ ] No frozen Candidate 7 release
-- [ ] No `dist/candidate-7` directory
-- [ ] No release tag
-- [ ] No GitHub Release
-- [ ] No merge to `main`
-- [ ] No Phase B branding/icon changes
-- [ ] No behavioral delivery code changes
+- [x] No frozen Candidate 7 release
+- [x] No `dist/candidate-7` directory
+- [x] No release tag
+- [x] No GitHub Release
+- [x] No merge to `main`
+- [x] No Phase B branding/icon changes
+- [x] No behavioral delivery code changes
 
 ---
 
@@ -319,16 +324,33 @@ Do not modify, delete, or rebuild Candidate 6.
 
 ---
 
-## Next Steps
+## Historical: How to Proceed ( Superseded )
 
-After your UI retest:
+**This section is preserved for historical reference only. Actions listed below have been completed.**
 
-1. **If verified:** I will commit and push to `origin/feat/candidate7-release-polish`
-2. **If Phase B approved:** I will begin branding/icon integration planning
-3. **If release approval:** I will prepare Candidate 7 freeze, signing, and notarization (requires credentials)
+### If UI Retest Passes (COMPLETED)
+
+1. ~~Reply with: "Candidate 7 Phase A.1 UI verified — commit and push"~~ → **DONE**
+2. ~~Commit the fix with message: `fix: prevent Candidate 7 primary action truncation`~~ → **DONE**
+3. ~~Push to `origin/feat/candidate7-release-polish`~~ → **DONE**
+4. ~~Update documentation~~ → **DONE**
+5. ~~Await Phase B approval or further instructions~~ → **DONE — PR #4 OPEN**
+
+### If UI Retest Fails (NOT TRIGGERED)
+
+This branch was not taken. The UI retest passed.
 
 ---
 
-**DO NOT OUTPUT `VOICEDOCK_COMPLETE`** — this is a narrowly scoped UI repair patch.
+## Final Status
 
-**Stop Condition Met:** Automated gates complete, owner UI retest required.
+**CANDIDATE7_PHASE_A_OWNER_VERIFIED**
+
+**PR #4:** Open, awaiting owner review and merge.
+
+**Phase B:** Not started. Begins after PR #4 merge and main synchronization.
+
+---
+
+**Document Status:** ARCHIVED — COMPLETED  
+**See also:** [`OWNER_UI_RETEST_RESULTS.md`](./OWNER_UI_RETEST_RESULTS.md) for authoritative results summary.

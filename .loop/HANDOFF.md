@@ -1,12 +1,14 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED, PR #4 OPEN)
 
 ## Executive Summary
 
 Candidate 7 Phase A owner verification is **COMPLETE — PASS**.
 
-All UI labels are fully visible. All delivery safety tests passed. Repository submission in progress.
+All UI labels are fully visible. All delivery safety tests passed.
+
+**PR #4 is OPEN** on GitHub, awaiting owner review and merge.
 
 **Candidate 6 remains the frozen, physically verified rollback baseline.**
 
@@ -87,24 +89,45 @@ Changed action area from single-row HStack to two-row VStack:
 
 All behavioral delivery code unchanged.
 
+## Repository Status
+
+**PR #4:** OPEN — awaiting owner review and merge  
+**Branch:** `feat/candidate7-release-polish` → `main`  
+**Documentation commit:** `9d2f1a3861d54bf19a814175973a666b55e038b8`
+
 ## How to Resume
 
-**Repository submission in progress:**
+### Immediate Next Steps
 
-1. ✅ Owner verification complete — PASS
-2. ✅ Results documented in `OWNER_UI_RETEST_RESULTS.md`
-3. ⏳ Status documents updated
-4. ⏳ Safety checks passed
-5. ⏳ Documentation commit created
-6. ⏳ Branch pushed
-7. ⏳ Pull Request created
+1. **Owner reviews PR #4** on GitHub
+2. **Merge PR #4** when ready
+3. **Sync local `main`:**
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+4. **Create Phase B branch:**
+   ```bash
+   git checkout -b feat/candidate7-phase-b-icon
+   ```
+5. **Begin Phase B** (icon integration, README polish)
 
-After PR creation:
-- Owner reviews PR on GitHub
-- Do not merge until Phase B readiness confirmed
-- Phase B (branding/icon) can proceed in parallel
+### After Phase B Complete
 
-If issues found:
+1. Freeze Candidate 7
+2. Perform Candidate 7 physical verification
+3. Consider signing/notarization (requires credentials)
+4. Consider v0.1.0 prerelease
+5. Consider public repository visibility
+
+### If Issues Found
+
 1. Owner reports exact failure
 2. Fix and rebuild review artifact
 3. Provide updated SHA-256 for re-verification
+
+## Do Not
+
+- Do not begin Phase B work on this branch (`feat/candidate7-release-polish`)
+- Do not merge PR #4 until Phase B readiness is confirmed
+- Do not create `dist/candidate-7` until after Phase B and freeze

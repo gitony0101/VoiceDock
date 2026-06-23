@@ -3,7 +3,7 @@
 **Report Date**: 2026-06-23  
 **Current Candidate**: Candidate 6 (rollback baseline)  
 **Candidate 7 Phase A**: OWNER_VERIFIED  
-**Status**: CANDIDATE7_PHASE_A_OWNER_VERIFIED — REPOSITORY_SUBMISSION_IN_PROGRESS
+**Status**: CANDIDATE7_PHASE_A_OWNER_VERIFIED — PR #4 OPEN, AWAITING REVIEW
 
 ---
 
@@ -13,7 +13,7 @@ VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text
 
 **Candidate 6** remains the frozen, physically verified rollback baseline.
 
-**Candidate 7 Phase A** is owner-verified and ready for repository submission. Phase B (branding/icon) follows.
+**Candidate 7 Phase A** is owner-verified. PR #4 is open awaiting owner review and merge. Phase B (branding/icon) follows PR merge.
 
 ---
 
