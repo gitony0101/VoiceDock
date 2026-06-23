@@ -2,11 +2,27 @@
 
 @AGENTS.md
 
-## Current Repository State
+## Current Repository State (2026-06-22 — Refactored)
 
-VoiceDock now has an active Swift implementation, Swift Package, XcodeGen configuration, generated Xcode project, tests, and an active Smart Ralph specification.
+VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text.
 
-Do not reset the repository, recreate the project from scratch, restore the previously deleted implementation, or repeat completed planning.
+**Architecture**:
+- `VoiceDockApp/` — UI layer (MenuBarView, AppDelegate, HotKeyManager, PermissionManager)
+- `VoiceDockCore/` — Business logic (ASR, Audio, SessionCoordinator, TranscriptDestination)
+- `VoiceDockAppTests/` — Unit tests (24 tests, Mock-based)
+
+**Build System**:
+- XcodeGen-generated Xcode project (`project.yml` is source of truth)
+- Swift Package Manager for testing (`Package.swift`)
+- Dependency: `Blaizzy/mlx-audio-swift` (MLX, MLXAudioSTT, MLXAudioCore)
+
+**Current Status**:
+- ✅ Debug build: PASS
+- ✅ Release build: PASS  
+- ✅ Unit tests: 24/24 PASS (Mock)
+- ⏳ Manual M1 verification: PENDING (requires physical test)
+
+Do not reset the repository, recreate the project from scratch, or repeat completed planning.
 
 The active execution state is under:
 
@@ -15,6 +31,7 @@ The active execution state is under:
 Before changing product scope or acceptance criteria, read:
 
 * `VOICEDOCK_MASTER_PROMPT.md`
+* `docs/VOICELOCK_DEEP_AUDIT_REPORT.md` (project audit)
 
 ## Build-System Ownership
 
@@ -60,6 +77,18 @@ Do not widen scope beyond the Push-to-Talk MVP.
 A SwiftPM executable is not the final product artifact.
 
 The final product must be a native `VoiceDock.app` built through Xcode.
+
+**Completion Criteria** (per AGENTS.md):
+- ✅ Debug build: `xcodebuild -scheme VoiceDock -configuration Debug build`
+- ✅ Release build: `xcodebuild -scheme VoiceDock -configuration Release build`
+- ✅ Unit tests: `xcodebuild -scheme VoiceDock test` (24 tests, Mock-based)
+- ⏳ Manual M1 test: Physical microphone + ASR + paste verification **(PENDING)**
+
+**Known Gaps** (from deep audit):
+- Accessibility permission not granted in test runs → paste simulation skipped
+- Carbon hotkey registration fails (error -9878) → falls back to NSEvent (app-local only)
+- No real ASR inference tests — all transcription tests use `MockASRProvider`
+- No performance measurements (latency, memory footprint)
 
 Do not claim completion until automated checks and required real-device checks have truthful evidence.
 

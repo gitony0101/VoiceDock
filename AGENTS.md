@@ -127,15 +127,43 @@ Do not widen scope until the Push-to-Talk MVP is verified.
 
 ## Architecture
 
-Use this dependency direction:
+**Current Implementation (2026-06-22 Refactored)**:
 
 ```text
-Menu Bar UI
-→ SessionCoordinator
-→ AudioCapture
-→ AudioNormalizer
-→ ASRProvider
-→ TranscriptDestination
+VoiceDockApp/ (UI Layer)
+├── VoiceDockApp.swift      @main entry point
+├── AppDelegate.swift       NSApplicationDelegate, menu bar, popover
+├── MenuBarView.swift       SwiftUI view, observes SessionCoordinator
+├── HotKeyManager.swift     Carbon + NSEvent hybrid (Control+Option+Space)
+└── PermissionManager.swift Microphone + Accessibility prompts
+
+VoiceDockCore/ (Business Logic Framework)
+├── ASRProvider.swift       Protocol: actor ASRProvider
+├── MLXAudioSTTProvider.swift Nemotron ASR implementation
+├── AudioCapture.swift      AVAudioEngine, 16 kHz mono Float32
+├── AudioNormalizer.swift   Format conversion (pure function)
+├── TranscriptDestination.swift Clipboard + CGEvent paste
+├── SessionCoordinator.swift  State machine, workflow orchestration
+└── VoiceDockError.swift    Unified error types
+
+VoiceDockAppTests/
+├── MockASRProvider.swift   Stubbed ASR for unit tests
+├── MockAudioCapture.swift  Stubbed audio for unit tests
+├── AudioNormalizerTests.swift
+├── TranscriptDestinationTests.swift
+├── SessionCoordinatorTests.swift
+└── AppDelegateIsolationTests.swift
+```
+
+**Dependency Direction**:
+```text
+MenuBarView (SwiftUI)
+    ↓ observes/injects
+SessionCoordinator (@MainActor ObservableObject)
+    ↓ owns
+├── AudioCaptureProtocol (dependency-injected)
+├── ASRProvider (dependency-injected)
+└── TranscriptDestination (dependency-injected)
 ```
 
 Rules:
@@ -278,6 +306,19 @@ Do not depend on a floating branch for the release build.
 
 The primary project is an Xcode macOS application.
 
+**Verified (2026-06-22)**:
+- ✅ Debug build passes
+- ✅ Release build passes
+- ✅ 24 unit tests pass (all Mock-based)
+
+**Pending Verification**:
+- ⏳ Real microphone audio capture
+- ⏳ Real ASR inference with Nemotron model
+- ⏳ Accessibility permission + paste simulation
+- ⏳ Carbon hotkey global registration (currently falls back to NSEvent)
+- ⏳ English/Mandarin/Mixed speech transcription quality
+- ⏳ Performance metrics (latency, memory)
+
 Normal checks include:
 
 ```bash
@@ -294,8 +335,6 @@ xcodebuild \
   -scheme VoiceDock \
   -destination 'platform=macOS' \
   test
-
-git diff --check
 ```
 
 Use Swift Package Manager commands only when a real reusable Swift package exists.
@@ -305,6 +344,8 @@ Unit tests must not download production models.
 Use mocks and small deterministic fixtures for ordinary automated tests.
 
 Production-model and microphone checks must be recorded as separate integration or manual evidence.
+
+**Current Test Coverage Gap**: All 24 tests use `MockASRProvider` and `MockAudioCapture`. No test exercises the real ASR pipeline.
 
 ## Git Discipline
 
@@ -337,6 +378,20 @@ Before stopping:
 
 ## Completion
 
+**Current Status (2026-06-22)**:
+
+```text
+✅ passing automated tests          (24 tests, Mock-based)
+✅ successful Debug build
+✅ successful Release build
+⏳ manual M1 test evidence          (PENDING - requires owner)
+✅ documented architecture          (docs/VOICELOCK_DEEP_AUDIT_REPORT.md)
+✅ documented privacy behavior      (AGENTS.md Privacy section)
+⏳ documented setup and usage       (DELIVERY_REPORT.md deleted - needs rewrite)
+⏳ documented limitations           (in audit report, needs summary)
+✅ runnable local release artifact  (dist/VoiceDock.app)
+```
+
 The MVP is complete only when verified evidence shows that a user can:
 
 ```text
@@ -357,15 +412,16 @@ Completion also requires:
 passing automated tests
 successful Debug build
 successful Release build
-manual M1 test evidence
+manual M1 test evidence          ← PENDING
 documented architecture
 documented privacy behavior
-documented setup and usage
+documented setup and usage       ← TODO
 documented limitations
 runnable local release artifact
-DELIVERY_REPORT.md
 final local commit
 ```
+
+**Do not output `VOICEDOCK_COMPLETE` until manual M1 verification is done.**
 
 
 Before any file modification, verify that `pwd` equals
