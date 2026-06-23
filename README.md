@@ -30,21 +30,19 @@ VoiceDock is a native macOS application that provides global push-to-talk speech
 
 **Candidate 6** is the first physically verified development baseline and the current rollback candidate.
 
-| Verification item | Result |
-|---|---|
-| Debug build | PASS |
-| Release build | PASS |
-| Automated tests | PASS — 24 mock-based tests |
-| Gate B: hotkey press/release stability | PASS |
-| Mandarin transcription pipeline | PASS |
-| English transcription pipeline | PASS |
-| Mixed Chinese-English pipeline | PASS |
-| Clipboard delivery | PASS |
-| Automatic paste | PASS |
-| Return after paste | PASS |
-| Three consecutive sessions | PASS |
-| Process remained alive | PASS |
-| New Candidate 6 crash report | None observed |
+**Candidate 7 Phase A** is complete (automated gates pass) and awaiting owner physical review.
+
+| Verification item | Candidate 6 | Candidate 7 Phase A |
+|---|---|---|
+| Debug build | PASS | PASS |
+| Release build | PASS | PASS |
+| Automated tests | PASS — 24 tests | PASS — 46 tests |
+| Character counter | ⚠️ Visible | ✅ Removed |
+| Bottom button labels | ⚠️ Truncated | ✅ Redesigned (More menu) |
+| Automatic paste | Hardcoded ON | ✅ User toggle (default ON) |
+| Return after paste | Hardcoded ON | ✅ User toggle (default OFF) |
+| Terminal safety | ❌ No suppression | ✅ Return suppressed |
+| Physical verification | ✅ COMPLETE | ⏳ PENDING |
 
 ### Recognition-quality notes
 
@@ -54,7 +52,7 @@ The complete workflow is operational, but transcription quality is not yet unifo
 - Mixed Chinese-English speech is preserved, but English words and product names may drift.
 - The product name `VoiceDock` has occasionally been recognized as variants such as `Voice Docks`, `VoyStock`, or similar text.
 
-Candidate 6 is therefore an **MVP baseline**, not the final polished release. Candidate 7 is planned for UI cleanup, safer Return behavior, branding assets, and recognition-quality documentation.
+Candidate 6 is therefore an **MVP baseline**, not the final polished release. Candidate 7 Phase A addresses UI cleanup and safer Return behavior. Phase B will address branding assets.
 
 ## Architecture
 
@@ -159,9 +157,11 @@ The first model download may require network access.
 
 ## Known Limitations
 
-- Candidate 6 still displays a diagnostic character counter in the popover.
-- Some bottom-button labels are truncated in the current UI.
-- Return-after-paste is active in the current MVP and can execute text when Terminal is focused. Candidate 7 should expose a clear switch and default Return to **off**.
+**Candidate 7 Phase A addresses issues 1-3 below:**
+
+- ~~Candidate 6 still displays a diagnostic character counter in the popover.~~ **→ FIXED in Candidate 7 Phase A**
+- ~~Some bottom-button labels are truncated in the current UI.~~ **→ FIXED in Candidate 7 Phase A**
+- ~~Return-after-paste is active in the current MVP and can execute text when Terminal is focused.~~ **→ FIXED in Candidate 7 Phase A (default OFF, terminal suppression)**
 - Recognition quality varies by phrase, accent, and code-switching.
 - Product-name recognition is not yet vocabulary-adapted.
 - The first model download is large.
@@ -180,15 +180,29 @@ The `.app` bundle, models, crash reports, raw logs, and local build products are
 
 ## Next Milestone: Candidate 7
 
-Planned work:
+### Phase A (Complete — Automated Gates Pass)
 
-- Remove the visible character counter
-- Improve popover layout and button labels
-- Add explicit paste and Return controls
-- Default Return-after-paste to off
+- ✅ Remove the visible character counter
+- ✅ Improve popover layout and button labels (Retry, Refresh, More menu)
+- ✅ Add explicit automatic paste control (default ON)
+- ✅ Add explicit Return-after-paste control (default OFF)
+- ✅ Add terminal safety (Return suppression for Terminal, iTerm2, Warp)
+- ✅ Add 26 new automated tests
+
+**Status**: Awaiting owner physical review. See `.loop/evidence/candidates/candidate-7-phase-a/OWNER_UI_REVIEW_REQUIRED.md`.
+
+### Phase B (Pending — After Phase A Verification)
+
 - Add the VoiceDock icon and updated screenshots
-- Preserve Candidate 6 as the rollback baseline
-- Re-run automated and physical verification
+- Improve recognition documentation
+- Consider vocabulary/prompt-bias for "VoiceDock" product name
+
+### Candidate 7 Freeze (Pending — After Phase B)
+
+- Freeze Candidate 7
+- Perform Candidate 7 physical verification
+- Consider signing/notarization (requires credentials)
+- Consider v0.1.0 prerelease and public repository visibility
 
 ## Project Governance
 
