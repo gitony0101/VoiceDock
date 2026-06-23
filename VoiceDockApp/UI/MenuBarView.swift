@@ -204,8 +204,9 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Action buttons - primary row
-            HStack(spacing: 12) {
+            // Action area - two-row layout to prevent truncation
+            VStack(spacing: 8) {
+                // Row 1: Primary action (full width)
                 Button("Retry Transcription") {
                     Task { @MainActor in
                         await coordinator.retry()
@@ -214,28 +215,34 @@ struct MenuBarView: View {
                 }
                 .font(.caption)
                 .disabled(!isReadyOrFailed)
+                .frame(maxWidth: .infinity)
 
-                Button("Refresh Status") {
-                    permissions.refresh(reason: .manualRefresh)
-                }
-                .font(.caption)
+                // Row 2: Secondary actions (Refresh + More)
+                HStack(spacing: 12) {
+                    Button("Refresh Status") {
+                        permissions.refresh(reason: .manualRefresh)
+                    }
+                    .font(.caption)
 
-                Menu("More") {
-                    Button("Open Microphone Settings") {
-                        openMicrophoneSettings()
+                    Menu("More") {
+                        Button("Open Microphone Settings") {
+                            openMicrophoneSettings()
+                        }
+                        Button("Open Accessibility Settings") {
+                            openAccessibilitySettings()
+                        }
+                        Button(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics") {
+                            showDiagnostics.toggle()
+                        }
+                        Divider()
+                        Button("Quit VoiceDock", role: .destructive) {
+                            coordinator.quit()
+                        }
                     }
-                    Button("Open Accessibility Settings") {
-                        openAccessibilitySettings()
-                    }
-                    Button(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics") {
-                        showDiagnostics.toggle()
-                    }
-                    Divider()
-                    Button("Quit VoiceDock", role: .destructive) {
-                        coordinator.quit()
-                    }
+                    .font(.caption)
+
+                    Spacer()
                 }
-                .font(.caption)
             }
         }
         .padding()
