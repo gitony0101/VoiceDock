@@ -2,15 +2,17 @@
 
 **Report Date**: 2026-06-23  
 **Current Candidate**: Candidate 6  
-**Status**: AUTOMATED_GATES_COMPLETE_PARTIAL_MANUAL_VERIFICATION_DONE
+**Status**: GATE_C_COMPLETE — CANDIDATE_6_VERIFIED_BASELINE
 
 ---
 
 ## Executive Summary
 
-VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text. Candidate 6 has passed all automated gates and partial physical verification. Remaining Gate C tests pending.
+VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text. Candidate 6 has passed all automated gates and all Gate C physical verification tests.
 
-**This is NOT a final release report.** Candidate 6 is the **first physically verified development baseline** and verified rollback candidate. Candidate 7 will be the final release after complete Gate C verification and final UI cleanup.
+**Candidate 6 Status**: First physically verified development baseline and verified rollback candidate. NOT the final release.
+
+**Candidate 7**: Required for UI cleanup, safer Return defaults, branding assets, and final release polish.
 
 ---
 
@@ -77,17 +79,17 @@ Optional Return key sent
 
 **Crash Provenance**: All previously reported crashes matched Candidate 4 UUID (`646d1bd8-d300-3adb-8ab7-9234321683c6`). Candidate 6 UUID (`3745FA4C-2619-3DDB-8565-0CBBA80AC7E1`) has **no matching crash reports**.
 
-### Gate C: Speech Transcription
+### Gate C: Speech Transcription (COMPLETE)
 
 | Test | Result | Transcript Observed |
 |------|--------|---------------------|
 | Mandarin | ✅ PASS | "好了，好，你能听到吗？" |
-| Mixed Chinese-English | ✅ PASS | Pipeline verified |
-| English | ⏳ PENDING | — |
-| Clipboard verification | ⏳ PENDING | — |
-| Automatic paste | ⏳ PENDING | — |
-| Optional Return | ⏳ PENDING | — |
-| 3-session stability | ⏳ PENDING | — |
+| English | ✅ PASS (pipeline) | "Hello world, this is voice task of the voice tech transportation." |
+| Mixed Chinese-English | ✅ PASS (pipeline) | "This is the second test, 你好，这第二次测试。" |
+| Clipboard verification | ✅ PASS | Clipboard delivery confirmed |
+| Automatic paste | ✅ PASS | Text pasted without manual Cmd+V |
+| Optional Return | ✅ PASS | Cursor moved to new line |
+| 3-session stability | ✅ PASS | 3 consecutive cycles without crash |
 
 ---
 
@@ -197,13 +199,12 @@ Languages: English, Mandarin Chinese, code-switched
 - No real microphone audio capture tests
 - No performance measurements (latency, memory)
 
-### Physical Verification
+### Recognition Quality
 
-- English transcription: PENDING
-- Clipboard verification: PENDING
-- Automatic paste: PENDING
-- Optional Return: PENDING
-- 3-session stability: PENDING
+- English transcription accuracy: PARTIAL (pipeline works, word accuracy varies)
+- Mixed Chinese-English accuracy: PARTIAL
+- Product-name recognition ("VoiceDock"): NEEDS IMPROVEMENT
+- Model occasionally misrecognizes: "VoiceDock" → "Voice Docks", "VoyStock", etc.
 
 ### Product Limitations
 
@@ -211,6 +212,9 @@ Languages: English, Mandarin Chinese, code-switched
 - Accessibility permission required for paste simulation
 - Model download required (~500MB) on first launch
 - arm64 only — no Intel Mac support
+- Diagnostic `chars` counter visible in public UI (Candidate 7)
+- Some button labels truncated (Candidate 7)
+- Automatic Return active by default; should be OFF (Candidate 7)
 
 ---
 
@@ -255,21 +259,20 @@ After Candidate 7 verification:
 
 ## Remaining Work
 
-### Gate C Completion
-
-1. English transcription test
-2. Mixed Chinese-English transcription test
-3. Automatic paste verification
-4. Optional Return behavior
-5. 3-session stability test
-
 ### Candidate 7 (Final Release)
 
-1. Remove diagnostic counters from product UI
-2. Clean up menu bar display
-3. Final UI polish
-4. Complete evidence documentation
-5. Git release tag
+1. Remove the visible `chars` counter from the public UI
+2. Replace truncated bottom-button labels with clear accessible labels
+3. Add separate automatic-paste and automatic-Return controls
+4. Default automatic Return to OFF
+5. Add terminal safety behavior (block/warn in Terminal, iTerm, Warp)
+6. Add the approved VoiceDock icon
+7. Add polished README icon and current screenshot
+8. Improve recognition documentation and disclose model limitations
+9. Investigate vocabulary or prompt-bias options for recognizing "VoiceDock"
+10. Freeze Candidate 7 separately
+11. Perform final physical Candidate 7 verification
+12. Only after Candidate 7 verification consider public repository visibility and a `v0.1.0` prerelease
 
 ---
 
@@ -304,9 +307,19 @@ xcodebuild -project VoiceDock.xcodeproj \
 
 ## Conclusion
 
-Candidate 6 represents the first physically verified development baseline. All automated gates pass. Gate B (hotkey stability) confirmed. Mandarin and mixed Chinese-English transcription verified.
+Candidate 6 represents the first physically verified development baseline. All automated gates pass. Gate B (hotkey stability) and Gate C (full speech-to-text pipeline) confirmed.
 
-**NOT FINAL RELEASE** — Candidate 6 is the verified rollback candidate. Complete Gate C verification and final UI cleanup required for Candidate 7.
+**CANDIDATE 6 IS NOT FINAL RELEASE** — Candidate 6 is the verified rollback candidate. Candidate 7 is required for UI cleanup, safer Return defaults, branding assets, and final release polish.
+
+**Candidate 7 Next Steps**:
+- Remove diagnostic `chars` counter from public UI
+- Fix truncated button labels with accessible alternatives
+- Add separate automatic-paste and automatic-Return controls
+- Default automatic Return to OFF
+- Add terminal application safety behavior
+- Add VoiceDock icon and polished screenshots
+- Freeze and physically verify Candidate 7
+- Consider v0.1.0 prerelease after Candidate 7 verification
 
 ---
 

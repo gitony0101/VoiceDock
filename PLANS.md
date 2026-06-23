@@ -3,7 +3,7 @@
 ## Project Status
 
 ```text
-AUTOMATED_GATES_COMPLETE_PARTIAL_MANUAL_VERIFICATION_DONE
+GATE_C_COMPLETE — CANDIDATE 6 VERIFIED BASELINE
 ```
 
 ## Current Release Candidate
@@ -42,21 +42,29 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 - ✅ Info.plist validation: PASS
 - ✅ Gate B (hotkey stability): PASS
 - ✅ Gate C Mandarin: PASS
-- ✅ Gate C Mixed Chinese-English: PASS (pipeline verified)
+- ✅ Gate C English: PASS (pipeline)
+- ✅ Gate C Mixed Chinese-English: PASS (pipeline)
+- ✅ Gate C Clipboard: PASS
+- ✅ Gate C Automatic paste: PASS
+- ✅ Gate C Optional Return: PASS
+- ✅ Gate C 3-session stability: PASS
 
 ## Remaining Milestones
 
-### Gate C Completion (PENDING)
-- ⏳ English transcription
-- ⏳ Clipboard verification
-- ⏳ Automatic paste verification
-- ⏳ Optional Return behavior
-- ⏳ 3-session stability test
+### Candidate 7 (Final Release) — PENDING
 
-### Final Release (PENDING)
-- ⏳ Candidate 7 (final UI cleanup)
-- ⏳ Complete delivery documentation
-- ⏳ Git release tag
+1. Remove the visible `chars` counter from the public UI
+2. Replace truncated bottom-button labels with clear accessible labels
+3. Add separate automatic-paste and automatic-Return controls
+4. Default automatic Return to OFF
+5. Add terminal safety behavior for automatic Return
+6. Add the approved VoiceDock icon
+7. Add polished README icon and current screenshot
+8. Improve recognition documentation and disclose model limitations
+9. Investigate vocabulary or prompt-bias options for recognizing `VoiceDock`
+10. Freeze Candidate 7 separately
+11. Perform final physical Candidate 7 verification
+12. Only after Candidate 7 verification consider public repository visibility and a `v0.1.0` prerelease
 
 ## Technology Stack
 
