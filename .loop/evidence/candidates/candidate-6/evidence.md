@@ -46,18 +46,32 @@ Candidate 6 includes all Candidate 5 planned repairs plus additional workspace f
 5. **Audio format handling** — Tap installed with hardware input format, normalized to 16 kHz mono Float32
 6. **Buffer timeout protection** — Prevents unbounded buffer growth (60 second max)
 
-## Verification
+## Verification (Reconciled Test Counts)
+
+**Swift Package Manager** (`swift test`):
+- XCTest tests: 20
+- Swift Testing tests: 0 (reported separately, completed instantly)
+- **Total: 20 tests**
+
+**Xcode Scheme** (`xcodebuild -scheme VoiceDock test`):
+- XCTest tests: 24 (includes 4 additional HotKeyManagerTests)
+- Swift Testing tests: 0
+- **Total: 24 tests**
+
+**Note**: No double-counting — SwiftPM and Xcode run different test bundles.
+- SwiftPM tests: VoiceDockCoreTests target only (20 tests)
+- Xcode tests: VoiceDockTests target (24 tests with UI/hotkey simulations)
 
 ```text
-swift package describe: PASS
-swift build: PASS
-swift test: PASS (20 XCTest, 0 Swift Testing)
-xcodegen generate: PASS
-xcodebuild Debug build: PASS
-xcodebuild Debug test: PASS (58 tests: 34 XCTest + 24 Swift Testing)
+swift package describe:  PASS
+swift build:             PASS
+swift test:              PASS (20 XCTest tests)
+xcodegen generate:       PASS
+xcodebuild Debug build:  PASS
+xcodebuild Debug test:   PASS (24 XCTest tests)
 xcodebuild Release build: PASS
-codesign verify: PASS
-Info.plist lint: PASS
+codesign verify:         PASS
+Info.plist lint:         PASS
 ```
 
 ## Frozen State
@@ -78,7 +92,7 @@ Continue with remaining Gate C tests and stability verification.
 
 ## Owner Physical Verification (2026-06-23)
 
-### Confirmed Tests
+### Confirmed Tests (Gate B + Gate C Complete)
 
 | Test | Result | Notes |
 |------|--------|-------|
@@ -89,6 +103,21 @@ Continue with remaining Gate C tests and stability verification.
 | App remained alive | PASS | No crash - contradicts earlier crash hypothesis |
 | Returned to Ready | PASS | UI returned to ready state |
 | Mandarin transcription | PASS | "好了，好，你能听到吗？" |
+| English transcription | PASS (pipeline) | "Hello world, this is voice task of the voice tech transportation." |
+| Mixed Chinese-English | PASS (pipeline) | "This is the second test, 你好，这第二次测试。" |
+| Clipboard delivery | PASS | Clipboard delivery confirmed |
+| Automatic paste | PASS | Text pasted without manual Cmd+V |
+| Optional Return | PASS | Cursor moved to new line |
+| 3-session stability | PASS | 3 consecutive cycles without crash |
+
+### Recognition Quality Findings
+
+| Aspect | Status |
+|--------|--------|
+| Pipeline functionality | ✅ PASS |
+| English accuracy | ⚠️ PARTIAL |
+| Mixed Chinese-English accuracy | ⚠️ PARTIAL |
+| Product-name recognition ("VoiceDock") | ❌ NEEDS IMPROVEMENT |
 
 ### Disconfirmed Hypothesis
 
@@ -96,10 +125,4 @@ Continue with remaining Gate C tests and stability verification.
 
 ### Pending Physical Tests
 
-| Test | Status | Method |
-|------|--------|--------|
-| English transcription | PENDING | Speak English phrase, verify transcript |
-| Mixed Chinese-English | PENDING | Speak code-switched phrase |
-| Automatic paste | PENDING | Transcript pastes to focused app |
-| Optional Return | PENDING | Return key sent after paste |
-| 3-session stability | PENDING | 3 complete cycles without failure |
+**Gate C is COMPLETE.** No pending physical tests remain.
