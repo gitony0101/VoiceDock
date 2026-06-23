@@ -31,6 +31,7 @@ let package = Package(
             dependencies: ["VoiceDockCore"],
             path: "VoiceDockAppTests",
             exclude: [
+                "AppDelegateIsolationTests.swift",
                 "HotKeyManagerTests.swift"
             ])
     ]
