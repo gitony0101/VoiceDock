@@ -1,11 +1,11 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-06-23 (Candidate 7 Phase A.1 COMPLETE — OWNER UI RETEST REQUIRED)
+**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED)
 
 ## Status
 
 ```text
-CANDIDATE7_PHASE_A1_AUTOMATED_COMPLETE — OWNER_UI_RETEST_REQUIRED
+CANDIDATE7_PHASE_A_OWNER_VERIFIED
 ```
 
 ## Active Candidate
@@ -33,11 +33,13 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 Status: Frozen, physically verified
 ```
 
-## Phase A Owner Review Result (Historical)
+## Phase A Owner Review Result
 
-**Result:** PARTIAL
+**Result:** PASS (after Phase A.1 fix)
 
-All behavioral tests passed. Only UI failure: "Retry Transcription" label truncated at default popover width.
+**Original Phase A result:** PARTIAL — "Retry Transcription" label was truncated.
+
+**Phase A.1 fix:** Two-row VStack layout prevents truncation. Owner verified all UI labels fully visible.
 
 ## Phase A.1 Automated Verification (Complete)
 
@@ -52,29 +54,38 @@ All behavioral tests passed. Only UI failure: "Retry Transcription" label trunca
 | UI truncation fix | PASS | Code review — two-row layout |
 | Behavioral code preserved | PASS | No delivery code modified |
 
-## Phase A.1 Owner UI Retest (PENDING)
+## Phase A Owner Physical Verification (Complete)
 
-See `.loop/evidence/candidates/candidate-7-phase-a1/OWNER_UI_RETEST_REQUIRED.md` for complete retest instructions.
+| Category | Result | Notes |
+|----------|--------|-------|
+| UI layout | PASS | All labels fully visible |
+| Permissions | PASS | Microphone + Accessibility granted |
+| Preferences | PASS | Independent, persist correctly |
+| Delivery | PASS | TextEdit paste, clipboard, no duplicates |
+| Terminal safety | PASS | Return suppression works |
+| End-to-end | PASS | English, Mandarin, Mixed all functional |
+| Stability | PASS | 3 sessions, process alive, no crashes |
 
-**待办**:
-- [ ] "Retry Transcription" fully visible (no truncation)
-- [ ] "Refresh Status" fully visible
-- [ ] "More" fully visible
-- [ ] No width-induced ellipsis on any action label
-- [ ] Increased macOS text size still usable
-- [ ] Retry Transcription action works
-- [ ] Refresh Status action works
-- [ ] More menu items all present
-- [ ] TextEdit paste smoke test passes
-- [ ] Terminal suppression smoke test passes
-- [ ] Process remains alive after tests
-- [ ] No new crash report
+**Test Count Reconciliation**:
+- SwiftPM (`swift test`): 46 XCTest tests (VoiceDockCoreTests)
+- Xcode (`xcodebuild test`): 24 XCTest tests (VoiceDockTests)
+
+## Recognition-Quality Limitations (Preserved)
+
+| Aspect | Status |
+|--------|--------|
+| English recognition accuracy | PARTIAL |
+| Mixed-language recognition accuracy | PARTIAL |
+| VoiceDock product-name recognition | NEEDS IMPROVEMENT |
 
 ## Next Action
 
-**Awaiting owner UI retest.** Do not proceed to Phase B until owner confirms Phase A.1 verification.
+**Repository submission in progress.** 
 
-After Phase A.1 verification:
-1. Commit and push to `origin/feat/candidate7-release-polish`
-2. Begin Phase B (branding/icon) if approved
-3. Plan Candidate 7 freeze after Phase B complete
+After owner verification complete:
+1. ✅ Owner verification results documented
+2. ⏳ Status documents updated
+3. ⏳ Safety checks passed
+4. ⏳ Documentation commit created
+5. ⏳ Branch pushed
+6. ⏳ Pull Request created

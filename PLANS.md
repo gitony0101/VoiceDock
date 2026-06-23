@@ -3,23 +3,19 @@
 ## Project Status
 
 ```text
-CANDIDATE7_PHASE_A1_AUTOMATED_COMPLETE — OWNER_UI_RETEST_REQUIRED
+CANDIDATE7_PHASE_A_OWNER_VERIFIED
 ```
 
 ## Current Release Candidate
 
 **Candidate 6** — First physically verified development baseline (frozen, rollback)
 
-**Candidate 7 Phase A.1** — Development review build (NOT FROZEN)
+**Candidate 7 Phase A** — Owner verified, repository submission in progress
 
 ```text
 Candidate 6 Artifact: dist/candidate-6/VoiceDock.app
 Candidate 6 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
 Candidate 6 CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
-
-Candidate 7 Phase A Artifact: build/candidate-7-phase-a-review/VoiceDock.app
-Candidate 7 Phase A SHA-256: 29e5b609bb4f7d15c8d6ee7cdbb608cdd688500984129506170191fb87941763
-Candidate 7 Phase A CDHash: e02c039216a37a4330bc547b145ea39cbb18ab86
 
 Candidate 7 Phase A.1 Artifact: build/candidate-7-phase-a1-review/VoiceDock.app
 Candidate 7 Phase A.1 SHA-256: eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0
@@ -56,7 +52,8 @@ Candidate 7 Phase A.1 CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
 - ✅ Gate C Optional Return: PASS
 - ✅ Gate C 3-session stability: PASS
 
-### Candidate 7 Phase A (2026-06-23) — AUTOMATED COMPLETE
+### Candidate 7 Phase A (2026-06-23) — COMPLETE
+
 - ✅ Character counter removed
 - ✅ Bottom action area redesigned (Retry, Refresh, More menu)
 - ✅ Independent paste and Return preferences
@@ -64,9 +61,10 @@ Candidate 7 Phase A.1 CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
 - ✅ Default Return: OFF (safer than Candidate 6)
 - ✅ Terminal safety suppression (before event synthesis)
 - ✅ 26 new automated tests (46 total SwiftPM, 24 total Xcode)
-- ⚠️ Owner physical review: PARTIAL ( "Retry Transcription" label truncated)
+- ✅ Owner physical review: PASS (after Phase A.1 fix)
 
-### Candidate 7 Phase A.1 (2026-06-23) — AUTOMATED COMPLETE
+### Candidate 7 Phase A.1 (2026-06-23) — COMPLETE
+
 - ✅ UI truncation fix (two-row VStack layout)
 - ✅ "Retry Transcription" no longer truncated by design
 - ✅ "Refresh Status" and "More" remain on second row
@@ -74,27 +72,20 @@ Candidate 7 Phase A.1 CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
 - ✅ All 46 SwiftPM tests pass
 - ✅ All 24 Xcode tests pass
 - ✅ Debug and Release builds pass
-- ⏳ Owner UI retest: PENDING
+- ✅ Owner UI retest: PASS
+
+### Repository Submission (In Progress)
+
+- ✅ Owner verification results documented
+- ✅ Status documents updated
+- ⏳ Safety checks pending
+- ⏳ Documentation commit pending
+- ⏳ Branch push pending
+- ⏳ Pull Request creation pending
 
 ## Remaining Milestones
 
-### Candidate 7 Phase A.1 — Owner UI Retest (PENDING)
-
-See `.loop/evidence/candidates/candidate-7-phase-a1/OWNER_UI_RETEST_REQUIRED.md`
-
-- [ ] "Retry Transcription" fully visible (no truncation)
-- [ ] "Refresh Status" fully visible
-- [ ] "More" fully visible
-- [ ] No width-induced ellipsis on any action label
-- [ ] Increased macOS text size still usable
-- [ ] Retry/Refresh/More actions work correctly
-- [ ] TextEdit paste smoke test
-- [ ] Terminal suppression smoke test
-
-After owner UI verification:
-- [ ] Commit and push to `origin/feat/candidate7-release-polish`
-
-### Candidate 7 Phase B (PENDING — After Phase A Verification)
+### Candidate 7 Phase B (PENDING — After Repository Submission)
 
 - [ ] VoiceDock icon integration
 - [ ] Updated README icon and screenshots

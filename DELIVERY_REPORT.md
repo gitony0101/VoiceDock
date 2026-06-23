@@ -1,18 +1,19 @@
 # VoiceDock Delivery Report
 
 **Report Date**: 2026-06-23  
-**Current Candidate**: Candidate 6  
-**Status**: GATE_C_COMPLETE — CANDIDATE_6_VERIFIED_BASELINE
+**Current Candidate**: Candidate 6 (rollback baseline)  
+**Candidate 7 Phase A**: OWNER_VERIFIED  
+**Status**: CANDIDATE7_PHASE_A_OWNER_VERIFIED — REPOSITORY_SUBMISSION_IN_PROGRESS
 
 ---
 
 ## Executive Summary
 
-VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text. Candidate 6 has passed all automated gates and all Gate C physical verification tests.
+VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text.
 
-**Candidate 6 Status**: First physically verified development baseline and verified rollback candidate. NOT the final release.
+**Candidate 6** remains the frozen, physically verified rollback baseline.
 
-**Candidate 7**: Required for UI cleanup, safer Return defaults, branding assets, and final release polish.
+**Candidate 7 Phase A** is owner-verified and ready for repository submission. Phase B (branding/icon) follows.
 
 ---
 
@@ -52,7 +53,7 @@ Optional Return key sent
 |------------|--------|------|
 | swift package describe | ✅ PASS | 2026-06-23 |
 | swift build | ✅ PASS | 2026-06-23 |
-| swift test | ✅ PASS (24 Mock-based tests) | 2026-06-23 |
+| swift test | ✅ PASS (46 tests) | 2026-06-23 |
 | xcodegen generate | ✅ PASS | 2026-06-23 |
 | xcodebuild Debug build | ✅ PASS | 2026-06-23 |
 | xcodebuild Debug test | ✅ PASS (24 tests) | 2026-06-23 |
@@ -64,36 +65,7 @@ Optional Return key sent
 
 ---
 
-## Physical Verification (Candidate 6)
-
-### Gate B: Hotkey Stability
-
-| Test | Result | Evidence |
-|------|--------|----------|
-| Microphone permission | ✅ GRANTED | Owner confirmed |
-| Accessibility permission | ✅ GRANTED | Owner confirmed |
-| Hotkey press detected | ✅ PASS | Physical key press |
-| Hotkey release detected | ✅ PASS | Physical key release |
-| Application remained alive | ✅ PASS | No crash report |
-| Returned to Ready state | ✅ PASS | UI state transition correct |
-
-**Crash Provenance**: All previously reported crashes matched Candidate 4 UUID (`646d1bd8-d300-3adb-8ab7-9234321683c6`). Candidate 6 UUID (`3745FA4C-2619-3DDB-8565-0CBBA80AC7E1`) has **no matching crash reports**.
-
-### Gate C: Speech Transcription (COMPLETE)
-
-| Test | Result | Transcript Observed |
-|------|--------|---------------------|
-| Mandarin | ✅ PASS | "好了，好，你能听到吗？" |
-| English | ✅ PASS (pipeline) | "Hello world, this is voice task of the voice tech transportation." |
-| Mixed Chinese-English | ✅ PASS (pipeline) | "This is the second test, 你好，这第二次测试。" |
-| Clipboard verification | ✅ PASS | Clipboard delivery confirmed |
-| Automatic paste | ✅ PASS | Text pasted without manual Cmd+V |
-| Optional Return | ✅ PASS | Cursor moved to new line |
-| 3-session stability | ✅ PASS | 3 consecutive cycles without crash |
-
----
-
-## Candidate 6 Identity
+## Candidate 6 Identity (Frozen Rollback Baseline)
 
 ```text
 Artifact: dist/candidate-6/VoiceDock.app
@@ -103,7 +75,94 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 Bundle ID: com.voicedock.app
 Architecture: arm64
 Signing: Ad-hoc (Sign to Run Locally)
+Status: Frozen, physically verified
 ```
+
+---
+
+## Candidate 7 Phase A.1 Identity (Owner Verified)
+
+```text
+Artifact: build/candidate-7-phase-a1-review/VoiceDock.app
+SHA-256: eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0
+CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
+Bundle ID: com.voicedock.app
+Architecture: arm64 (Apple Silicon only)
+Signing: Ad-hoc
+Status: Owner verified — NOT FROZEN
+```
+
+---
+
+## Owner Physical Verification (Candidate 7 Phase A)
+
+### UI Layout
+
+| Test | Result |
+|------|--------|
+| Character counter absent | ✅ PASS |
+| No empty character-counter gap | ✅ PASS |
+| Retry Transcription fully visible | ✅ PASS |
+| Refresh Status fully visible | ✅ PASS |
+| More fully visible | ✅ PASS |
+| No width-induced ellipsis | ✅ PASS |
+| Two-row action layout readable | ✅ PASS |
+| More menu actions available | ✅ PASS |
+
+### Permissions
+
+| Test | Result |
+|------|--------|
+| Microphone permission granted | ✅ PASS |
+| Accessibility permission granted | ✅ PASS |
+
+### Preferences and Delivery
+
+| Test | Result |
+|------|--------|
+| Automatically paste transcript default ON | ✅ PASS |
+| Press Return after paste default OFF | ✅ PASS |
+| Preferences independent | ✅ PASS |
+| Preferences persist after relaunch | ✅ PASS |
+| TextEdit paste with Return OFF | ✅ PASS |
+| TextEdit paste with Return ON (exactly one Return) | ✅ PASS |
+| Paste OFF, clipboard still updates | ✅ PASS |
+| No duplicate paste observed | ✅ PASS |
+| No duplicate Return observed | ✅ PASS |
+
+### Terminal Safety
+
+| Test | Result |
+|------|--------|
+| Apple Terminal Return suppression | ✅ PASS |
+| Transcript did not execute automatically | ✅ PASS |
+| Return suppression happened before execution | ✅ PASS |
+| VoiceDock remained alive | ✅ PASS |
+
+*Note: iTerm2 and Warp physical tests were not performed in this session.*
+
+### End-to-End and Stability
+
+| Test | Result |
+|------|--------|
+| English session | ✅ PASS |
+| Mandarin session | ✅ PASS |
+| Mixed Chinese-English session | ✅ PASS |
+| Ready → Listening → Transcribing → Delivering → Ready | ✅ PASS |
+| Three-session stability | ✅ PASS |
+| Process remained alive | ✅ PASS |
+| New crash report | ✅ NONE |
+| Real microphone-to-chat-input workflow | ✅ PASS |
+
+---
+
+## Recognition-Quality Limitations (Preserved)
+
+| Aspect | Status | Notes |
+|--------|--------|-------|
+| English recognition accuracy | PARTIAL | Pipeline works; word accuracy varies |
+| Mixed-language recognition accuracy | PARTIAL | Code-switching supported; accuracy varies |
+| VoiceDock product-name recognition | NEEDS IMPROVEMENT | Model misrecognizes as "Voice Docks", "VoyStock", etc. |
 
 ---
 
@@ -154,70 +213,6 @@ Languages: English, Mandarin Chinese, code-switched
 
 ---
 
-## Repairs in Candidate 6
-
-### 1. MainActor Isolation Safety
-
-**Problem**: Candidate 4 crashed with `EXC_BAD_ACCESS` in `MainActor.assumeIsolated`.
-
-**Solution**: Replace `MainActor.assumeIsolated` with `Task { @MainActor ... }` pattern.
-
-**Evidence**: Crash UUID matching proved Candidate 4 failure, Candidate 6 stability.
-
-### 2. Permission State Refresh
-
-**Problem**: UI showed stale permission state after user returned from System Settings.
-
-**Solution**: Added `NSApplication.didBecomeActive` observer to trigger permission refresh.
-
-### 3. Diagnostic Log Cleanup
-
-**Problem**: Stale logs accumulated across launches, complicating crash analysis.
-
-**Solution**: Remove stale logs on launch and exit (crash recovery).
-
-### 4. Audio Format Handling
-
-**Problem**: Audio tap format mismatch caused normalization issues.
-
-**Solution**: Install tap with hardware input format, normalize to 16 kHz mono Float32.
-
-### 5. Buffer Timeout Protection
-
-**Problem**: Unbounded buffer growth risk during long sessions.
-
-**Solution**: 60-second max buffer timeout.
-
----
-
-## Known Gaps
-
-### Test Coverage
-
-- All 24 tests use `MockASRProvider` and `MockAudioCapture`
-- No test exercises real ASR pipeline
-- No real microphone audio capture tests
-- No performance measurements (latency, memory)
-
-### Recognition Quality
-
-- English transcription accuracy: PARTIAL (pipeline works, word accuracy varies)
-- Mixed Chinese-English accuracy: PARTIAL
-- Product-name recognition ("VoiceDock"): NEEDS IMPROVEMENT
-- Model occasionally misrecognizes: "VoiceDock" → "Voice Docks", "VoyStock", etc.
-
-### Product Limitations
-
-- Carbon hotkey registration falls back to NSEvent (app-local only) on some systems
-- Accessibility permission required for paste simulation
-- Model download required (~500MB) on first launch
-- arm64 only — no Intel Mac support
-- Diagnostic `chars` counter visible in public UI (Candidate 7)
-- Some button labels truncated (Candidate 7)
-- Automatic Return active by default; should be OFF (Candidate 7)
-
----
-
 ## Privacy Behavior
 
 VoiceDock defaults to:
@@ -242,12 +237,10 @@ VoiceDock defaults to:
 
 | Candidate | Status | Retention |
 |-----------|--------|-----------|
-| 1 | Superseded | Summary only |
-| 2 | Superseded | Summary only |
-| 3 | Superseded | Summary only |
+| 1-3 | Superseded | Summary only |
 | 4 | Crashed | **KEEP** — Root cause evidence |
-| 5 | Superseded | Summary only |
-| 6 | Verified baseline | **KEEP** — Rollback candidate, first physically verified development baseline |
+| 5 | Never tested | Summary only |
+| 6 | Verified baseline | **KEEP** — Rollback candidate |
 | 7 | Final release | Target |
 
 After Candidate 7 verification:
@@ -259,20 +252,20 @@ After Candidate 7 verification:
 
 ## Remaining Work
 
-### Candidate 7 (Final Release)
+### Candidate 7 Phase B (PENDING)
 
-1. Remove the visible `chars` counter from the public UI
-2. Replace truncated bottom-button labels with clear accessible labels
-3. Add separate automatic-paste and automatic-Return controls
-4. Default automatic Return to OFF
-5. Add terminal safety behavior (block/warn in Terminal, iTerm, Warp)
-6. Add the approved VoiceDock icon
-7. Add polished README icon and current screenshot
-8. Improve recognition documentation and disclose model limitations
-9. Investigate vocabulary or prompt-bias options for recognizing "VoiceDock"
-10. Freeze Candidate 7 separately
-11. Perform final physical Candidate 7 verification
-12. Only after Candidate 7 verification consider public repository visibility and a `v0.1.0` prerelease
+1. VoiceDock icon integration
+2. Updated README icon and screenshots
+3. Recognition quality documentation improvements
+4. Consider vocabulary/prompt-bias for "VoiceDock" product name
+
+### Candidate 7 Freeze (PENDING — After Phase B)
+
+1. Freeze Candidate 7
+2. Perform Candidate 7 physical verification
+3. Consider signing/notarization (requires credentials)
+4. Consider v0.1.0 prerelease
+5. Consider public repository visibility
 
 ---
 
@@ -307,21 +300,13 @@ xcodebuild -project VoiceDock.xcodeproj \
 
 ## Conclusion
 
-Candidate 6 represents the first physically verified development baseline. All automated gates pass. Gate B (hotkey stability) and Gate C (full speech-to-text pipeline) confirmed.
+**Candidate 6** is the frozen, physically verified rollback baseline.
 
-**CANDIDATE 6 IS NOT FINAL RELEASE** — Candidate 6 is the verified rollback candidate. Candidate 7 is required for UI cleanup, safer Return defaults, branding assets, and final release polish.
+**Candidate 7 Phase A** is owner-verified. Repository submission in progress.
 
-**Candidate 7 Next Steps**:
-- Remove diagnostic `chars` counter from public UI
-- Fix truncated button labels with accessible alternatives
-- Add separate automatic-paste and automatic-Return controls
-- Default automatic Return to OFF
-- Add terminal application safety behavior
-- Add VoiceDock icon and polished screenshots
-- Freeze and physically verify Candidate 7
-- Consider v0.1.0 prerelease after Candidate 7 verification
+**Candidate 7 Phase B** (branding/icon) follows repository submission.
 
 ---
 
-**Report Status**: PARTIAL  
-**Next Milestone**: Gate C completion → Candidate 7 → Final release tag
+**Report Status**: CANDIDATE7_PHASE_A_OWNER_VERIFIED  
+**Next Milestone**: Phase B (branding/icon) → Candidate 7 freeze → Physical verification → v0.1.0 prerelease consideration

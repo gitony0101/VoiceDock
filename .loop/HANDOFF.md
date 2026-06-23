@@ -1,10 +1,12 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-06-23 (Candidate 7 Phase A.1 AUTOMATED COMPLETE — OWNER UI RETEST REQUIRED)
+**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED)
 
 ## Executive Summary
 
-Candidate 7 Phase A.1 automated gates are complete. Owner UI retest is required to confirm "Retry Transcription" label is no longer truncated.
+Candidate 7 Phase A owner verification is **COMPLETE — PASS**.
+
+All UI labels are fully visible. All delivery safety tests passed. Repository submission in progress.
 
 **Candidate 6 remains the frozen, physically verified rollback baseline.**
 
@@ -30,13 +32,13 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 Status: Frozen, physically verified (Gate C COMPLETE)
 ```
 
-## Candidate 7 Phase A Owner Review Result (Historical)
+## Candidate 7 Phase A Owner Verification Result
 
-**Result:** PARTIAL
+**Result:** PASS
 
-All behavioral tests passed. Single UI failure: "Retry Transcription" label truncated to "Retry Transcr..." at default popover width.
+Phase A.1 fixed the "Retry Transcription" truncation with a two-row VStack layout. Owner physical retest confirmed all labels fully visible.
 
-## Candidate 7 Phase A.1 Automated Verification (Complete)
+## Automated Verification (Complete)
 
 | Check | Result | Notes |
 |-------|--------|-------|
@@ -53,19 +55,27 @@ All behavioral tests passed. Single UI failure: "Retry Transcription" label trun
 - SwiftPM (`swift test`): 46 XCTest tests (VoiceDockCoreTests)
 - Xcode (`xcodebuild test`): 24 XCTest tests (VoiceDockTests)
 
-## Candidate 7 Phase A.1 Owner UI Retest (PENDING)
+## Owner Physical Verification (Complete)
 
-See `.loop/evidence/candidates/candidate-7-phase-a1/OWNER_UI_RETEST_REQUIRED.md` for complete retest instructions.
+| Category | Result |
+|----------|--------|
+| UI layout | PASS |
+| Permissions | PASS |
+| Preferences | PASS |
+| Delivery | PASS |
+| Terminal safety | PASS |
+| End-to-end | PASS |
+| Stability | PASS |
 
-**Pending Tests**:
-- [ ] "Retry Transcription" fully visible (no truncation)
-- [ ] "Refresh Status" fully visible
-- [ ] "More" fully visible
-- [ ] No width-induced ellipsis on any action label
-- [ ] Increased macOS text size still usable
-- [ ] Retry/Refresh/More actions work correctly
-- [ ] TextEdit paste smoke test
-- [ ] Terminal suppression smoke test
+See `.loop/evidence/candidates/candidate-7-phase-a1/OWNER_UI_RETEST_RESULTS.md` for detailed results.
+
+## Recognition-Quality Limitations (Preserved)
+
+| Aspect | Status |
+|--------|--------|
+| English recognition accuracy | PARTIAL |
+| Mixed-language recognition accuracy | PARTIAL |
+| VoiceDock product-name recognition | NEEDS IMPROVEMENT |
 
 ## Candidate 7 Phase A.1 Change
 
@@ -79,12 +89,20 @@ All behavioral delivery code unchanged.
 
 ## How to Resume
 
-After owner physical review:
+**Repository submission in progress:**
 
-1. **If verified**: Owner confirms "Candidate 7 Phase A verified — proceed to Phase B"
-2. **Then**: Begin Phase B (branding/icon integration)
-3. **After Phase B**: Freeze Candidate 7, perform physical verification
-4. **Finally**: Consider v0.1.0 prerelease and public repository visibility
+1. ✅ Owner verification complete — PASS
+2. ✅ Results documented in `OWNER_UI_RETEST_RESULTS.md`
+3. ⏳ Status documents updated
+4. ⏳ Safety checks passed
+5. ⏳ Documentation commit created
+6. ⏳ Branch pushed
+7. ⏳ Pull Request created
+
+After PR creation:
+- Owner reviews PR on GitHub
+- Do not merge until Phase B readiness confirmed
+- Phase B (branding/icon) can proceed in parallel
 
 If issues found:
 1. Owner reports exact failure
