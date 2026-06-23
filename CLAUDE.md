@@ -20,6 +20,7 @@ VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text
 - ✅ Debug build: PASS
 - ✅ Release build: PASS  
 - ✅ Unit tests: 24/24 PASS (Mock)
+- ✅ Permission state refresh: FIXED (2026-06-22)
 - ⏳ Manual M1 verification: PENDING (requires physical test)
 
 Do not reset the repository, recreate the project from scratch, or repeat completed planning.
@@ -89,6 +90,11 @@ The final product must be a native `VoiceDock.app` built through Xcode.
 - Carbon hotkey registration fails (error -9878) → falls back to NSEvent (app-local only)
 - No real ASR inference tests — all transcription tests use `MockASRProvider`
 - No performance measurements (latency, memory footprint)
+
+**Fixed Issues** (2026-06-22):
+- ✅ Permission state refresh bug — UI now updates live when user returns from System Settings
+- ✅ Temporary log file cleanup — stale logs cleaned on launch + exit (crash recovery)
+- ✅ TCC code-identity troubleshooting — Added diagnostic info + user guide in `docs/TCC_CODE_IDENTITY_TROUBLESHOOTING.md`
 
 Do not claim completion until automated checks and required real-device checks have truthful evidence.
 
