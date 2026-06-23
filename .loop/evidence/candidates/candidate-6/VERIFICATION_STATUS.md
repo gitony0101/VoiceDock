@@ -2,7 +2,7 @@
 
 **Date**: 2026-06-23  
 **Artifact**: `dist/candidate-6/VoiceDock.app`  
-**Status**: PARTIAL VERIFICATION COMPLETE - Continuing Gate C tests
+**Status**: ✅ GATE C COMPLETE — ALL FUNCTIONAL TESTS PASS
 
 **Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate. Candidate 7 will be the final release.
 
@@ -35,53 +35,45 @@
 
 **Crash Provenance**: All previously reported crashes matched Candidate 4 UUID (`646d1bd8-d300-3adb-8ab7-9234321683c6`). Candidate 6 has no matching crash reports.
 
-### Gate C: Speech Transcription
+### Gate C: Speech Transcription (Complete)
 
 | Test | Result | Transcript Observed |
 |------|--------|---------------------|
-| Mandarin | PASS | "好了，好，你能听到吗？" |
-| Mixed Chinese-English | PASS | Pipeline verified |
-| English | PENDING | — |
-| Clipboard verification | PENDING | — |
-| Automatic paste | PENDING | — |
-| Optional Return | PENDING | — |
-| 3-session stability | PENDING | — |
+| Mandarin | ✅ PASS | "好了，好，你能听到吗？" |
+| English | ✅ PASS (pipeline) | "Hello world, this is voice task of the voice tech transportation." |
+| Mixed Chinese-English | ✅ PASS (pipeline) | "This is the second test, 你好，这第二次测试。" |
+| Clipboard verification | ✅ PASS | Clipboard delivery confirmed |
+| Automatic paste | ✅ PASS | Text pasted without manual Cmd+V |
+| Optional Return | ✅ PASS | Cursor moved to new line |
+| 3-session stability | ✅ PASS | 3 consecutive cycles without crash |
 
 ---
 
-## Remaining Physical Tests
+## Automated Verification (Complete — Reconciled Counts)
 
-### Gate C (Pending)
+| Check | Result | Notes |
+|-------|--------|-------|
+| swift package describe | PASS | Package resolved |
+| swift build | PASS | Debug build |
+| swift test | PASS | 20 XCTest tests |
+| xcodegen generate | PASS | Project generated |
+| xcodebuild Debug build | PASS | Native app build |
+| xcodebuild Debug test | PASS | 24 XCTest tests (Xcode scheme) |
+| xcodebuild Release build | PASS | Native app build |
+| codesign verify | PASS | Ad-hoc signature valid |
+| Info.plist lint | PASS | No errors |
 
-| Test | Method | Expected |
-|------|--------|----------|
-| English transcription | Speak English phrase | Accurate English transcript |
-| Clipboard verification | Verify Cmd+V after speaking | Transcript on clipboard |
-| Automatic paste | Focus TextEdit, speak, release | Transcript appears without Cmd+V |
-| Optional Return | Observe after paste | Cursor moves to new line |
-| 3-session stability | 3 complete cycles | All succeed without crash |
-
----
-
-## Automated Verification (Pre-Build)
-
-| Check | Result |
-|-------|--------|
-| swift package describe | PASS |
-| swift build | PASS |
-| swift test | PASS (24 Mock-based tests) |
-| xcodegen generate | PASS |
-| xcodebuild Debug build | PASS |
-| xcodebuild Debug test | PASS (24 tests) |
-| xcodebuild Release build | PASS |
-| codesign verify | PASS |
-| Info.plist lint | PASS |
+**Test Count Reconciliation**:
+- SwiftPM (`swift test`): 20 XCTest tests (VoiceDockCoreTests target)
+- Xcode (`xcodebuild test`): 24 XCTest tests (VoiceDockTests target, includes HotKeyManagerTests)
+- No double-counting — different test targets
 
 ---
 
 ## Evidence Files
 
-- `.loop/evidence/candidates/candidate-6/owner-verification-partial.txt` — Owner verification record
+- `.loop/evidence/candidates/candidate-6/OWNER_GATE_C_RESULTS.md` — Owner-confirmed Gate C results
+- `.loop/evidence/candidates/candidate-6/owner-verification-partial.txt` — Earlier partial verification record
 - `.loop/evidence/candidates/candidate-6/evidence.md` — Full candidate evidence
 - `.loop/evidence/candidates/candidate-6/gate-c-remaining-tests.md` — Test instructions
 - `.loop/HANDOFF.md` — Current handoff state
@@ -91,10 +83,9 @@
 
 ## How to Continue
 
-1. Keep Candidate 6 running (already verified stable)
-2. Open TextEdit or Notes with cursor in editable field
-3. Follow test instructions in `gate-c-remaining-tests.md`
-4. Report exact transcripts observed for each test
+Gate C physical verification is **COMPLETE**.
+
+**Next step**: Proceed to Candidate 7 cleanup and final release preparation.
 
 ---
 
