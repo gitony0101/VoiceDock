@@ -3,20 +3,23 @@
 ## Project Status
 
 ```text
-GATE_C_COMPLETE — CANDIDATE 6 VERIFIED BASELINE
+CANDIDATE7_PHASE_A_AUTOMATED_COMPLETE — OWNER_PHYSICAL_REVIEW_REQUIRED
 ```
 
 ## Current Release Candidate
 
-**Candidate 6** — First physically verified development baseline (frozen)
+**Candidate 6** — First physically verified development baseline (frozen, rollback)
 
-**Note**: Candidate 6 is NOT the final release. It is the verified rollback candidate and first physically verified development baseline. Candidate 7 will be the final release.
+**Candidate 7 Phase A** — Development review build (NOT FROZEN)
 
 ```text
-Artifact: dist/candidate-6/VoiceDock.app
-SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
-CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
-Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
+Candidate 6 Artifact: dist/candidate-6/VoiceDock.app
+Candidate 6 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
+Candidate 6 CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
+
+Candidate 7 Phase A Artifact: build/candidate-7-phase-a-review/VoiceDock.app
+Candidate 7 Phase A SHA-256: 29e5b609bb4f7d15c8d6ee7cdbb608cdd688500984129506170191fb87941763
+Candidate 7 Phase A CDHash: e02c039216a37a4330bc547b145ea39cbb18ab86
 ```
 
 ## Completed Milestones
@@ -34,7 +37,7 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 - ✅ Audio format handling (16 kHz mono Float32)
 - ✅ Buffer timeout protection (60s max)
 
-### Verification (2026-06-23)
+### Gate C Verification (2026-06-23)
 - ✅ Debug build: PASS
 - ✅ Release build: PASS
 - ✅ Unit tests: 24 tests PASS (Mock-based)
@@ -49,22 +52,48 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 - ✅ Gate C Optional Return: PASS
 - ✅ Gate C 3-session stability: PASS
 
+### Candidate 7 Phase A (2026-06-23) — AUTOMATED COMPLETE
+- ✅ Character counter removed
+- ✅ Bottom action area redesigned (Retry, Refresh, More menu)
+- ✅ Independent paste and Return preferences
+- ✅ Default paste: ON (migration-safe)
+- ✅ Default Return: OFF (safer than Candidate 6)
+- ✅ Terminal safety suppression (before event synthesis)
+- ✅ 26 new automated tests (46 total SwiftPM, 24 total Xcode)
+- ⏳ Owner physical review: PENDING
+
 ## Remaining Milestones
 
-### Candidate 7 (Final Release) — PENDING
+### Candidate 7 Phase A — Owner Physical Review (PENDING)
 
-1. Remove the visible `chars` counter from the public UI
-2. Replace truncated bottom-button labels with clear accessible labels
-3. Add separate automatic-paste and automatic-Return controls
-4. Default automatic Return to OFF
-5. Add terminal safety behavior for automatic Return
-6. Add the approved VoiceDock icon
-7. Add polished README icon and current screenshot
-8. Improve recognition documentation and disclose model limitations
-9. Investigate vocabulary or prompt-bias options for recognizing `VoiceDock`
-10. Freeze Candidate 7 separately
-11. Perform final physical Candidate 7 verification
-12. Only after Candidate 7 verification consider public repository visibility and a `v0.1.0` prerelease
+See `.loop/evidence/candidates/candidate-7-phase-a/OWNER_UI_REVIEW_REQUIRED.md`
+
+- [ ] UI verification (char counter absent, action labels readable)
+- [ ] Preference defaults (paste=ON, return=OFF)
+- [ ] Preference persistence (relaunch test)
+- [ ] Clipboard-only delivery (paste OFF)
+- [ ] Paste without Return (default)
+- [ ] Paste with Return (non-terminal)
+- [ ] Terminal safety (Apple Terminal, iTerm2, Warp)
+- [ ] Three-session stability (English, Mandarin, Mixed)
+
+After owner verification:
+- [ ] Commit and push to `origin/feat/candidate7-release-polish`
+
+### Candidate 7 Phase B (PENDING — After Phase A Verification)
+
+- [ ] VoiceDock icon integration
+- [ ] Updated README icon and screenshots
+- [ ] Recognition quality documentation improvements
+- [ ] Consider vocabulary/prompt-bias for "VoiceDock" product name
+
+### Candidate 7 Freeze (PENDING — After Phase B)
+
+- [ ] Freeze Candidate 7
+- [ ] Perform Candidate 7 physical verification
+- [ ] Consider signing/notarization (requires credentials)
+- [ ] Consider v0.1.0 prerelease
+- [ ] Consider public repository visibility
 
 ## Technology Stack
 
