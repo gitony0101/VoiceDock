@@ -12,6 +12,17 @@ struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
     @ObservedObject var permissions: PermissionManager
     @State private var showDiagnostics = false
+    @State private var automaticPaste: Bool
+    @State private var sendReturnAfterPaste: Bool
+
+    init(coordinator: SessionCoordinator, permissions: PermissionManager) {
+        self.coordinator = coordinator
+        self.permissions = permissions
+        // Load preferences once when view is created
+        let prefs = TranscriptDeliveryPreferences.load()
+        _automaticPaste = State(initialValue: prefs.automaticPaste)
+        _sendReturnAfterPaste = State(initialValue: prefs.sendReturnAfterPaste)
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 14) {
@@ -22,11 +33,6 @@ struct MenuBarView: View {
                 Text("VoiceDock")
                     .font(.headline)
                 Spacer()
-                if let transcript = coordinator.currentTranscript {
-                    Text("\(transcript.count) chars")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
             }
 
             Divider()
@@ -170,24 +176,38 @@ struct MenuBarView: View {
 
             Divider()
 
-            // Action buttons
-            HStack {
-                Button("Open Mic Settings") {
-                    openMicrophoneSettings()
-                }
-                .font(.caption)
-                Spacer()
-                Button("Open Acc. Settings") {
-                    openAccessibilitySettings()
-                }
-                .font(.caption)
-                Spacer()
-                Button(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics") {
-                    showDiagnostics.toggle()
-                }
-                .font(.caption)
-                Spacer()
-                Button("Retry") {
+            // Delivery settings
+            VStack(alignment: .leading, spacing: 8) {
+                Toggle("Automatically paste transcript", isOn: $automaticPaste)
+                    .font(.caption)
+                    .toggleStyle(.switch)
+                    .onChange(of: automaticPaste) { newValue in
+                        let prefs = TranscriptDeliveryPreferences(
+                            automaticPaste: newValue,
+                            sendReturnAfterPaste: sendReturnAfterPaste
+                        )
+                        prefs.save()
+                    }
+                Toggle("Press Return after paste", isOn: $sendReturnAfterPaste)
+                    .font(.caption)
+                    .toggleStyle(.switch)
+                    .disabled(!automaticPaste)
+                    .onChange(of: sendReturnAfterPaste) { newValue in
+                        let prefs = TranscriptDeliveryPreferences(
+                            automaticPaste: automaticPaste,
+                            sendReturnAfterPaste: newValue
+                        )
+                        prefs.save()
+                    }
+            }
+            .padding(.vertical, 4)
+
+            Divider()
+
+            // Action area - two-row layout to prevent truncation
+            VStack(spacing: 8) {
+                // Row 1: Primary action (full width)
+                Button("Retry Transcription") {
                     Task { @MainActor in
                         await coordinator.retry()
                         permissions.refresh(reason: .retry)
@@ -195,16 +215,34 @@ struct MenuBarView: View {
                 }
                 .font(.caption)
                 .disabled(!isReadyOrFailed)
-                Spacer()
-                Button("Refresh Permissions") {
-                    permissions.refresh(reason: .manualRefresh)
+                .frame(maxWidth: .infinity)
+
+                // Row 2: Secondary actions (Refresh + More)
+                HStack(spacing: 12) {
+                    Button("Refresh Status") {
+                        permissions.refresh(reason: .manualRefresh)
+                    }
+                    .font(.caption)
+
+                    Menu("More") {
+                        Button("Open Microphone Settings") {
+                            openMicrophoneSettings()
+                        }
+                        Button("Open Accessibility Settings") {
+                            openAccessibilitySettings()
+                        }
+                        Button(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics") {
+                            showDiagnostics.toggle()
+                        }
+                        Divider()
+                        Button("Quit VoiceDock", role: .destructive) {
+                            coordinator.quit()
+                        }
+                    }
+                    .font(.caption)
+
+                    Spacer()
                 }
-                .font(.caption)
-                Spacer()
-                Button("Quit") {
-                    coordinator.quit()
-                }
-                .font(.caption)
             }
         }
         .padding()

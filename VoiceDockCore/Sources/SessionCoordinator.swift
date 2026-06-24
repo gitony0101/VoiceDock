@@ -193,9 +193,20 @@ public final class SessionCoordinator: ObservableObject {
     private func deliver(text: String?) async {
         state = .delivering
         if let text = text, !text.isEmpty {
-            transcriptDestination?.paste(text: text)
+            // Load user preferences and determine delivery policy
+            let preferences = TranscriptDeliveryPreferences.load()
+            let appProvider = NSWorkspaceFrontmostAppProvider()
+            let policy = TranscriptDeliveryPolicy(
+                preferences: preferences,
+                appProvider: appProvider
+            )
+            let decision = policy.determineDelivery()
+
+            // Execute delivery based on decision
+            let resultMessage = transcriptDestination?.deliver(text: text, decision: decision) ?? "Delivery failed"
+            logger.info("deliver: \(resultMessage)")
+
             currentTranscript = text
-            logger.info("Delivered transcript length: \(text.count)")
         } else {
             logger.warning("No transcript text to deliver")
         }

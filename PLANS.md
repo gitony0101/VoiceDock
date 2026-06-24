@@ -3,20 +3,23 @@
 ## Project Status
 
 ```text
-GATE_C_COMPLETE — CANDIDATE 6 VERIFIED BASELINE
+CANDIDATE7_PHASE_A_OWNER_VERIFIED
 ```
 
 ## Current Release Candidate
 
-**Candidate 6** — First physically verified development baseline (frozen)
+**Candidate 6** — First physically verified development baseline (frozen, rollback)
 
-**Note**: Candidate 6 is NOT the final release. It is the verified rollback candidate and first physically verified development baseline. Candidate 7 will be the final release.
+**Candidate 7 Phase A** — Owner verified, PR #4 open awaiting review
 
 ```text
-Artifact: dist/candidate-6/VoiceDock.app
-SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
-CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
-Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
+Candidate 6 Artifact: dist/candidate-6/VoiceDock.app
+Candidate 6 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
+Candidate 6 CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
+
+Candidate 7 Phase A.1 Artifact: build/candidate-7-phase-a1-review/VoiceDock.app
+Candidate 7 Phase A.1 SHA-256: eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0
+Candidate 7 Phase A.1 CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
 ```
 
 ## Completed Milestones
@@ -34,7 +37,7 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 - ✅ Audio format handling (16 kHz mono Float32)
 - ✅ Buffer timeout protection (60s max)
 
-### Verification (2026-06-23)
+### Gate C Verification (2026-06-23)
 - ✅ Debug build: PASS
 - ✅ Release build: PASS
 - ✅ Unit tests: 24 tests PASS (Mock-based)
@@ -49,22 +52,57 @@ Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 - ✅ Gate C Optional Return: PASS
 - ✅ Gate C 3-session stability: PASS
 
+### Candidate 7 Phase A (2026-06-23) — COMPLETE
+
+- ✅ Character counter removed
+- ✅ Bottom action area redesigned (Retry, Refresh, More menu)
+- ✅ Independent paste and Return preferences
+- ✅ Default paste: ON (migration-safe)
+- ✅ Default Return: OFF (safer than Candidate 6)
+- ✅ Terminal safety suppression (before event synthesis)
+- ✅ 26 new automated tests (46 total SwiftPM, 24 total Xcode)
+- ✅ Owner physical review: PASS (after Phase A.1 fix)
+
+### Candidate 7 Phase A.1 (2026-06-23) — COMPLETE
+
+- ✅ UI truncation fix (two-row VStack layout)
+- ✅ "Retry Transcription" no longer truncated by design
+- ✅ "Refresh Status" and "More" remain on second row
+- ✅ All behavioral delivery code preserved
+- ✅ All 46 SwiftPM tests pass
+- ✅ All 24 Xcode tests pass
+- ✅ Debug and Release builds pass
+- ✅ Owner UI retest: PASS
+
+### Repository Submission — PR #4 OPEN, AWAITING OWNER REVIEW
+
+- ✅ Owner verification results documented
+- ✅ Status documents updated
+- ✅ Safety checks passed
+- ✅ Documentation commit created (`9d2f1a3861d54bf19a814175973a666b55e038b8`)
+- ✅ Branch pushed to `origin/feat/candidate7-release-polish`
+- ✅ PR #4 created: "feat: complete Candidate 7 Phase A UI and delivery safety"
+- ⏳ PR review and merge: PENDING (owner action required)
+
 ## Remaining Milestones
 
-### Candidate 7 (Final Release) — PENDING
+### Candidate 7 Phase B (PENDING — After PR #4 Merge)
 
-1. Remove the visible `chars` counter from the public UI
-2. Replace truncated bottom-button labels with clear accessible labels
-3. Add separate automatic-paste and automatic-Return controls
-4. Default automatic Return to OFF
-5. Add terminal safety behavior for automatic Return
-6. Add the approved VoiceDock icon
-7. Add polished README icon and current screenshot
-8. Improve recognition documentation and disclose model limitations
-9. Investigate vocabulary or prompt-bias options for recognizing `VoiceDock`
-10. Freeze Candidate 7 separately
-11. Perform final physical Candidate 7 verification
-12. Only after Candidate 7 verification consider public repository visibility and a `v0.1.0` prerelease
+- [ ] PR #4 merged to `main`
+- [ ] Local `main` branch synchronized
+- [ ] Dedicated Phase B branch created
+- [ ] VoiceDock icon integration
+- [ ] Updated README icon and screenshots
+- [ ] Recognition quality documentation improvements
+- [ ] Consider vocabulary/prompt-bias for "VoiceDock" product name
+
+### Candidate 7 Freeze (PENDING — After Phase B)
+
+- [ ] Freeze Candidate 7
+- [ ] Perform Candidate 7 physical verification
+- [ ] Consider signing/notarization (requires credentials)
+- [ ] Consider v0.1.0 prerelease
+- [ ] Consider public repository visibility
 
 ## Technology Stack
 

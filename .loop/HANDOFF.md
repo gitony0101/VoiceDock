@@ -1,124 +1,133 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-06-23 (Gate C COMPLETE)
+**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED, PR #4 OPEN)
 
 ## Executive Summary
 
-Candidate 6 is the current physically verified development baseline. Automated gates pass. Gate C physical verification COMPLETE. Candidate 7 backlog defined.
+Candidate 7 Phase A owner verification is **COMPLETE — PASS**.
 
-**Note**: Candidate 6 is NOT the final release. It is the first physically verified development baseline and verified rollback candidate. Candidate 7 will be the final release.
+All UI labels are fully visible. All delivery safety tests passed.
+
+**PR #4 is OPEN** on GitHub, awaiting owner review and merge.
+
+**Candidate 6 remains the frozen, physically verified rollback baseline.**
 
 ## Active Candidate
 
-**candidate-6** (Frozen)
+**candidate-7-phase-a1** (Development Review Build — NOT FROZEN)
+
+```text
+Artifact: build/candidate-7-phase-a1-review/VoiceDock.app
+SHA-256: eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0
+CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
+Bundle ID: com.voicedock.app
+Signing: Ad-hoc
+```
+
+## Candidate 6 Rollback Baseline (Unchanged)
 
 ```text
 Artifact: dist/candidate-6/VoiceDock.app
 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
 CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
 Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
-Bundle ID: com.voicedock.app
-Signing: Ad-hoc
+Status: Frozen, physically verified (Gate C COMPLETE)
 ```
 
-## Crash Provenance (Critical Finding)
+## Candidate 7 Phase A Owner Verification Result
 
-**The alleged "Candidate 5 Gate B failure" was actually Candidate 4 crashing.**
+**Result:** PASS
 
-All crash reports analyzed:
+Phase A.1 fixed the "Retry Transcription" truncation with a two-row VStack layout. Owner physical retest confirmed all labels fully visible.
 
-| Crash Timestamp | UUID | Candidate |
-|-----------------|------|-----------|
-| 09:00:12 | 646d1bd8-d300-3adb-8ab7-9234321683c6 | Candidate 4 |
-| 07:56:06 | 646d1bd8-d300-3adb-8ab7-9234321683c6 | Candidate 4 |
-| 06:02:09 | 646d1bd8-d300-3adb-8ab7-9234321683c6 | Candidate 4 |
-| — | 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1 | **Candidate 5/6 — NO CRASH** |
-
-**Conclusion**: Candidate 5 was never physically crash-tested. Candidate 6 shares the same UUID as Candidate 5 and has been physically verified as stable.
-
-## Automated Verification (Complete — Reconciled Counts)
+## Automated Verification (Complete)
 
 | Check | Result | Notes |
 |-------|--------|-------|
-| swift package describe | PASS | Package resolved |
 | swift build | PASS | Debug build |
-| swift test | PASS | 20 XCTest tests (VoiceDockCoreTests) |
-| xcodegen generate | PASS | Project generated |
+| swift test | PASS | 46 XCTest tests |
+| xcodegen generate | PASS | Project regenerated |
 | xcodebuild Debug build | PASS | Native app build |
-| xcodebuild Debug test | PASS | 24 XCTest tests (VoiceDockTests) |
+| xcodebuild Debug test | PASS | 24 XCTest tests |
 | xcodebuild Release build | PASS | Native app build |
-| codesign verify | PASS | Signature valid |
-| Info.plist lint | PASS | No errors |
+| UI truncation fix | PASS | Two-row VStack layout |
+| Behavioral code preserved | PASS | No delivery code modified |
 
 **Test Count Reconciliation**:
-- SwiftPM (`swift test`): 20 XCTest tests
-- Xcode (`xcodebuild test`): 24 XCTest tests (includes HotKeyManagerTests)
-- No double-counting — different test targets
+- SwiftPM (`swift test`): 46 XCTest tests (VoiceDockCoreTests)
+- Xcode (`xcodebuild test`): 24 XCTest tests (VoiceDockTests)
 
-## Physical Verification (Gate C COMPLETE)
+## Owner Physical Verification (Complete)
 
-| Test | Result | Notes |
-|------|--------|-------|
-| Microphone permission | GRANTED | System prompt |
-| Accessibility permission | GRANTED | System prompt |
-| Hotkey press/release | PASS | Physical key press detected |
-| App stability | PASS (no crash) | No crash report |
-| Mandarin transcription | PASS | "好了，好，你能听到吗？" |
-| English transcription | PASS (pipeline) | "Hello world, this is voice task of the voice tech transportation." |
-| Mixed Chinese-English | PASS (pipeline) | "This is the second test, 你好，这第二次测试。" |
-| Clipboard delivery | PASS | Clipboard delivery confirmed |
-| Automatic paste | PASS | Text pasted without manual Cmd+V |
-| Optional Return | PASS | Cursor moved to new line |
-| 3-session stability | PASS | 3 consecutive cycles without crash |
+| Category | Result |
+|----------|--------|
+| UI layout | PASS |
+| Permissions | PASS |
+| Preferences | PASS |
+| Delivery | PASS |
+| Terminal safety | PASS |
+| End-to-end | PASS |
+| Stability | PASS |
 
-## Recognition Quality Findings
+See `.loop/evidence/candidates/candidate-7-phase-a1/OWNER_UI_RETEST_RESULTS.md` for detailed results.
+
+## Recognition-Quality Limitations (Preserved)
 
 | Aspect | Status |
 |--------|--------|
-| Pipeline functionality | ✅ PASS |
-| English accuracy | ⚠️ PARTIAL |
-| Mixed Chinese-English accuracy | ⚠️ PARTIAL |
-| Product-name recognition ("VoiceDock") | ❌ NEEDS IMPROVEMENT |
+| English recognition accuracy | PARTIAL |
+| Mixed-language recognition accuracy | PARTIAL |
+| VoiceDock product-name recognition | NEEDS IMPROVEMENT |
 
-## Repairs in Candidate 6
+## Candidate 7 Phase A.1 Change
 
-1. **MainActor isolation safety** — `Task { @MainActor ... }` instead of `MainActor.assumeIsolated`
-2. **Permission state refresh** — UI updates on app activation
-3. **Activation observer** — Listens for `NSApplication.didBecomeActive`
-4. **Diagnostic log cleanup** — Removes stale logs on launch/exit (crash recovery)
-5. **Audio format handling** — Hardware format → 16 kHz mono Float32
-6. **Buffer timeout protection** — 60 second max buffer
+**Single file modified:** `VoiceDockApp/UI/MenuBarView.swift`
 
-## Historical Candidates
+Changed action area from single-row HStack to two-row VStack:
+- Row 1: "Retry Transcription" (full width)
+- Row 2: "Refresh Status" + "More" menu
 
-### Candidate 4 (Crashed)
-```text
-UUID: 646D1BD8-D300-3ADB-8AB7-9234321683C6
-Crash: EXC_BAD_ACCESS in MainActor.assumeIsolated
-```
+All behavioral delivery code unchanged.
 
-### Candidate 5 (Superseded, Never Physically Tested)
-```text
-UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
-Status: Superseded by Candidate 6
-```
+## Repository Status
 
-### Candidate 6 (Current Baseline)
-```text
-Status: Frozen, physically verified (Gate C COMPLETE)
-Retention: Keep as rollback candidate
-```
+**PR #4:** OPEN — awaiting owner review and merge  
+**Branch:** `feat/candidate7-release-polish` → `main`  
+**Documentation commit:** `9d2f1a3861d54bf19a814175973a666b55e038b8`
 
 ## How to Resume
 
-Gate C is COMPLETE. Proceed to Candidate 7:
+### Immediate Next Steps
 
-1. Review Candidate 7 backlog in PLANS.md
-2. Implement UI cleanup items (remove `chars` counter, fix button labels)
-3. Add separate automatic-paste and automatic-Return controls
-4. Default automatic Return to OFF
-5. Add terminal safety behavior
-6. Add VoiceDock icon and screenshots
-7. Freeze Candidate 7
-8. Perform Candidate 7 physical verification
-9. Consider v0.1.0 prerelease after Candidate 7 verification
+1. **Owner reviews PR #4** on GitHub
+2. **Merge PR #4** when ready
+3. **Sync local `main`:**
+   ```bash
+   git checkout main
+   git pull origin main
+   ```
+4. **Create Phase B branch:**
+   ```bash
+   git checkout -b feat/candidate7-phase-b-icon
+   ```
+5. **Begin Phase B** (icon integration, README polish)
+
+### After Phase B Complete
+
+1. Freeze Candidate 7
+2. Perform Candidate 7 physical verification
+3. Consider signing/notarization (requires credentials)
+4. Consider v0.1.0 prerelease
+5. Consider public repository visibility
+
+### If Issues Found
+
+1. Owner reports exact failure
+2. Fix and rebuild review artifact
+3. Provide updated SHA-256 for re-verification
+
+## Do Not
+
+- Do not begin Phase B work on this branch (`feat/candidate7-release-polish`)
+- Do not merge PR #4 until Phase B readiness is confirmed
+- Do not create `dist/candidate-7` until after Phase B and freeze
