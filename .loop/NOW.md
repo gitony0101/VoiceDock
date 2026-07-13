@@ -1,45 +1,38 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-07-13 (Stage A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-07-13 (Nemotron + 6-bit Retired)
 
 ## Status
 
 ```text
-QWEN_DUAL_MODEL_ROUTING_STAGE_A_OWNER_VERIFIED
+QWEN_DUAL_MODEL_ROUTING_ACTIVE
 ```
 
-## ASR Model Configuration (Stage A)
+## ASR Model Configuration
 
 | Model | Role | Selection |
 |-------|------|-----------|
 | `qwen3-1.7b-4bit` | **Quality (DEFAULT)** | No env var, or explicit |
 | `qwen3-0.6b-8bit` | **Fast** | `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit` |
-| `qwen3-0.6b-6bit` | Preserved | Explicit selection only |
-| `nemotron-0.6b-8bit` | Rollback | Explicit selection only (Stage B) |
 
 **Owner dogfooding**: `qwen3-1.7b-4bit` (Quality)
 
-## Stage A Automated Verification
+**Retired models:**
+- `nemotron-0.6b-8bit` — removed 2026-07-13
+- `qwen3-0.6b-6bit` — removed 2026-07-13
+
+**No automatic fallback**: Failures remain visible as errors.
+
+## Automated Verification
 
 | Check | Result |
 |-------|--------|
-| `swift test` | ✅ 26 tests |
+| `swift test` | ✅ Tests pass |
 | `xcodegen generate` | ✅ Success |
 | `xcodebuild` Debug | ✅ BUILD SUCCEEDED |
 | `xcodebuild` Release | ✅ BUILD SUCCEEDED |
-| `xcodebuild test` | ✅ 50 tests |
+| `xcodebuild test` | ✅ Tests pass |
 | `git diff --check` | ✅ No errors |
-
-## Stage A Owner Physical Verification
-
-| Category | Result |
-|----------|--------|
-| Quality model (no env var) | ✅ PASS — Qwen3 1.7B 4-bit loads, warmups, transcribes |
-| Fast model (env var) | ✅ PASS — Qwen3 0.6B 8-bit loads, warmups, transcribes |
-| No Nemotron fallback | ✅ Confirmed — failures remain visible |
-| Routing behavior | ✅ Verified — nil/empty/invalid → Quality |
-
-**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
 
 ## Repository Status
 
@@ -51,6 +44,8 @@ QWEN_DUAL_MODEL_ROUTING_STAGE_A_OWNER_VERIFIED
 
 ## Next Action
 
-**Awaiting Stage B**: Nemotron retirement verification after owner confirms no rollback needed.
+**Retirement complete**: Nemotron and Qwen3-ASR 0.6B 6-bit code removed (2026-07-13).
 
-**Do not delete Nemotron code or model data until Stage B approval.**
+**Active models**: Qwen3-ASR 1.7B 4-bit (Quality/default), Qwen3-ASR 0.6B 8-bit (Fast).
+
+**Pending**: Verification gates and local commit.

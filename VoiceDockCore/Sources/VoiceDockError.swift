@@ -104,7 +104,7 @@ public enum VoiceDockError: Error, LocalizedError {
         case .modelNotFound:
             return "Ensure you have an internet connection for initial model download."
         case .modelDownloadFailed:
-            return "Check your internet connection. You can also manually download the model from huggingface.co/mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit"
+            return "Check your internet connection. You can also manually download the model from Hugging Face."
         case .transcriptionFailed:
             return "Try again with clearer speech or a shorter utterance."
         case .accessibilityPermissionDenied, .accessibilityNotTrusted:

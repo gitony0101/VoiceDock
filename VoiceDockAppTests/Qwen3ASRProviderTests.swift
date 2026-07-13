@@ -13,7 +13,7 @@ final class Qwen3ASRProviderTests: XCTestCase {
     var provider: Qwen3ASRProvider!
     var mockStorage: ModelStorage!
     var tempBaseDir: URL!
-    let descriptor = QwenModelDescriptor.qwen3_0_6B_6bit
+    let descriptor = QwenModelDescriptor.qwen3_0_6B_8bit
 
     override func setUp() async throws {
         try await super.setUp()

@@ -47,7 +47,6 @@ struct QwenModelDescriptorTests {
     @Test("Qwen3 models have correct family")
     func testQwen3ModelsHaveCorrectFamily() {
         let qwenModels: [QwenModelDescriptor] = [
-            .qwen3_0_6B_6bit,
             .qwen3_0_6B_8bit,
             .qwen3_1_7B_4bit
         ]
@@ -57,9 +56,11 @@ struct QwenModelDescriptorTests {
         }
     }
 
-    @Test("Nemotron model has correct family")
-    func testNemotronModelHasCorrectFamily() {
-        #expect(QwenModelDescriptor.nemotron_0_6B_8bit.family == .nemotron)
+    @Test("All descriptors have only Qwen3 family")
+    func testAllDescriptorsHaveQwen3Family() {
+        for descriptor in QwenModelDescriptor.all {
+            #expect(descriptor.family == .qwen3)
+        }
     }
 
     @Test("Qwen3-ASR-0.6B-8bit descriptor values")
@@ -100,23 +101,19 @@ struct QwenModelDescriptorTests {
     func testAllModelsListContainsAllExpectedModels() {
         let all = QwenModelDescriptor.all
 
-        #expect(all.count == 4)
-        #expect(all.contains(.qwen3_0_6B_6bit))
+        #expect(all.count == 2)
         #expect(all.contains(.qwen3_0_6B_8bit))
         #expect(all.contains(.qwen3_1_7B_4bit))
-        #expect(all.contains(.nemotron_0_6B_8bit))
     }
 
     @Test("modelDescriptor property returns correct descriptor for each enum case")
     func testASRModelSelectionModelDescriptorProperty() {
-        #expect(ASRModelSelection.qwen3_0_6B_6bit.modelDescriptor == .qwen3_0_6B_6bit)
         #expect(ASRModelSelection.qwen3_0_6B_8bit.modelDescriptor == .qwen3_0_6B_8bit)
         #expect(ASRModelSelection.qwen3_1_7B_4bit.modelDescriptor == .qwen3_1_7B_4bit)
-        #expect(ASRModelSelection.nemotron.modelDescriptor == .nemotron_0_6B_8bit)
     }
 
     @Test("ASRModelSelection allCases count matches enum cases")
     func testASRModelSelectionAllCasesCount() {
-        #expect(ASRModelSelection.allCases.count == 4)
+        #expect(ASRModelSelection.allCases.count == 2)
     }
 }

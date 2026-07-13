@@ -76,7 +76,9 @@ Concurrency: Swift structured concurrency
 Inference: native MLX
 Package: Blaizzy/mlx-audio-swift
 Swift product: MLXAudioSTT
-Model: mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit
+Models:
+  - mlx-community/Qwen3-ASR-1.7B-4bit (Quality/default)
+  - mlx-community/Qwen3-ASR-0.6B-8bit (Fast)
 Minimum OS: macOS 14
 Architecture: arm64
 ```
@@ -118,7 +120,7 @@ The production application must not use Python, NeMo, Electron, Tauri, a subproc
 
 ### ASR
 
-* Load the Nemotron 3.5 ASR 0.6B 8-bit model
+* Load the Qwen3 ASR model (1.7B 4-bit default, or 0.6B 8-bit via `VOICEDOCK_ASR_MODEL`)
 * Warm up without blocking the main actor
 * Transcribe finalized utterances locally
 * Handle load and inference failure
@@ -296,7 +298,7 @@ The MVP is accepted only when:
 5. The user can grant required permissions.
 6. Push-to-talk records real microphone input.
 7. Audio reaches the required 16 kHz mono Float32 format.
-8. Nemotron runs locally through `MLXAudioSTT`.
+8. Qwen3 runs locally through `MLXAudioSTT`.
 9. English speech is transcribed.
 10. Mandarin Chinese speech is transcribed.
 11. Mixed Chinese-English speech is transcribed.

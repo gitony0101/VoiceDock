@@ -31,7 +31,7 @@ Primary MVP flow:
 global push-to-talk
 → microphone capture
 → 16 kHz mono Float32 audio
-→ local Nemotron ASR
+→ local Qwen3 ASR
 → transcript
 → clipboard
 → focused application paste
@@ -61,7 +61,8 @@ Swift structured concurrency
 Xcode macOS App target
 Blaizzy/mlx-audio-swift
 MLXAudioSTT
-mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit
+mlx-community/Qwen3-ASR-1.7B-4bit (Quality/default)
+mlx-community/Qwen3-ASR-0.6B-8bit (Fast)
 ```
 
 The distributed application must not require:
@@ -89,7 +90,7 @@ Accessibility permission handling
 global push-to-talk
 real microphone capture
 16 kHz mono Float32 normalization
-local Nemotron transcription
+local Qwen3 transcription
 English transcription
 Mandarin Chinese transcription
 mixed Chinese-English transcription
@@ -139,7 +140,7 @@ VoiceDockApp/ (UI Layer)
 
 VoiceDockCore/ (Business Logic Framework)
 ├── ASRProvider.swift       Protocol: actor ASRProvider
-├── MLXAudioSTTProvider.swift Nemotron ASR implementation
+├── Qwen3ASRProvider.swift  Qwen3 ASR implementation
 ├── AudioCapture.swift      AVAudioEngine, 16 kHz mono Float32
 ├── AudioNormalizer.swift   Format conversion (pure function)
 ├── TranscriptDestination.swift Clipboard + CGEvent paste
@@ -198,7 +199,7 @@ protocol ASRProvider: Actor {
 }
 ```
 
-The implementation may evolve from verified requirements, but shared interfaces must not expose unnecessary Nemotron internals.
+The implementation may evolve from verified requirements, but shared interfaces must not expose unnecessary Qwen3 internals.
 
 ## Audio Contract
 
@@ -313,7 +314,7 @@ The primary project is an Xcode macOS application.
 
 **Pending Verification**:
 - ⏳ Real microphone audio capture
-- ⏳ Real ASR inference with Nemotron model
+- ⏳ Real ASR inference with Qwen3 model
 - ⏳ Accessibility permission + paste simulation
 - ⏳ Carbon hotkey global registration (currently falls back to NSEvent)
 - ⏳ English/Mandarin/Mixed speech transcription quality
@@ -345,7 +346,7 @@ Use mocks and small deterministic fixtures for ordinary automated tests.
 
 Production-model and microphone checks must be recorded as separate integration or manual evidence.
 
-**Current Test Coverage Gap**: All 24 tests use `MockASRProvider` and `MockAudioCapture`. No test exercises the real ASR pipeline.
+**Current Test Coverage Gap**: All tests use `MockASRProvider` and `MockAudioCapture`. No test exercises the real ASR pipeline.
 
 ## Git Discipline
 
@@ -399,7 +400,7 @@ launch the native menu bar application
 grant required permissions
 trigger push-to-talk
 speak into a real microphone
-run Nemotron locally through MLXAudioSTT
+run Qwen3 locally through MLXAudioSTT
 receive English, Mandarin, and mixed-language transcripts
 copy the transcript
 paste it into the focused application

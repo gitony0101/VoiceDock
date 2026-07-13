@@ -105,16 +105,14 @@ VoiceDock must remain a focused speech-input utility.
 
 These decisions are active unless the owner explicitly changes them.
 
-1. Keep Nemotron available.
-2. Keep Qwen3-ASR 0.6B 6-bit available.
-3. Keep Qwen3-ASR 0.6B 8-bit available.
-4. Keep Qwen3-ASR 1.7B 4-bit available.
-5. Use Qwen3-ASR 1.7B 4-bit for owner dogfooding and long-term daily evaluation.
-6. Do not automatically make Qwen3-ASR 1.7B 4-bit the public default.
-7. Continue improving VoiceDock as a daily-use product.
-8. Add model management gradually.
-9. Support only compatible ASR models.
-10. Include application icon, menu-bar icon, interface, and usability work in a dedicated product-polish phase.
+1. Use Qwen3-ASR 1.7B 4-bit for owner dogfooding and long-term daily evaluation (Quality/default).
+2. Use Qwen3-ASR 0.6B 8-bit as the Fast model option (via `VOICEDOCK_ASR_MODEL`).
+3. Nemotron support removed (2026-07-13).
+4. Qwen3-ASR 0.6B 6-bit support removed (2026-07-13).
+5. Continue improving VoiceDock as a daily-use product.
+6. Add model management gradually.
+7. Support only compatible ASR models.
+8. Include application icon, menu-bar icon, interface, and usability work in a dedicated product-polish phase.
 
 ---
 
@@ -160,15 +158,15 @@ The agent must not automatically continue to the next phase.
 
 Goal:
 
-Create a clean and trustworthy checkpoint for the current multi-model VoiceDock implementation.
+Create a clean and trustworthy checkpoint for the Qwen3 dual-model VoiceDock implementation.
 
 Scope:
 
-- preserve Nemotron and all installed Qwen models
+- Qwen3-ASR 1.7B 4-bit as Quality/default
+- Qwen3-ASR 0.6B 8-bit as Fast option
+- Nemotron retired from active support (2026-07-13)
+- Qwen3-ASR 0.6B 6-bit retired from active support (2026-07-13)
 - document current model support
-- document current manual comparison
-- confirm owner dogfooding preference for Qwen3-ASR 1.7B 4-bit
-- keep public default unchanged
 - finish current repository cleanup
 - reconcile current reports and test totals
 - confirm build and test gates

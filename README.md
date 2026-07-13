@@ -20,7 +20,7 @@ VoiceDock is a native macOS application that provides global push-to-talk speech
 1. Hold Control+Option+Space
 2. Speak into the microphone
 3. Release the shortcut
-4. Nemotron ASR transcribes locally
+4. Qwen3 ASR transcribes locally
 5. Transcript is copied to the clipboard
 6. Transcript is pasted into the focused app
 7. Return may be sent after paste in the current MVP build
@@ -66,7 +66,7 @@ VoiceDockApp/                    UI and macOS integration
 
 VoiceDockCore/                   Reusable business logic
 ├── ASRProvider.swift            ASR protocol
-├── MLXAudioSTTProvider.swift    Nemotron/MLX implementation
+├── Qwen3ASRProvider.swift       Qwen3 ASR implementation
 ├── AudioCapture.swift           AVAudioEngine capture
 ├── AudioNormalizer.swift        Hardware format to 16 kHz mono Float32
 ├── TranscriptDestination.swift  Clipboard and CGEvent paste
@@ -87,7 +87,7 @@ VoiceDockCore/                   Reusable business logic
 |---|---|---|
 | `mlx-audio-swift` | revision `3f6b055` | MLX audio and ASR integration |
 | `mlx-swift` | `0.31.4` | MLX runtime |
-| Nemotron ASR | `nemotron-3.5-asr-streaming-0.6b-8bit` | Local speech recognition |
+| Qwen3-ASR | `Qwen3-ASR-1.7B-4bit` (Quality), `Qwen3-ASR-0.6B-8bit` (Fast) | Local speech recognition |
 
 ## Build Instructions
 

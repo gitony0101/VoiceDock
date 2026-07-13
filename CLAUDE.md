@@ -19,7 +19,7 @@ VoiceDock is a native macOS menu bar application for push-to-talk speech-to-text
 **Current Status**:
 - ✅ Debug build: PASS
 - ✅ Release build: PASS  
-- ✅ Unit tests: 24/24 PASS (Mock)
+- ✅ Unit tests: PASS (Qwen3 two-model baseline)
 - ✅ Permission state refresh: FIXED (2026-06-22)
 - ⏳ Manual M1 verification: PENDING (requires physical test)
 

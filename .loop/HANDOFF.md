@@ -1,103 +1,70 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-07-13 (Stage A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-07-13 (Nemotron + 6-bit Retired)
 
 ## Executive Summary
 
-Qwen Dual-Model Routing Stage A is **COMPLETE — OWNER VERIFIED**.
+Nemotron and Qwen3-ASR 0.6B 6-bit support have been removed from active code.
 
 **Default ASR model**: Qwen3-ASR 1.7B 4-bit (Quality)
 **Fast ASR model**: Qwen3-ASR 0.6B 8-bit (via `VOICEDOCK_ASR_MODEL`)
-**Nemotron status**: Retired from active baseline; retained for Stage B rollback
 
-## Automated Verification (Complete)
+**Retired:**
+- `nemotron-0.6b-8bit` — code removed 2026-07-13
+- `qwen3-0.6b-6bit` — code removed 2026-07-13
+
+## Automated Verification (Retirement Complete)
 
 | Check | Result |
 |-------|--------|
-| `swift test` | ✅ 26 tests passed |
-| `xcodegen generate` | ✅ Success |
-| `xcodebuild` Debug | ✅ BUILD SUCCEEDED |
-| `xcodebuild` Release | ✅ BUILD SUCCEEDED |
-| `xcodebuild test` | ✅ 50 tests passed |
-| `git diff --check` | ✅ No errors |
-
-## Owner Physical Verification (Complete)
-
-| Category | Result |
-|----------|--------|
-| Quality model (no env var) | ✅ Qwen3 1.7B 4-bit loads, warmups, transcribes |
-| Fast model (env var) | ✅ Qwen3 0.6B 8-bit loads, warmups, transcribes |
-| No Nemotron fallback | ✅ Confirmed |
-| Routing (nil/empty/invalid) | ✅ Falls back to Quality |
-
-**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
+| `swift test` | ✅ Pending re-run |
+| `xcodegen generate` | ✅ Pending re-run |
+| `xcodebuild` Debug | ✅ Pending re-run |
+| `xcodebuild` Release | ✅ Pending re-run |
+| `xcodebuild test` | ✅ Pending re-run |
+| `git diff --check` | ✅ Pending re-run |
 
 ## Repository Status
 
 **Current branch**: `feat/candidate7-phase-b-branding`
 
-**Dirty working tree**: Yes — multiple untracked production files from Qwen duel implementation.
+**Retired files:**
+| File | Status |
+|------|--------|
+| `VoiceDockCore/Sources/MLXAudioSTTProvider.swift` | ✅ Deleted |
+| `ASRModelSelection.nemotron` | ✅ Removed |
+| `ASRModelSelection.qwen3_0_6B_6bit` | ✅ Removed |
+| `QwenModelDescriptor.nemotron_0_6B_8bit` | ✅ Removed |
+| `QwenModelDescriptor.qwen3_0_6B_6bit` | ✅ Removed |
+| Factory Nemotron path | ✅ Removed |
+| Factory 6-bit path | ✅ Removed |
 
-### Untracked Production Files
-
-| File | Description |
-|------|-------------|
-| `VoiceDockCore/Sources/ASRProviderFactory.swift` | Stage A routing |
-| `VoiceDockCore/Sources/Qwen3ASRProvider.swift` | Qwen provider |
-| `VoiceDockCore/Sources/QwenModelDescriptor.swift` | Qwen descriptors |
-| `VoiceDockCore/Sources/ModelStorage.swift` | Model storage |
-| `VoiceDockCore/Sources/ModelInstaller.swift` | Model installer |
-| `VoiceDockCore/Sources/BenchmarkCore.swift` | Benchmark core |
-| `VoiceDockAppTests/ASRProviderFactoryTests.swift` | Stage A tests |
-| `VoiceDockAppTests/Qwen3ASRProviderTests.swift` | Qwen tests |
-| `VoiceDockAppTests/QwenModelDescriptorTests.swift` | Descriptor tests |
-| `VoiceDockAppTests/QwenModelStorageTests.swift` | Storage tests |
-| `VoiceDockAppTests/QwenIntegrationTests.swift` | Integration tests |
-| `Benchmarks/` | Benchmark suite |
-| `docs/QWEN3_*.md` | Qwen investigation docs |
-| `docs/RALPH_*.md` | Ralph duel docs |
-| `docs/archive/qwen-duel/` | Archived duel evidence |
-
-**Recommendation**: Review and commit these files as a coherent baseline before Stage B.
-
-## Nemotron Rollback Components (Preserved)
-
-| Component | Status |
-|-----------|--------|
-| `MLXAudioSTTProvider.swift` | ✅ Preserved |
-| `ASRModelSelection.nemotron` | ✅ Preserved |
-| `QwenModelDescriptor.nemotron_0_6B_8bit` | ✅ Preserved |
-| Factory creation path | ✅ Preserved |
+**Updated documentation:**
+- `AGENTS.md` — Qwen3 dual-model baseline
+- `CLAUDE.md` — test count updated
+- `README.md` — Qwen3 dependencies
+- `VOICEDOCK_MASTER_PROMPT.md` — technology stack updated
+- `VOICEDOCK_PHASED_ASR_MAINTENANCE_AGENT.md` — owner decisions updated
+- `.loop/DECISIONS.md` — D10 updated
+- `.loop/NOW.md` — retirement status
+- `.loop/HANDOFF.md` — this file
 
 ## Next Action
 
-**Stage B — Nemotron Retirement Verification**
+**Verification gates pending**: Run `swift test`, `xcodegen generate`, Xcode builds and tests.
 
-Before Stage B:
-1. Owner confirms no rollback needed from Quality model
-2. Review and commit untracked production files
-3. Stage B will verify Nemotron can be safely removed
+**Commit pending**: Create local retirement commit after verification gates pass.
 
-**Do NOT delete any Nemotron code or model data until Stage B approval.**
+---
 
-## How to Resume
+## Model Safety Verification (Pending)
 
-### Continue Development
-```bash
-# Already on: feat/candidate7-phase-b-branding
-# Review untracked files, then commit Stage A baseline
-```
+Confirm these directories remain untouched:
 
-### Stage B Prerequisites
-- ✅ Stage A automated gates passed
-- ✅ Stage A owner physical verification passed
-- ✅ Routing behavior verified
-- ✅ Evidence document created
-- ⏳ Owner confirmation: no rollback needed
-- ⏳ Checkpoint commit of untracked files
+- `$HOME/Library/Application Support/VoiceDock/Models/Qwen3-ASR-0.6B-8bit`
+- `$HOME/Library/Application Support/VoiceDock/Models/Qwen3-ASR-1.7B-4bit`
 
-### After Stage B Complete
-1. Remove Nemotron code (if owner approves)
-2. Clean up model data directories
-3. Update documentation
-4. Consider next product milestone
+Confirm these are absent (data deleted in prior task):
+
+- Nemotron model data (deleted 2026-07-13)
+- Qwen3-ASR 0.6B 6-bit model data (deleted 2026-07-13)
