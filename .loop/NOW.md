@@ -1,95 +1,56 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-06-23 (Candidate 7 Phase A COMPLETE — OWNER VERIFIED, PR #4 OPEN)
+**Last Updated**: 2026-07-13 (Stage A COMPLETE — OWNER VERIFIED)
 
 ## Status
 
 ```text
-CANDIDATE7_PHASE_A_OWNER_VERIFIED
+QWEN_DUAL_MODEL_ROUTING_STAGE_A_OWNER_VERIFIED
 ```
 
-## Active Candidate
+## ASR Model Configuration (Stage A)
 
-**candidate-7-phase-a1** (Development Review Build — NOT FROZEN)
+| Model | Role | Selection |
+|-------|------|-----------|
+| `qwen3-1.7b-4bit` | **Quality (DEFAULT)** | No env var, or explicit |
+| `qwen3-0.6b-8bit` | **Fast** | `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit` |
+| `qwen3-0.6b-6bit` | Preserved | Explicit selection only |
+| `nemotron-0.6b-8bit` | Rollback | Explicit selection only (Stage B) |
 
-**Role**: Phase A.1 UI truncation repair (narrow scope)
+**Owner dogfooding**: `qwen3-1.7b-4bit` (Quality)
 
-**Note**: This is NOT a frozen release. Candidate 6 remains the verified rollback baseline.
+## Stage A Automated Verification
 
-```text
-Artifact: build/candidate-7-phase-a1-review/VoiceDock.app
-SHA-256: eb442ac1bd26b0f3014e714e73aafa981a3cc5dd73100c9569c3ef359d5024f0
-CDHash: 90a6083b2293c6fb0524fd2e7ae9ec2b100d0621
-Architecture: arm64 (Apple Silicon only)
-```
+| Check | Result |
+|-------|--------|
+| `swift test` | ✅ 26 tests |
+| `xcodegen generate` | ✅ Success |
+| `xcodebuild` Debug | ✅ BUILD SUCCEEDED |
+| `xcodebuild` Release | ✅ BUILD SUCCEEDED |
+| `xcodebuild test` | ✅ 50 tests |
+| `git diff --check` | ✅ No errors |
 
-## Candidate 6 Rollback Baseline (Unchanged)
+## Stage A Owner Physical Verification
 
-```text
-Artifact: dist/candidate-6/VoiceDock.app
-SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
-CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
-Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
-Status: Frozen, physically verified
-```
+| Category | Result |
+|----------|--------|
+| Quality model (no env var) | ✅ PASS — Qwen3 1.7B 4-bit loads, warmups, transcribes |
+| Fast model (env var) | ✅ PASS — Qwen3 0.6B 8-bit loads, warmups, transcribes |
+| No Nemotron fallback | ✅ Confirmed — failures remain visible |
+| Routing behavior | ✅ Verified — nil/empty/invalid → Quality |
 
-## Phase A Owner Review Result
-
-**Result:** PASS (after Phase A.1 fix)
-
-**Original Phase A result:** PARTIAL — "Retry Transcription" label was truncated.
-
-**Phase A.1 fix:** Two-row VStack layout prevents truncation. Owner verified all UI labels fully visible.
-
-## Phase A.1 Automated Verification (Complete)
-
-| Check | Result | Notes |
-|-------|--------|-------|
-| swift build | PASS | Debug build |
-| swift test | PASS | 46 XCTest tests |
-| xcodegen generate | PASS | Project regenerated |
-| xcodebuild Debug build | PASS | Native app build |
-| xcodebuild Debug test | PASS | 24 XCTest tests |
-| xcodebuild Release build | PASS | Native app build |
-| UI truncation fix | PASS | Code review — two-row layout |
-| Behavioral code preserved | PASS | No delivery code modified |
-
-## Phase A Owner Physical Verification (Complete)
-
-| Category | Result | Notes |
-|----------|--------|-------|
-| UI layout | PASS | All labels fully visible |
-| Permissions | PASS | Microphone + Accessibility granted |
-| Preferences | PASS | Independent, persist correctly |
-| Delivery | PASS | TextEdit paste, clipboard, no duplicates |
-| Terminal safety | PASS | Return suppression works |
-| End-to-end | PASS | English, Mandarin, Mixed all functional |
-| Stability | PASS | 3 sessions, process alive, no crashes |
-
-**Test Count Reconciliation**:
-- SwiftPM (`swift test`): 46 XCTest tests (VoiceDockCoreTests)
-- Xcode (`xcodebuild test`): 24 XCTest tests (VoiceDockTests)
-
-## Recognition-Quality Limitations (Preserved)
-
-| Aspect | Status |
-|--------|--------|
-| English recognition accuracy | PARTIAL |
-| Mixed-language recognition accuracy | PARTIAL |
-| VoiceDock product-name recognition | NEEDS IMPROVEMENT |
+**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
 
 ## Repository Status
 
-**PR #4:** OPEN — awaiting owner review and merge
-**Branch:** `feat/candidate7-release-polish` → `main`
-**Documentation commit:** `9d2f1a3861d54bf19a814175973a666b55e038b8`
+**Current branch**: `feat/candidate7-phase-b-branding`
+
+**Dirty working tree**: Yes — multiple untracked production files from Qwen duel implementation. See evidence document for full inventory.
+
+**Checkpoint recommendation**: Review and commit untracked production files before Stage B.
 
 ## Next Action
 
-**Awaiting owner review and merge of PR #4.**
+**Awaiting Stage B**: Nemotron retirement verification after owner confirms no rollback needed.
 
-After PR #4 merges:
-1. Sync local `main` branch
-2. Create dedicated Phase B branch for branding/icon work
-3. Begin Phase B (icon integration, README polish)
-4. After Phase B complete: freeze Candidate 7, perform physical verification
+**Do not delete Nemotron code or model data until Stage B approval.**

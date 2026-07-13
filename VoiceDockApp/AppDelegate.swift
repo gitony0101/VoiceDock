@@ -46,6 +46,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("launch_time=\(Date())")
         writeUIDiagnostic("main_thread=\(Thread.isMainThread)")
 
+        // Check for benchmark mode (VOICEDOCK_BENCHMARK_MODE=1)
+        let env = ProcessInfo.processInfo.environment
+        let benchmarkMode = env["VOICEDOCK_BENCHMARK_MODE"] == "1"
+        writeUIDiagnostic("benchmark_mode=\(benchmarkMode)")
+
+        if benchmarkMode {
+            logger.info("Benchmark mode detected - running benchmark instead of normal UI")
+            Task { @MainActor in
+                await runBenchmarkMode(environment: env)
+            }
+            return
+        }
+
         // Check for self-test mode
         let selfTestMode = ProcessInfo.processInfo.arguments.contains("--self-test-popover")
         writeUIDiagnostic("self_test_mode=\(selfTestMode)")
@@ -324,7 +337,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("creating_audioCapture")
         let audioCapture = AudioCapture()
         writeUIDiagnostic("creating_asrProvider")
-        let asrProvider = MLXAudioSTTProvider()
+        // Phase 2B: Use factory for runtime model selection
+        let asrProvider = ASRProviderFactory.createProvider()
         writeUIDiagnostic("creating_transcriptDestination")
         let transcriptDestination = TranscriptDestination()
         writeUIDiagnostic("creating_coordinator")
@@ -468,6 +482,80 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             break
         }
     }
+
+    // MARK: - Benchmark Mode
+
+    private func runBenchmarkMode(environment: [String: String]) async {
+        writeUIDiagnostic("=== BENCHMARK_MODE_START ===")
+
+        // Validate required environment variables
+        guard let modelID = environment["VOICEDOCK_ASR_MODEL"] else {
+            writeUIDiagnostic("ERROR: VOICEDOCK_ASR_MODEL not set")
+            logger.error("Benchmark mode requires VOICEDOCK_ASR_MODEL environment variable")
+            NSApp.terminate(nil)
+            return
+        }
+
+        guard let fixturesPath = environment["VOICEDOCK_BENCHMARK_FIXTURES"] else {
+            writeUIDiagnostic("ERROR: VOICEDOCK_BENCHMARK_FIXTURES not set")
+            logger.error("Benchmark mode requires VOICEDOCK_BENCHMARK_FIXTURES environment variable")
+            NSApp.terminate(nil)
+            return
+        }
+
+        guard let manifestPath = environment["VOICEDOCK_BENCHMARK_MANIFEST"] else {
+            writeUIDiagnostic("ERROR: VOICEDOCK_BENCHMARK_MANIFEST not set")
+            logger.error("Benchmark mode requires VOICEDOCK_BENCHMARK_MANIFEST environment variable")
+            NSApp.terminate(nil)
+            return
+        }
+
+        guard let outputPath = environment["VOICEDOCK_BENCHMARK_OUTPUT"] else {
+            writeUIDiagnostic("ERROR: VOICEDOCK_BENCHMARK_OUTPUT not set")
+            logger.error("Benchmark mode requires VOICEDOCK_BENCHMARK_OUTPUT environment variable")
+            NSApp.terminate(nil)
+            return
+        }
+
+        writeUIDiagnostic("model=\(modelID)")
+        writeUIDiagnostic("fixtures=\(fixturesPath)")
+        writeUIDiagnostic("manifest=\(manifestPath)")
+        writeUIDiagnostic("output=\(outputPath)")
+
+        // Create parent directory for output if needed
+        let outputURL = URL(fileURLWithPath: outputPath)
+        let outputDir = outputURL.deletingLastPathComponent()
+        try? FileManager.default.createDirectory(at: outputDir, withIntermediateDirectories: true)
+
+        do {
+            // Use shared BenchmarkCore for real inference
+            let core = BenchmarkCore()
+            let report = try await core.runBenchmark(
+                modelID: modelID,
+                fixturesPath: fixturesPath,
+                manifestPath: manifestPath,
+                outputPath: outputPath
+            )
+
+            writeUIDiagnostic("BENCHMARK_COMPLETE")
+            writeUIDiagnostic("completed_fixtures=\(report.completedFixtures)")
+            writeUIDiagnostic("failed_fixtures=\(report.failedFixtures)")
+            writeUIDiagnostic("run_duration=\(String(format: "%.2f", report.runDuration))s")
+
+            logger.info("Benchmark complete: \(report.completedFixtures)/\(report.totalFixtures) fixtures processed")
+            logger.info("Results written to: \(outputPath)")
+
+        } catch {
+            writeUIDiagnostic("BENCHMARK_FAILED: \(error.localizedDescription)")
+            logger.error("Benchmark failed: \(error.localizedDescription)")
+        }
+
+        // Exit after benchmark completes
+        writeUIDiagnostic("=== BENCHMARK_MODE_END ===")
+        NSApp.terminate(nil)
+    }
+
+    // MARK: - Lifecycle
 
     func applicationWillTerminate(_ notification: Notification) {
         logger.info("applicationWillTerminate")

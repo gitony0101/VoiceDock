@@ -1,0 +1,25 @@
+{
+  "version": "1.0.0",
+  "description": "Smoke test manifest for single录音 verification",
+  "fixtures": [
+    {
+      "id": "smoke-01",
+      "name": "Smoke Test 01",
+      "language": "en",
+      "reference": "VoiceDock push to talk test",
+      "keywords": ["VoiceDock", "push", "talk"],
+      "criticalTokens": ["VoiceDock"]
+    }
+  ],
+  "scoring": {
+    "normalizedTextAccuracy": 0,
+    "technicalKeywordRecall": 0,
+    "negationNumberLogicalPreservation": 0,
+    "manualSemanticPreservation": 0,
+    "inferenceSpeedRTF": 0,
+    "loadWarmupPerformance": 0,
+    "memoryEfficiency": 0,
+    "total": 0
+  },
+  "hardFailures": []
+}

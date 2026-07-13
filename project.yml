@@ -53,6 +53,27 @@ targets:
       - package: mlx-audio-swift
         product: MLX
 
+  VoiceDockASRBench:
+    type: tool
+    platform: macOS
+    sources:
+      - path: Benchmarks/VoiceDockASRBench
+        excludes:
+          - "**/*.md"
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: com.voicedock.bench
+        PRODUCT_NAME: VoiceDockASRBench
+        CODE_SIGN_IDENTITY: ""
+        CODE_SIGNING_REQUIRED: NO
+        CODE_SIGNING_ALLOWED: NO
+        CODE_SIGN_STYLE: Manual
+        GENERATE_INFOPLIST_FILE: YES
+        OTHER_SWIFT_FLAGS: ["-parse-as-library"]
+    dependencies:
+      - target: VoiceDockCore
+        link: true
+
   VoiceDock:
     type: application
     platform: macOS
@@ -131,3 +152,10 @@ schemes:
         - VoiceDockTests
     archive:
       config: Release
+
+  VoiceDockASRBench:
+    build:
+      targets:
+        VoiceDockASRBench: all
+    run:
+      config: Debug

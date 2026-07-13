@@ -34,6 +34,19 @@ let package = Package(
                 "AppDelegateIsolationTests.swift",
                 "HotKeyManagerTests.swift",
                 "PermissionManagerTests.swift"
+            ]),
+        // Standalone benchmark executable
+        .executableTarget(
+            name: "VoiceDockASRBench",
+            dependencies: ["VoiceDockCore"],
+            path: "Benchmarks/VoiceDockASRBench",
+            sources: [
+                "main.swift",
+                "BenchmarkRunner.swift",
+                "FixtureRecorder.swift"
+            ],
+            swiftSettings: [
+                .unsafeFlags(["-parse-as-library"])
             ])
     ]
 )

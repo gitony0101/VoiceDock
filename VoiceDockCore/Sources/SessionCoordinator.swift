@@ -59,7 +59,12 @@ public final class SessionCoordinator: ObservableObject {
                 state = .loadingModel
                 // P2-4 Fix: Add retry logic for model load (network issues)
                 try await loadModelWithRetry()
+
+                // Phase 2B: Add warmup timing
+                let warmupStart = Date()
                 try await asrProvider?.warmup()
+                let warmupDuration = Date().timeIntervalSince(warmupStart)
+                logger.info("ASR warmup completed in \(String(format: "%.3f", warmupDuration))s")
             } else {
                 logger.warning("No ASR provider; skipping model load (test path).")
             }
@@ -78,12 +83,15 @@ public final class SessionCoordinator: ObservableObject {
     private func loadModelWithRetry() async throws {
         let maxRetries = 3
         var lastError: Error?
+        let modelLoadStart = Date()
 
         for attempt in 1...maxRetries {
             do {
                 logger.info("Loading ASR model (attempt \(attempt)/\(maxRetries))...")
+                let loadStart = Date()
                 try await asrProvider?.load()
-                logger.info("ASR model loaded successfully")
+                let loadDuration = Date().timeIntervalSince(loadStart)
+                logger.info("ASR model loaded successfully in \(String(format: "%.3f", loadDuration))s")
                 return
             } catch {
                 lastError = error
@@ -98,6 +106,8 @@ public final class SessionCoordinator: ObservableObject {
             }
         }
 
+        let totalLoadDuration = Date().timeIntervalSince(modelLoadStart)
+        logger.error("Model load failed after \(String(format: "%.3f", totalLoadDuration))s total")
         throw lastError ?? VoiceDockError.modelLoadFailed(underlying: nil)
     }
 
@@ -172,10 +182,15 @@ public final class SessionCoordinator: ObservableObject {
     private func transcribeWithRetry() async throws -> String {
         let maxRetries = 2
         var lastError: Error?
+        let transcribeStart = Date()
 
         for attempt in 1...maxRetries {
             do {
-                return try await asrProvider?.transcribe(audio: audioBuffer) ?? ""
+                let resultStart = Date()
+                let result = try await asrProvider?.transcribe(audio: audioBuffer) ?? ""
+                let transcribeDuration = Date().timeIntervalSince(resultStart)
+                logger.info("Transcription completed in \(String(format: "%.3f", transcribeDuration))s")
+                return result
             } catch {
                 lastError = error
                 logger.warning("Transcription attempt \(attempt) failed: \(error.localizedDescription)")
@@ -187,11 +202,15 @@ public final class SessionCoordinator: ObservableObject {
             }
         }
 
+        let totalTranscribeDuration = Date().timeIntervalSince(transcribeStart)
+        logger.error("Transcription failed after \(String(format: "%.3f", totalTranscribeDuration))s total")
         throw lastError ?? VoiceDockError.transcriptionFailed(underlying: nil)
     }
 
     private func deliver(text: String?) async {
         state = .delivering
+        let deliverStart = Date()
+
         if let text = text, !text.isEmpty {
             // Load user preferences and determine delivery policy
             let preferences = TranscriptDeliveryPreferences.load()
@@ -204,7 +223,8 @@ public final class SessionCoordinator: ObservableObject {
 
             // Execute delivery based on decision
             let resultMessage = transcriptDestination?.deliver(text: text, decision: decision) ?? "Delivery failed"
-            logger.info("deliver: \(resultMessage)")
+            let deliverDuration = Date().timeIntervalSince(deliverStart)
+            logger.info("deliver: \(resultMessage) (\(String(format: "%.3f", deliverDuration))s)")
 
             currentTranscript = text
         } else {

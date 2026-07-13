@@ -94,3 +94,25 @@
 - No background network activity except explicit model download
 
 **Implication**: Any feature that changes these defaults requires explicit owner approval and documentation.
+
+---
+
+## D10: Qwen Dual-Model Routing Stage A (2026-07-13)
+
+**Decision**: Retire Nemotron from active product baseline; adopt Qwen dual-model routing.
+
+**Routing:**
+- **Fast model**: `qwen3-0.6b-8bit` (explicit via `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit`)
+- **Quality model (default)**: `qwen3-1.7b-4bit` (no env var, or explicit `VOICEDOCK_ASR_MODEL=qwen3-1.7b-4bit`)
+- **Preserved**: `qwen3-0.6b-6bit` (explicit selection)
+- **Rollback**: `nemotron-0.6b-8bit` (explicit selection only, Stage A safety)
+
+**Owner dogfooding**: `qwen3-1.7b-4bit` (Quality)
+
+**No automatic fallback**: A Qwen load/warmup/transcription failure does NOT trigger Nemotron. Failure remains visible as error.
+
+**Status**: `QWEN_DUAL_MODEL_ROUTING_STAGE_A_OWNER_VERIFIED`
+
+**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
+
+**Next**: Stage B — Nemotron retirement verification (after owner confirms no rollback needed)
