@@ -14,11 +14,21 @@ private let logger = Logger(subsystem: "com.voicedock.core", category: "ASRProvi
 public let ASRModelEnvVarName = "VOICEDOCK_ASR_MODEL"
 
 /// Valid values for VOICEDOCK_ASR_MODEL environment variable
-public enum ASRModelSelection: String, CaseIterable {
+public enum ASRModelSelection: String, CaseIterable, Sendable {
     /// Default Qwen3 1.7B 4-bit model (Quality/default)
     case qwen3_1_7B_4bit = "qwen3-1.7b-4bit"
     /// Qwen3 0.6B 8-bit model (Fast)
     case qwen3_0_6B_8bit = "qwen3-0.6b-8bit"
+
+    /// Display name for UI (e.g., "Quality — Qwen3 1.7B 4-bit")
+    public var displayName: String {
+        switch self {
+        case .qwen3_1_7B_4bit:
+            return "Quality — Qwen3 1.7B 4-bit"
+        case .qwen3_0_6B_8bit:
+            return "Fast — Qwen3 0.6B 8-bit"
+        }
+    }
 
     /// Get the corresponding QwenModelDescriptor
     public var modelDescriptor: QwenModelDescriptor {
@@ -85,15 +95,14 @@ public enum ASRModelSelection: String, CaseIterable {
 /// Factory for creating ASR providers based on runtime configuration
 public enum ASRProviderFactory {
 
-    /// Create an ASR provider based on environment variable
+    /// Create an ASR provider based on environment variable or saved preference
     /// - Returns: Configured ASRProvider instance
-    /// - Note: Uses VOICEDOCK_ASR_MODEL environment variable
-    ///   - Not set, empty, or invalid: Qwen3ASRProvider with 1.7B 4-bit (default)
-    ///   - "qwen3-1.7b-4bit": Qwen3ASRProvider with 1.7B 4-bit descriptor
-    ///   - "qwen3-0.6b-8bit": Qwen3ASRProvider with 0.6B 8-bit descriptor
-    ///   - Retired values ("nemotron-0.6b-8bit", "qwen3-0.6b-6bit"): fall back to default with warning
+    /// - Note: Uses precedence:
+    ///   1. VOICEDOCK_ASR_MODEL environment variable
+    ///   2. Saved user preference (ASRModelPreferences)
+    ///   3. Quality default (qwen3-1.7b-4bit)
     public static func createProvider() -> ASRProvider {
-        let selection = ASRModelSelection.current()
+        let selection = ASRModelPreferences.effectiveModel()
         logger.info("Creating ASR provider for: \(selection.rawValue)")
 
         return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
@@ -106,5 +115,14 @@ public enum ASRProviderFactory {
         logger.info("Creating ASR provider (explicit): \(selection.rawValue)")
 
         return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
+    }
+
+    /// Create an ASR provider using saved preferences only (ignores environment)
+    /// - Returns: Configured ASRProvider instance
+    public static func createProviderFromSavedPreference() -> ASRProvider {
+        let prefs = ASRModelPreferences.load()
+        logger.info("Creating ASR provider from saved preference: \(prefs.selectedModel.rawValue)")
+
+        return Qwen3ASRProvider(descriptor: prefs.selectedModel.modelDescriptor)
     }
 }

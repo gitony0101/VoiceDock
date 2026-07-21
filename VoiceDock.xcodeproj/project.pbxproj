@@ -8,6 +8,7 @@
 
 /* Begin PBXBuildFile section */
 		08DD718636A83F665FA79EEA /* Qwen3ASRProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E431B10B7AA9C472270F2F74 /* Qwen3ASRProviderTests.swift */; };
+		0945BED280D0BDE8138F62A1 /* ASRModelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725D8325568061185FC52178 /* ASRModelPreferences.swift */; };
 		0970155C9BAB0C6C6319D3DD /* VoiceDockCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9525B6385CCA25648679D25D /* VoiceDockCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		0CC6AC15D437870B268CBF48 /* TranscriptDeliveryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF1CC795F41E1578DE7F0E1 /* TranscriptDeliveryPolicyTests.swift */; };
 		0E30E9AAD149B5CFECE18021 /* ASRProviderFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9CDC02AEDF25F1AD399A7FC /* ASRProviderFactoryTests.swift */; };
@@ -155,6 +156,7 @@
 		6AACB02C4316FB4BEB536160 /* TranscriptCorrectionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionEngineTests.swift; sourceTree = "<group>"; };
 		6CBB783A9369E5DA542F9B77 /* VoiceDockApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDockApp.swift; sourceTree = "<group>"; };
 		6EF1CC795F41E1578DE7F0E1 /* TranscriptDeliveryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryPolicyTests.swift; sourceTree = "<group>"; };
+		725D8325568061185FC52178 /* ASRModelPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRModelPreferences.swift; sourceTree = "<group>"; };
 		7554FC19DED309B2B44967A2 /* smoke-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "smoke-manifest.json"; sourceTree = "<group>"; };
 		757ED32AC260012784134505 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 		7980761492370F5F0D8EB2D7 /* TranscriptDeliveryPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryPreferencesTests.swift; sourceTree = "<group>"; };
@@ -342,6 +344,7 @@
 		E0F4EE946F57531F9703B9A1 /* Sources */ = {
 			isa = PBXGroup;
 			children = (
+				725D8325568061185FC52178 /* ASRModelPreferences.swift */,
 				7D02C291EA2A6EA751E8D3ED /* ASRProvider.swift */,
 				38033C7DA5D4976057A3FD99 /* ASRProviderFactory.swift */,
 				8CFF7444B1DC3889D4253634 /* AudioCapture.swift */,
@@ -541,6 +544,7 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				0945BED280D0BDE8138F62A1 /* ASRModelPreferences.swift in Sources */,
 				437CC45F11DB666AA4B8E68E /* ASRProvider.swift in Sources */,
 				4E04D14E72F24FB6089CE261 /* ASRProviderFactory.swift in Sources */,
 				5C90619818D3722C37FC5E2D /* AudioCapture.swift in Sources */,

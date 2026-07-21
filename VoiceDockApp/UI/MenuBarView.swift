@@ -7,6 +7,9 @@
 
 import SwiftUI
 import VoiceDockCore
+import os.log
+
+private let logger = Logger(subsystem: "com.voicedock.app", category: "MenuBarView")
 
 struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
@@ -15,6 +18,9 @@ struct MenuBarView: View {
     @State private var automaticPaste: Bool
     @State private var sendReturnAfterPaste: Bool
     @State private var transcriptCorrectionEnabled: Bool
+    @State private var selectedASRModel: String
+    @State private var activeASRModel: String
+    @State private var showRestartRequired = false
 
     init(coordinator: SessionCoordinator, permissions: PermissionManager) {
         self.coordinator = coordinator
@@ -26,6 +32,13 @@ struct MenuBarView: View {
         // Load correction preferences
         let correctionPrefs = TranscriptCorrectionPreferences.load()
         _transcriptCorrectionEnabled = State(initialValue: correctionPrefs.mode == .personalCorrection)
+        // Load ASR model preferences
+        let modelPrefs = ASRModelPreferences.load()
+        _selectedASRModel = State(initialValue: modelPrefs.selectedModel.rawValue)
+        // Active model is determined by environment or saved preference
+        let effectiveModel = ASRModelPreferences.effectiveModel()
+        _activeASRModel = State(initialValue: effectiveModel.rawValue)
+        _showRestartRequired = State(initialValue: modelPrefs.selectedModel.rawValue != effectiveModel.rawValue)
     }
 
     var body: some View {
@@ -208,6 +221,78 @@ struct MenuBarView: View {
 
             Divider()
 
+            // ASR Model selection
+            VStack(alignment: .leading, spacing: 8) {
+                Text("ASR Model")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fontWeight(.semibold)
+
+                // Show active model
+                HStack {
+                    Text("Active:")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Text(activeModelDisplayName)
+                        .font(.caption)
+                        .fontWeight(.medium)
+                    Spacer()
+                }
+
+                // Model picker
+                Picker("Model for next launch:", selection: $selectedASRModel) {
+                    ForEach(ASRModelSelection.allCases.filter { !isRetiredModel($0) }, id: \.self) { model in
+                        Text(model.displayName).tag(model.rawValue)
+                    }
+                }
+                .font(.caption)
+                .pickerStyle(.menu)
+                .disabled(isOverriddenByEnvironment)
+                .onChange(of: selectedASRModel) { newValue in
+                    handleModelSelectionChange(to: newValue)
+                }
+
+                // Show restart required indicator
+                if showRestartRequired {
+                    HStack {
+                        Image(systemName: "arrow.clockwise")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                        Text("Restart VoiceDock to apply")
+                            .font(.caption2)
+                            .foregroundColor(.orange)
+                    }
+                }
+
+                // Show environment override warning
+                if isOverriddenByEnvironment {
+                    HStack {
+                        Image(systemName: "exclamationmark.triangle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                        Text("Externally overridden. Picker applies after restart without override.")
+                            .font(.caption2)
+                            .foregroundColor(.yellow)
+                    }
+                    .lineLimit(3)
+                }
+
+                // Show missing model error
+                if selectedModelIsMissing {
+                    HStack {
+                        Image(systemName: "xmark.circle.fill")
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                        Text("\(selectedModelDisplayName) is not installed")
+                            .font(.caption2)
+                            .foregroundColor(.red)
+                    }
+                }
+            }
+            .padding(.vertical, 4)
+
+            Divider()
+
             // Transcript Correction settings
             VStack(alignment: .leading, spacing: 8) {
                 Text("Transcript Correction")
@@ -366,6 +451,53 @@ struct MenuBarView: View {
         case .denied: return "denied"
         case .notDetermined: return "ask"
         }
+    }
+
+    // MARK: - ASR Model Selection Helpers
+
+    private var activeModelDisplayName: String {
+        guard let model = ASRModelSelection(rawValue: activeASRModel) else {
+            return "Unknown"
+        }
+        return model.displayName
+    }
+
+    private var selectedModelDisplayName: String {
+        guard let model = ASRModelSelection(rawValue: selectedASRModel) else {
+            return "Unknown"
+        }
+        return model.displayName
+    }
+
+    private var isOverriddenByEnvironment: Bool {
+        ASRModelPreferences.isOverriddenByEnvironment
+    }
+
+    private var selectedModelIsMissing: Bool {
+        // Check if the selected model is installed
+        // TODO: Implement async model availability check
+        return false  // For now, assume models are available
+    }
+
+    private func isRetiredModel(_ model: ASRModelSelection) -> Bool {
+        // Retired models should not appear in the picker
+        // Currently all models in ASRModelSelection are production-ready
+        return false
+    }
+
+    private func handleModelSelectionChange(to newValue: String) {
+        guard let newModel = ASRModelSelection(rawValue: newValue) else { return }
+
+        // Save the selection
+        var prefs = ASRModelPreferences.load()
+        prefs.selectedModel = newModel
+        prefs.save()
+
+        // Check if this is different from the active model
+        let effectiveModel = ASRModelPreferences.effectiveModel()
+        showRestartRequired = newModel.rawValue != effectiveModel.rawValue
+
+        logger.info("Model selection changed to \(newModel.rawValue), restart required: \(showRestartRequired)")
     }
 
     private func openMicrophoneSettings() {

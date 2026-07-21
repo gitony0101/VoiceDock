@@ -149,10 +149,11 @@ struct TranscriptCorrectionEngineTests {
 
     // MARK: - Multiple Corrections Longest First
 
-    @Test("Multiple corrections applied longest-first")
+    @Test("Multiple corrections applied longest-first with context")
     func multipleCorrectionsLongestFirst() async throws {
         let engine = PersonalTranscriptCorrectionEngine()
-        let input = "Voice Duck and Kovan and Honor TVT together"
+        // Add context keywords so corrections apply
+        let input = "Testing Voice Duck and Kovan and Honor TVT in VoiceDock recovery test"
         let result = engine.correct(input)
 
         #expect(result.didChange == true)
