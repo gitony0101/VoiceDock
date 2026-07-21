@@ -14,14 +14,18 @@ struct MenuBarView: View {
     @State private var showDiagnostics = false
     @State private var automaticPaste: Bool
     @State private var sendReturnAfterPaste: Bool
+    @State private var transcriptCorrectionEnabled: Bool
 
     init(coordinator: SessionCoordinator, permissions: PermissionManager) {
         self.coordinator = coordinator
         self.permissions = permissions
-        // Load preferences once when view is created
-        let prefs = TranscriptDeliveryPreferences.load()
-        _automaticPaste = State(initialValue: prefs.automaticPaste)
-        _sendReturnAfterPaste = State(initialValue: prefs.sendReturnAfterPaste)
+        // Load delivery preferences
+        let deliveryPrefs = TranscriptDeliveryPreferences.load()
+        _automaticPaste = State(initialValue: deliveryPrefs.automaticPaste)
+        _sendReturnAfterPaste = State(initialValue: deliveryPrefs.sendReturnAfterPaste)
+        // Load correction preferences
+        let correctionPrefs = TranscriptCorrectionPreferences.load()
+        _transcriptCorrectionEnabled = State(initialValue: correctionPrefs.mode == .personalCorrection)
     }
 
     var body: some View {
@@ -201,6 +205,48 @@ struct MenuBarView: View {
                     }
             }
             .padding(.vertical, 4)
+
+            Divider()
+
+            // Transcript Correction settings
+            VStack(alignment: .leading, spacing: 8) {
+                Text("Transcript Correction")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .fontWeight(.semibold)
+                Toggle("Enable correction", isOn: $transcriptCorrectionEnabled)
+                    .font(.caption)
+                    .toggleStyle(.switch)
+                    .help("When On: apply deterministic corrections for known ASR errors (VoiceDock, Qwen, etc.)")
+                    .onChange(of: transcriptCorrectionEnabled) { newValue in
+                        let mode: TranscriptCorrectionMode = newValue ? .personalCorrection : .off
+                        let prefs = TranscriptCorrectionPreferences(mode: mode, loadUserCorrections: true)
+                        prefs.save()
+                    }
+
+                // Show applied corrections count if available
+                let corrections = coordinator.getLastAppliedCorrections()
+                if !corrections.isEmpty {
+                    Text("Corrected \(corrections.count) term\(corrections.count == 1 ? "" : "s")")
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                }
+            }
+            .padding(.vertical, 4)
+
+            Divider()
+
+            // Copy Last Raw Transcript action
+            Button("Copy Last Raw Transcript") {
+                if let rawTranscript = coordinator.getLastRawTranscript(), !rawTranscript.isEmpty {
+                    NSPasteboard.general.clearContents()
+                    NSPasteboard.general.setString(rawTranscript, forType: .string)
+                }
+            }
+            .font(.caption)
+            .disabled(coordinator.getLastRawTranscript()?.isEmpty ?? true)
+            .help("Copy the raw ASR output without corrections")
+            .frame(maxWidth: .infinity)
 
             Divider()
 
