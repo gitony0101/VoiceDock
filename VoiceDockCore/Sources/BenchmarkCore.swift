@@ -476,8 +476,6 @@ public struct BenchmarkCore {
             descriptor = .qwen3_0_6B_8bit
         case "qwen3-1.7b-4bit":
             descriptor = .qwen3_1_7B_4bit
-        case "qwen3-0.6b-6bit":
-            descriptor = .qwen3_0_6B_6bit
         default:
             print("❌ Unknown model ID: \(modelID)")
             throw BenchmarkError.unknownModel(modelID)

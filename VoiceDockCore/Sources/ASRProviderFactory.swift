@@ -15,26 +15,18 @@ public let ASRModelEnvVarName = "VOICEDOCK_ASR_MODEL"
 
 /// Valid values for VOICEDOCK_ASR_MODEL environment variable
 public enum ASRModelSelection: String, CaseIterable {
-    /// Default Qwen3 1.7B 4-bit model (Stage A default)
+    /// Default Qwen3 1.7B 4-bit model (Quality/default)
     case qwen3_1_7B_4bit = "qwen3-1.7b-4bit"
-    /// Qwen3 0.6B 6-bit model (existing)
-    case qwen3_0_6B_6bit = "qwen3-0.6b-6bit"
-    /// Qwen3 0.6B 8-bit model (Duel candidate 1)
+    /// Qwen3 0.6B 8-bit model (Fast)
     case qwen3_0_6B_8bit = "qwen3-0.6b-8bit"
-    /// Nemotron model (retained for Stage A rollback)
-    case nemotron = "nemotron-0.6b-8bit"
 
     /// Get the corresponding QwenModelDescriptor
     public var modelDescriptor: QwenModelDescriptor {
         switch self {
         case .qwen3_1_7B_4bit:
             return .qwen3_1_7B_4bit
-        case .qwen3_0_6B_6bit:
-            return .qwen3_0_6B_6bit
         case .qwen3_0_6B_8bit:
             return .qwen3_0_6B_8bit
-        case .nemotron:
-            return .nemotron_0_6B_8bit
         }
     }
 
@@ -52,7 +44,18 @@ public enum ASRModelSelection: String, CaseIterable {
             return selection
         }
 
-        // Unknown or malformed value - fall back to Qwen3 1.7B 4-bit (Stage A default)
+        // Handle retired model identifiers with warnings
+        if value == "nemotron-0.6b-8bit" {
+            logger.warning("Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
+            return .qwen3_1_7B_4bit
+        }
+
+        if value == "qwen3-0.6b-6bit" {
+            logger.warning("Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
+            return .qwen3_1_7B_4bit
+        }
+
+        // Unknown or malformed value - fall back to Qwen3 1.7B 4-bit (default)
         logger.warning("Unknown ASR model value: '\(value)', falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
         return .qwen3_1_7B_4bit
     }
@@ -70,24 +73,15 @@ public enum ASRProviderFactory {
     /// Create an ASR provider based on environment variable
     /// - Returns: Configured ASRProvider instance
     /// - Note: Uses VOICEDOCK_ASR_MODEL environment variable
-    ///   - Not set, empty, or invalid: Qwen3ASRProvider with 1.7B 4-bit (Stage A default)
+    ///   - Not set, empty, or invalid: Qwen3ASRProvider with 1.7B 4-bit (default)
     ///   - "qwen3-1.7b-4bit": Qwen3ASRProvider with 1.7B 4-bit descriptor
     ///   - "qwen3-0.6b-8bit": Qwen3ASRProvider with 0.6B 8-bit descriptor
-    ///   - "qwen3-0.6b-6bit": Qwen3ASRProvider with 0.6B 6-bit descriptor
-    ///   - "nemotron-0.6b-8bit": MLXAudioSTTProvider (Nemotron, retained for Stage A rollback)
+    ///   - Retired values ("nemotron-0.6b-8bit", "qwen3-0.6b-6bit"): fall back to default with warning
     public static func createProvider() -> ASRProvider {
         let selection = ASRModelSelection.current()
         logger.info("Creating ASR provider for: \(selection.rawValue)")
 
-        switch selection {
-        case .qwen3_1_7B_4bit, .qwen3_0_6B_6bit, .qwen3_0_6B_8bit:
-            logger.info("Using Qwen3 ASR provider: \(selection.rawValue)")
-            return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
-
-        case .nemotron:
-            logger.info("Using Nemotron ASR provider (Stage A rollback)")
-            return MLXAudioSTTProvider()
-        }
+        return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
     }
 
     /// Create an ASR provider for a specific model selection (testing)
@@ -96,12 +90,6 @@ public enum ASRProviderFactory {
     public static func createProvider(for selection: ASRModelSelection) -> ASRProvider {
         logger.info("Creating ASR provider (explicit): \(selection.rawValue)")
 
-        switch selection {
-        case .nemotron:
-            return MLXAudioSTTProvider()
-
-        case .qwen3_0_6B_6bit, .qwen3_0_6B_8bit, .qwen3_1_7B_4bit:
-            return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
-        }
+        return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
     }
 }

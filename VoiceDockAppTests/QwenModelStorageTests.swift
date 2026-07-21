@@ -12,7 +12,7 @@ import XCTest
 final class QwenModelStorageTests: XCTestCase {
     var tempBaseDir: URL!
     var storage: ModelStorage!
-    let descriptor = QwenModelDescriptor.qwen3_0_6B_6bit
+    let descriptor = QwenModelDescriptor.qwen3_0_6B_8bit
 
     override func setUp() async throws {
         try await super.setUp()
@@ -39,7 +39,7 @@ final class QwenModelStorageTests: XCTestCase {
 
     func testModelDirectoryConstruction() async throws {
         let modelDir = await storage.modelDirectory(for: descriptor)
-        XCTAssertTrue(modelDir.path.hasSuffix("Qwen3-ASR-0.6B-6bit"))
+        XCTAssertTrue(modelDir.path.hasSuffix("Qwen3-ASR-0.6B-8bit"))
         XCTAssertTrue(modelDir.path.hasPrefix(tempBaseDir.path))
     }
 
