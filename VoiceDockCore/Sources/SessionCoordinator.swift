@@ -111,13 +111,16 @@ public final class SessionCoordinator: ObservableObject {
         throw lastError ?? VoiceDockError.modelLoadFailed(underlying: nil)
     }
 
-    public func startRecording() {
+    /// Try to start recording. Returns true if recording started, false if rejected (not ready or failed).
+    /// - Returns: Bool indicating whether recording was accepted
+    @discardableResult
+    public func startRecording() -> Bool {
         logger.info("startRecording called, state=\(String(describing: self.state))")
         writeRuntimeDiagnostic("COORDINATOR_START_ENTER")
         guard state == .ready || state == .idle else {
             logger.warning("Not in ready state; ignoring")
             writeRuntimeDiagnostic("COORDINATOR_START_IGNORED")
-            return
+            return false
         }
         audioBuffer.removeAll()
         writeRuntimeDiagnostic("AUDIO_START_ENTER")
@@ -129,12 +132,13 @@ public final class SessionCoordinator: ObservableObject {
             audioCapture?.cancel()
             logger.error("\(message, privacy: .public)")
             writeRuntimeDiagnostic("AUDIO_START_FAILED")
-            return
+            return false
         }
         writeRuntimeDiagnostic("AUDIO_START_EXIT")
         state = .listening
         writeRuntimeDiagnostic("COORDINATOR_STATE_LISTENING")
         writeRuntimeDiagnostic("COORDINATOR_START_EXIT")
+        return true
     }
 
     public func stopRecording() {

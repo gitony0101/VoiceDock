@@ -20,7 +20,8 @@ public actor Qwen3ASRProvider: ASRProvider {
     private let descriptor: QwenModelDescriptor
 
     /// Initialize with optional custom storage (for testing)
-    public init(storage: ModelStorage? = nil, descriptor: QwenModelDescriptor = .qwen3_1_7B_4bit) {
+    /// - Note: descriptor must be passed explicitly - no default value
+    public init(storage: ModelStorage? = nil, descriptor: QwenModelDescriptor) {
         self.modelStorage = storage ?? ModelStorage()
         self.descriptor = descriptor
     }

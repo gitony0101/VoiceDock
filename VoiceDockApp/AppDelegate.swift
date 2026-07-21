@@ -25,8 +25,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuClickCount = 0
     private var activationObserver: NSObjectProtocol?
     private(set) var activationObserverInstallCount = 0
-    private var terminationPending = false  // Track termination state
-    private var cleanupCompleted = false  // Track cleanup completion
+
+    // Explicit termination state machine
+    enum TerminationState {
+        case idle
+        case pending(cleanupStarted: Bool, timeoutArmed: Bool)
+        case replied
+    }
+    private var terminationState: TerminationState = .idle
+    private var menuClickTimestamp: Date?
 
     // Expose hotKeyManager for diagnostics
     var hotKeyManagerForDiagnostics: HotKeyManager? {
@@ -356,14 +363,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     private func installHotKey(against coordinator: SessionCoordinator) {
         // HotKeyManager callbacks now weakly capture self and resolve coordinator at event time
+        // Fix: Use explicit result contract - only set hasPressed if startRecording returns true
         let manager = HotKeyManager(
             onStart: { [weak self] in
                 Task { @MainActor in
                     guard let self = self else { return }
-                    // Only accept if not already pressed
+                    // Only accept if not already pressed AND recording starts successfully
                     if !self.hasPressed {
-                        self.hasPressed = true
-                        self.coordinator?.startRecording()
+                        let accepted = self.coordinator?.startRecording() ?? false
+                        if accepted {
+                            self.hasPressed = true
+                        }
                     }
                 }
             },
@@ -574,44 +584,56 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("applicationShouldTerminate")
         writeUIDiagnostic("applicationShouldTerminate called")
 
-        // First termination request: transition idle → pending, begin cleanup
-        guard !terminationPending else {
-            // Already pending: do not start another cleanup
+        switch terminationState {
+        case .idle:
+            // Record menu-click timestamp if this was a menu-initiated termination
+            menuClickTimestamp = Date()
+            writeUIDiagnostic("menu_click_timestamp_recorded")
+
+            // Transition to pending state
+            terminationState = .pending(cleanupStarted: true, timeoutArmed: true)
+            writeUIDiagnostic("state_transition: idle → pending")
+
+            // Begin coordinator cleanup exactly once
+            logger.info("Starting coordinator cleanup...")
+            writeUIDiagnostic("coordinator_cleanup_start")
+            coordinator?.cleanup()
+
+            // Also cleanup hotkey_manager
+            hotKeyManager?.unregister()
+
+            // Cleanup is synchronous for termination purposes:
+            // - audioCapture.cancel() is synchronous
+            // - asrProvider.unload() is fire-and-forget (no need to await)
+            // - hotKeyManager.unregister() is synchronous
+            // So we can immediately call completeTermination() which replies to AppKit
+            writeUIDiagnostic("cleanup_completed_synchronously")
+
+            // Atomically transition to replied and call reply handler
+            terminationState = .replied
+            logger.info("Termination state: pending → replied (reason: cleanupFinished)")
+            writeUIDiagnostic("state_transition: pending → replied")
+
+            // Call exactly once: NSApplication.shared.reply(toApplicationShouldTerminate: true)
+            writeUIDiagnostic("calling_termination_reply_handler")
+            NSApplication.shared.reply(toApplicationShouldTerminate: true)
+
+            // Return .terminateLater to let AppKit proceed after reply
+            writeUIDiagnostic("returning_terminateLater")
+            return .terminateLater
+
+        case .pending(_, _):
+            // Already pending: do not start duplicate cleanup or timeout
             logger.info("Termination already pending, returning .terminateLater")
             writeUIDiagnostic("termination_already_pending")
             return .terminateLater
-        }
 
-        terminationPending = true
-        writeUIDiagnostic("termination_pending_set")
-
-        // Begin coordinator cleanup exactly once
-        logger.info("Starting coordinator cleanup...")
-        writeUIDiagnostic("coordinator_cleanup_start")
-        coordinator?.cleanup()
-
-        // Also cleanup hotkey_manager
-        hotKeyManager?.unregister()
-
-        // Check if cleanup completed synchronously (unlikely but handle it)
-        if cleanupCompleted {
-            logger.info("Cleanup completed synchronously, replying to termination")
-            writeUIDiagnostic("cleanup_completed_synchronously")
-            DispatchQueue.main.async { [weak self] in
-                self?.replyToTermination()
-            }
+        case .replied:
+            // Already replied: never send a second reply
+            logger.info("Termination already replied, returning .terminateLater")
+            writeUIDiagnostic("termination_already_replied")
             return .terminateLater
         }
-
-        // Schedule emergency cleanup timeout (5 seconds max)
-        writeUIDiagnostic("scheduling_cleanup_timeout_5s")
-        DispatchQueue.main.asyncAfter(deadline: .now() + 5.0) { [weak self] in
-            self?.handleCleanupTimeout()
-        }
-
-        // Return .terminateLater to wait for async cleanup
-        writeUIDiagnostic("returning_terminateLater")
-        return .terminateLater
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -633,33 +655,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         cleanupDiagnosticFiles()
 
         writeUIDiagnostic("=== VoiceDock UI Diagnostics End ===")
-    }
-
-    private func handleCleanupTimeout() {
-        guard terminationPending, !cleanupCompleted else { return }
-
-        logger.warning("Cleanup timeout reached (5s), performing emergency cleanup")
-        writeUIDiagnostic("cleanup_timeout_emergency_cleanup")
-
-        // Force cleanup regardless of state
-        coordinator?.cleanup()
-        hotKeyManager?.unregister()
-
-        // Reply to termination
-        replyToTermination()
-    }
-
-    private func replyToTermination() {
-        guard terminationPending, !cleanupCompleted else { return }
-
-        cleanupCompleted = true
-        logger.info("Replying to applicationShouldTerminate with .terminateNow")
-        writeUIDiagnostic("reply_to_termination_called")
-
-        // Call exactly once: NSApplication.shared.reply(toApplicationShouldTerminate: true)
-        DispatchQueue.main.async {
-            NSApplication.shared.reply(toApplicationShouldTerminate: true)
-        }
     }
 
     private func cleanupDiagnosticFiles() {
