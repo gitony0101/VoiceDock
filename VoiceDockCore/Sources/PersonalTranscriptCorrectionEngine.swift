@@ -296,7 +296,7 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
 
                 // Check if context keywords are present nearby
                 if let keywords = rule.contextKeywords {
-                    let context = extractContext(for: originalRange, in: text, windowSize: 50)
+                    let context = extractContext(for: originalRange, in: text, windowSize: 30)
                     if keywords.contains(where: { context.lowercased().contains($0.lowercased()) }) {
                         matches.append(originalRange)
                     }

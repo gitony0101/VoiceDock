@@ -312,6 +312,30 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.didChange == false)
     }
 
+    // MARK: - Context Window Boundary Tests (30 characters)
+
+    @Test("Context inside 30-character window triggers correction")
+    func contextInsideWindowTriggersCorrection() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        // "test" is within 30 chars of "Voice Duck"
+        let input = "Testing Voice Duck recovery now."
+        let result = engine.correct(input)
+
+        #expect(result.didChange == true)
+        #expect(result.correctedTranscript == "Testing VoiceDock recovery now.")
+    }
+
+    @Test("Context immediately outside 30-character window does NOT trigger")
+    func contextOutsideWindowDoesNotTriggerCorrection() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        // "test" is more than 30 chars away from "Voice Duck"
+        let input = "I heard Voice Duck in the recording and this is a test of the system."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - context keyword too far away (>30 chars)
+        #expect(result.correctedTranscript == input)
+    }
+
     // MARK: - Mode Tests
 
     @Test("Correction mode Off delivers raw transcript")
