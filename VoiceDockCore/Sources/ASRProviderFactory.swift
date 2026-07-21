@@ -30,10 +30,18 @@ public enum ASRModelSelection: String, CaseIterable {
         }
     }
 
+    /// Warning types emitted during model selection (for testing)
+    public enum FallbackReason: String, Equatable {
+        case retired = "retired"
+        case unknown = "unknown"
+    }
+
     /// Parse from environment variable value
-    /// - Parameter value: Raw environment variable string
+    /// - Parameters:
+    ///   - value: Raw environment variable string
+    ///   - warningRecorder: Optional closure to record warnings for testing. Called with (fallbackReason, message).
     /// - Returns: Model selection enum; defaults to `.qwen3_1_7B_4bit` for absent, empty, or invalid values
-    public static func fromEnvironmentValue(_ value: String?) -> ASRModelSelection {
+    public static func fromEnvironmentValue(_ value: String?, warningRecorder: ((FallbackReason, String) -> Void)? = nil) -> ASRModelSelection {
         guard let value = value, !value.isEmpty else {
             logger.info("No environment variable set or empty, using default: \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
             return .qwen3_1_7B_4bit
@@ -46,24 +54,31 @@ public enum ASRModelSelection: String, CaseIterable {
 
         // Handle retired model identifiers with warnings
         if value == "nemotron-0.6b-8bit" {
-            logger.warning("Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
+            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+            logger.warning("\(msg, privacy: .public)")
+            warningRecorder?(.retired, msg)
             return .qwen3_1_7B_4bit
         }
 
         if value == "qwen3-0.6b-6bit" {
-            logger.warning("Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
+            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+            logger.warning("\(msg, privacy: .public)")
+            warningRecorder?(.retired, msg)
             return .qwen3_1_7B_4bit
         }
 
         // Unknown or malformed value - fall back to Qwen3 1.7B 4-bit (default)
-        logger.warning("Unknown ASR model value: '\(value)', falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
+        let msg = "Unknown ASR model value: '\(value)', falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+        logger.warning("\(msg, privacy: .public)")
+        warningRecorder?(.unknown, msg)
         return .qwen3_1_7B_4bit
     }
 
     /// Read directly from environment
-    public static func current() -> ASRModelSelection {
+    /// - Parameter warningRecorder: Optional closure to record warnings for testing
+    public static func current(warningRecorder: ((FallbackReason, String) -> Void)? = nil) -> ASRModelSelection {
         let envValue = ProcessInfo.processInfo.environment[ASRModelEnvVarName]
-        return fromEnvironmentValue(envValue)
+        return fromEnvironmentValue(envValue, warningRecorder: warningRecorder)
     }
 }
 

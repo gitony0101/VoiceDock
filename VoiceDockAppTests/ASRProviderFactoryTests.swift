@@ -86,22 +86,51 @@ struct ASRProviderFactoryTests {
 
     @Test("Retired Nemotron value falls back to Qwen3 1.7B 4-bit with warning")
     func testRetiredNemotronValueFallsBackToDefault() {
-        let selection = ASRModelSelection.fromEnvironmentValue("nemotron-0.6b-8bit")
+        var warningReason: ASRModelSelection.FallbackReason?
+        var warningMessage: String?
+
+        let selection = ASRModelSelection.fromEnvironmentValue("nemotron-0.6b-8bit") { reason, msg in
+            warningReason = reason
+            warningMessage = msg
+        }
+
         #expect(selection == .qwen3_1_7B_4bit)
+        #expect(warningReason == .retired)
+        #expect(warningMessage?.contains("Retired ASR model") == true)
+        #expect(warningMessage?.contains("nemotron-0.6b-8bit") == true)
     }
 
     @Test("Retired Qwen 0.6B 6-bit value falls back to Qwen3 1.7B 4-bit with warning")
     func testRetiredQwen6bitValueFallsBackToDefault() {
-        let selection = ASRModelSelection.fromEnvironmentValue("qwen3-0.6b-6bit")
+        var warningReason: ASRModelSelection.FallbackReason?
+        var warningMessage: String?
+
+        let selection = ASRModelSelection.fromEnvironmentValue("qwen3-0.6b-6bit") { reason, msg in
+            warningReason = reason
+            warningMessage = msg
+        }
+
         #expect(selection == .qwen3_1_7B_4bit)
+        #expect(warningReason == .retired)
+        #expect(warningMessage?.contains("Retired ASR model") == true)
+        #expect(warningMessage?.contains("qwen3-0.6b-6bit") == true)
     }
 
     // MARK: - Invalid Value Fallback
 
-    @Test("Unknown environment value falls back to Qwen3 1.7B 4-bit")
+    @Test("Unknown environment value falls back to Qwen3 1.7B 4-bit with warning")
     func testUnknownEnvValueFallsBackToDefault() {
-        let selection = ASRModelSelection.fromEnvironmentValue("unknown-model-123")
+        var warningReason: ASRModelSelection.FallbackReason?
+        var warningMessage: String?
+
+        let selection = ASRModelSelection.fromEnvironmentValue("unknown-model-123") { reason, msg in
+            warningReason = reason
+            warningMessage = msg
+        }
+
         #expect(selection == .qwen3_1_7B_4bit)
+        #expect(warningReason == .unknown)
+        #expect(warningMessage?.contains("Unknown ASR model value") == true)
     }
 
     // MARK: - Explicit Selection

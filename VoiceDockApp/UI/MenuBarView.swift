@@ -236,7 +236,9 @@ struct MenuBarView: View {
                         }
                         Divider()
                         Button("Quit VoiceDock", role: .destructive) {
-                            coordinator.quit()
+                            // Record menu-click timestamp and terminate exactly once
+                            // AppDelegate owns termination lifecycle
+                            NSApplication.shared.terminate(nil)
                         }
                     }
                     .font(.caption)

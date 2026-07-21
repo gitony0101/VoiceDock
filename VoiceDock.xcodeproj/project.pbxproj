@@ -49,6 +49,7 @@
 		C2DFCF81CD0B183A65349F3B /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 757ED32AC260012784134505 /* Carbon.framework */; };
 		C430DB6AE6C034463E1941EC /* TranscriptDestinationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0BDED5C9E4D4124B41135B /* TranscriptDestinationTests.swift */; };
 		CE652DB39D84969014B7A13F /* TranscriptDeliveryPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7980761492370F5F0D8EB2D7 /* TranscriptDeliveryPreferencesTests.swift */; };
+		CE8F9B2001B96CF5FD9CAC40 /* AppDelegateLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE00A06286248E43A292F04 /* AppDelegateLifecycleTests.swift */; };
 		D12EEBD8B9356967FDD9B65D /* TranscriptDeliveryPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BADEA77803001A6F79A7D3 /* TranscriptDeliveryPreferences.swift */; };
 		D31DEEACFCA7B96B3F0A9067 /* MLXAudioCore in Frameworks */ = {isa = PBXBuildFile; productRef = 5AE8007E9DF01A42FA7B0AC3 /* MLXAudioCore */; };
 		D3F87765AE182A63B225E0CD /* VoiceDockAppTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 31E043A92C66293211B1C11C /* VoiceDockAppTests.swift */; };
@@ -138,6 +139,7 @@
 		3E870A7BA9C8F3D64FD4C698 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 		3FAE5F8BA472CDF2AADF5F78 /* TranscriptDeliveryPolicy.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryPolicy.swift; sourceTree = "<group>"; };
 		4867884BA3D61A84DE408045 /* VoiceDockError.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDockError.swift; sourceTree = "<group>"; };
+		4FE00A06286248E43A292F04 /* AppDelegateLifecycleTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegateLifecycleTests.swift; sourceTree = "<group>"; };
 		515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FrontmostApplicationProviding.swift; sourceTree = "<group>"; };
 		5D32E0B6429F27EF894AEE86 /* Qwen3ASRProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Qwen3ASRProvider.swift; sourceTree = "<group>"; };
 		5D5DA4ED61BDE0A8ADD411B7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
@@ -255,6 +257,7 @@
 			isa = PBXGroup;
 			children = (
 				3AB37320D855E5655F6E223C /* AppDelegateIsolationTests.swift */,
+				4FE00A06286248E43A292F04 /* AppDelegateLifecycleTests.swift */,
 				D9CDC02AEDF25F1AD399A7FC /* ASRProviderFactoryTests.swift */,
 				A80D87008EBB2703AD734F90 /* AudioNormalizerTests.swift */,
 				C1D809539088E9B9AE534EC4 /* HotKeyManagerTests.swift */,
@@ -554,6 +557,7 @@
 			files = (
 				0E30E9AAD149B5CFECE18021 /* ASRProviderFactoryTests.swift in Sources */,
 				D5D8B8A108DADCA04EACDC2C /* AppDelegateIsolationTests.swift in Sources */,
+				CE8F9B2001B96CF5FD9CAC40 /* AppDelegateLifecycleTests.swift in Sources */,
 				B1FFB33202FB55387CF9A27B /* AudioNormalizerTests.swift in Sources */,
 				5CD1E1B2DCE93C36BF838B2A /* HotKeyManagerTests.swift in Sources */,
 				B2B6D4403D8595A404237185 /* MockASRProvider.swift in Sources */,

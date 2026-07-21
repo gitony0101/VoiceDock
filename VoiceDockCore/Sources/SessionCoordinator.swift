@@ -244,8 +244,9 @@ public final class SessionCoordinator: ObservableObject {
     }
 
     public func quit() {
+        // SessionCoordinator does NOT terminate the application
+        // AppDelegate owns termination lifecycle via applicationShouldTerminate
         cleanup()
-        NSApplication.shared.terminate(nil)
     }
 
     public func retry() async {
