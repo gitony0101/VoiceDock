@@ -80,23 +80,32 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
     private var rules: [CorrectionRule]
 
     /// Built-in correction rules (immutable)
+    ///
+    /// Safety principles:
+    /// - VoiceDock aliases require strong product/test context keywords
+    /// - Qwen aliases require ASR/model context keywords
+    /// - Bounded context window (30 chars) prevents false positives from distant keywords
+    /// - "I bought voice stock yesterday" must NOT become "I bought VoiceDock yesterday"
     private static let builtinRules: [CorrectionRule] = [
-        // VoiceDock aliases - highest priority, most specific first
-        CorrectionRule(id: "voicedock-voice-document", pattern: "Voice Document", replacement: "VoiceDock", matchType: .caseInsensitivePhrase, priority: 100),
-        CorrectionRule(id: "voicedock-voice-doc-kovan", pattern: "voice: Doc", replacement: "VoiceDock", matchType: .caseInsensitivePhrase, priority: 100),
-        CorrectionRule(id: "voicedock-voice-doc", pattern: "voice doc", replacement: "VoiceDock", matchType: .wordBoundaryPhrase, priority: 100),
-        CorrectionRule(id: "voicedock-voice-duck", pattern: "Voice Duck", replacement: "VoiceDock", matchType: .caseInsensitivePhrase, priority: 100),
-        CorrectionRule(id: "voicedock-voice-stock", pattern: "voice stock", replacement: "VoiceDock", matchType: .wordBoundaryPhrase, contextKeywords: ["recovery", "test", "makes", "Chinese", "English"], priority: 100),
-        CorrectionRule(id: "voicedock-voice-stock-capitalized", pattern: "Voice Stock", replacement: "VoiceDock", matchType: .wordBoundaryPhrase, contextKeywords: ["recovery", "test", "makes", "Chinese", "English"], priority: 100),
+        // VoiceDock aliases - ALL require strong contextual keywords
+        // Context keywords: product names, testing terms, ASR/tech terms (English + Chinese)
+        CorrectionRule(id: "voicedock-voice-document", pattern: "Voice Document", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
+        CorrectionRule(id: "voicedock-voice-doc-kovan", pattern: "voice: Doc", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
+        CorrectionRule(id: "voicedock-voice-doc", pattern: "voice doc", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
+        CorrectionRule(id: "voicedock-voice-duck", pattern: "Voice Duck", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
+        // "voice stock" only corrects in product/testing context, never in shopping/finance context
+        CorrectionRule(id: "voicedock-voice-stock", pattern: "voice stock", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "Chinese", "English", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
+        CorrectionRule(id: "voicedock-voice-stock-capitalized", pattern: "Voice Stock", replacement: "VoiceDock", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "correction", "runtime", "PTT", "Qwen", "model", "ASR", "VoiceDock", "Chinese", "English", "测试", "纠错", "恢复", "运行", "千问", "模型", "语音", "识别"], priority: 100),
 
-        // Qwen aliases - requires context
-        CorrectionRule(id: "qwen-kovan-contextual", pattern: "Kovan", replacement: "Qwen", matchType: .contextualPhrase, contextKeywords: ["recovery", "VoiceDock", "voice", "ASR", "model", "test"], priority: 90),
-        CorrectionRule(id: "qwen-q-win", pattern: "Q Win", replacement: "Qwen", matchType: .caseInsensitivePhrase, priority: 90),
-        CorrectionRule(id: "qwen-q-wen", pattern: "Q Wen", replacement: "Qwen", matchType: .caseInsensitivePhrase, priority: 90),
+        // Qwen aliases - requires ASR/model context
+        CorrectionRule(id: "qwen-kovan-contextual", pattern: "Kovan", replacement: "Qwen", matchType: .contextualPhrase, contextKeywords: ["recovery", "VoiceDock", "voice", "ASR", "model", "test", "correction", "runtime", "PTT", "测试", "纠错", "恢复", "语音", "识别"], priority: 90),
+        CorrectionRule(id: "qwen-kilwin-contextual", pattern: "Kilwin", replacement: "Qwen", matchType: .contextualPhrase, contextKeywords: ["recovery", "VoiceDock", "voice", "ASR", "model", "test", "correction", "runtime", "PTT", "测试", "纠错", "恢复", "语音", "识别"], priority: 90),
+        CorrectionRule(id: "qwen-q-win", pattern: "Q Win", replacement: "Qwen", matchType: .contextualPhrase, contextKeywords: ["recovery", "VoiceDock", "voice", "ASR", "model", "test", "correction", "runtime", "PTT", "测试", "纠错", "恢复", "语音", "识别"], priority: 90),
+        CorrectionRule(id: "qwen-q-wen", pattern: "Q Wen", replacement: "Qwen", matchType: .contextualPhrase, contextKeywords: ["recovery", "VoiceDock", "voice", "ASR", "model", "test", "correction", "runtime", "PTT", "测试", "纠错", "恢复", "语音", "识别"], priority: 90),
 
         // Technical terms - contextual
-        CorrectionRule(id: "honor-tvt-to-owner-ptt", pattern: "Honor TVT", replacement: "Owner PTT", matchType: .caseInsensitivePhrase, priority: 80),
-        CorrectionRule(id: "makes-chinese-english", pattern: "makes Chinese English", replacement: "mixed Chinese English", matchType: .caseInsensitivePhrase, priority: 80),
+        CorrectionRule(id: "honor-tvt-to-owner-ptt", pattern: "Honor TVT", replacement: "Owner PTT", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "VoiceDock", "runtime", "ready", "测试", "恢复", "运行"], priority: 80),
+        CorrectionRule(id: "makes-chinese-english", pattern: "makes Chinese English", replacement: "mixed Chinese English", matchType: .contextualPhrase, contextKeywords: ["recovery", "test", "VoiceDock", "transcript", "correction", "测试", "纠错", "语音"], priority: 80),
         CorrectionRule(id: "recopy-test", pattern: "recopy test", replacement: "recovery test", matchType: .caseInsensitivePhrase, priority: 80),
         CorrectionRule(id: "recopy", pattern: "recopy", replacement: "recovery", matchType: .wordBoundaryPhrase, contextKeywords: ["test"], priority: 80),
     ]

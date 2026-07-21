@@ -56,55 +56,86 @@ public final class SessionCoordinator: ObservableObject {
         self.asrProvider = asrProvider
         self.transcriptDestination = transcriptDestination
         self.correctionEngine = correctionEngine
-        modelLoadTask = Task { [weak self] in
+        // Use Task.detached to ensure model loading runs independently of MainActor
+        // Model loading is heavy (CPU/IO) and should not block the UI
+        writeInitDiagnostic("SessionCoordinator_init_enter")
+        modelLoadTask = Task.detached { [weak self] in
             await self?.initialize()
         }
+        writeInitDiagnostic("SessionCoordinator_init_exit_task_created")
     }
 
     private func initialize() async {
+        writeInitDiagnostic("initialize_enter")
         logger.info("Initializing coordinator...")
+        writeInitDiagnostic("asrProvider_is_nil=\(asrProvider == nil ? "true" : "false")")
         do {
             if asrProvider != nil {
-                state = .loadingModel
+                // Hop to MainActor for state update
+                writeInitDiagnostic("state_will_set_to_loadingModel")
+                await MainActor.run {
+                    self.state = .loadingModel
+                }
+                writeInitDiagnostic("state_did_set_to_loadingModel")
                 // P2-4 Fix: Add retry logic for model load (network issues)
+                writeInitDiagnostic("loadModelWithRetry_will_call")
                 try await loadModelWithRetry()
+                writeInitDiagnostic("loadModelWithRetry_did_complete")
 
                 // Phase 2B: Add warmup timing
+                writeInitDiagnostic("warmup_will_start")
                 let warmupStart = Date()
                 try await asrProvider?.warmup()
                 let warmupDuration = Date().timeIntervalSince(warmupStart)
+                writeInitDiagnostic("warmup_did_complete_duration=\(String(format: "%.3f", warmupDuration))s")
                 logger.info("ASR warmup completed in \(String(format: "%.3f", warmupDuration))s")
             } else {
                 logger.warning("No ASR provider; skipping model load (test path).")
+                writeInitDiagnostic("no_asr_provider_skipping_load")
             }
 
             // Initialize correction engine if not injected (production path)
             if correctionEngine == nil {
                 logger.info("Creating production correction engine...")
+                writeInitDiagnostic("creating_correction_engine")
                 let engine = PersonalTranscriptCorrectionEngine()
                 self.correctionEngine = engine
+                writeInitDiagnostic("correction_engine_created")
 
                 // Load user corrections once at startup (non-blocking, nonfatal)
                 Task {
                     do {
                         try await engine.loadUserCorrections()
                         logger.info("User corrections loaded at startup")
+                        writeInitDiagnostic("user_corrections_loaded")
                     } catch {
                         logger.warning("User corrections load skipped or failed: \(error.localizedDescription)")
+                        writeInitDiagnostic("user_corrections_load_failed:\(error.localizedDescription)")
                     }
                 }
             } else {
                 logger.info("Correction engine injected (test path)")
+                writeInitDiagnostic("correction_engine_injected")
             }
 
-            state = .ready
-            ready = true
+            // Hop to MainActor for state updates
+            writeInitDiagnostic("state_will_set_to_ready")
+            await MainActor.run {
+                self.state = .ready
+                self.ready = true
+            }
+            writeInitDiagnostic("state_did_set_to_ready")
             logger.info("Coordinator ready")
         } catch {
             let message = "Failed to initialize: \(error.localizedDescription)"
-            state = .failed(message)
+            writeInitDiagnostic("initialize_error:\(message)")
+            // Hop to MainActor for state update
+            await MainActor.run {
+                self.state = .failed(message)
+            }
             logger.error("\(message, privacy: .public)")
         }
+        writeInitDiagnostic("initialize_exit")
     }
 
     // P2-4 Fix: Retry logic for model loading with exponential backoff
@@ -383,6 +414,27 @@ public final class SessionCoordinator: ObservableObject {
             if let existing = try? Data(contentsOf: url) {
                 data.append(existing)
             }
+            try? data.write(to: url)
+        }
+    }
+
+    private func writeInitDiagnostic(_ message: String) {
+        let line = "[\(Date().ISO8601Format())] SessionCoordinator: \(message)\n"
+        let path = "/tmp/voicedock-init-diagnostics.log"
+        let url = URL(fileURLWithPath: path)
+        FileHandle.appendAnnotationsToLog(url, line)
+    }
+}
+
+// MARK: - FileHandle helper for append-only diagnostics
+extension FileHandle {
+    static func appendAnnotationsToLog(_ url: URL, _ line: String) {
+        guard let data = line.data(using: .utf8) else { return }
+        if let fileHandle = try? FileHandle(forUpdating: url) {
+            try? fileHandle.seekToEnd()
+            try? fileHandle.write(contentsOf: data)
+            try? fileHandle.close()
+        } else {
             try? data.write(to: url)
         }
     }

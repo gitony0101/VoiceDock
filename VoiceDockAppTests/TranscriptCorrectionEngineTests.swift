@@ -13,7 +13,7 @@ struct TranscriptCorrectionEngineTests {
 
     // MARK: - Positive Tests (Built-in Rules)
 
-    @Test("Voice Duck corrected to VoiceDock")
+    @Test("Voice Duck corrected to VoiceDock with test context")
     func voiceDuckCorrected() async throws {
         let engine = PersonalTranscriptCorrectionEngine()
         let result = engine.correct("Testing Voice Duck recovery.")
@@ -22,6 +22,15 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.correctedTranscript == "Testing VoiceDock recovery.")
         #expect(result.appliedCorrections.count == 1)
         #expect(result.appliedCorrections.first?.ruleIdentifier == "voicedock-voice-duck")
+    }
+
+    @Test("Voice Duck without context should NOT be corrected")
+    func voiceDuckWithoutContextNotCorrected() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let result = engine.correct("I saw a voice duck yesterday.")
+
+        // Should NOT be corrected - no context keywords
+        #expect(result.correctedTranscript == "I saw a voice duck yesterday.")
     }
 
     @Test("voice stock in recovery context corrected to VoiceDock")
@@ -34,7 +43,7 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.appliedCorrections.contains { $0.ruleIdentifier == "voicedock-voice-stock" })
     }
 
-    @Test("voice: Doc corrected to VoiceDock")
+    @Test("voice: Doc corrected to VoiceDock with context")
     func voiceDocKovanCorrected() async throws {
         let engine = PersonalTranscriptCorrectionEngine()
         let result = engine.correct("Testing voice: Doc Kovan recovery.")
@@ -54,7 +63,17 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.appliedCorrections.contains { $0.ruleIdentifier == "qwen-kovan-contextual" })
     }
 
-    @Test("Honor TVT corrected to Owner PTT")
+    @Test("Kilwin in context corrected to Qwen")
+    func kilwinCorrected() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let result = engine.correct("Testing VoiceDock Kilwin recovery test.")
+
+        #expect(result.didChange == true)
+        #expect(result.correctedTranscript.contains("Qwen"))
+        #expect(result.appliedCorrections.contains { $0.ruleIdentifier == "qwen-kilwin-contextual" })
+    }
+
+    @Test("Honor TVT corrected to Owner PTT with context")
     func honorTvtCorrected() async throws {
         let engine = PersonalTranscriptCorrectionEngine()
         let result = engine.correct("Ready for Honor TVT")
@@ -62,15 +81,6 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.didChange == true)
         #expect(result.correctedTranscript == "Ready for Owner PTT")
         #expect(result.appliedCorrections.first?.ruleIdentifier == "honor-tvt-to-owner-ptt")
-    }
-
-    @Test("makes Chinese English corrected to mixed Chinese English")
-    func makesChineseEnglishCorrected() async throws {
-        let engine = PersonalTranscriptCorrectionEngine()
-        let result = engine.correct("This makes Chinese English test.")
-
-        #expect(result.didChange == true)
-        #expect(result.correctedTranscript.contains("mixed Chinese English"))
     }
 
     @Test("recopy test corrected to recovery test")
@@ -163,10 +173,40 @@ struct TranscriptCorrectionEngineTests {
         #expect(result.correctedTranscript == input)
     }
 
+    @Test("False positive: voice doc in non-context should remain unchanged")
+    func falsePositiveVoiceDocNonContext() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let input = "I bought voice doc yesterday."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - no context keywords
+        #expect(result.correctedTranscript == input)
+    }
+
+    @Test("False positive: voice duck in non-context should remain unchanged")
+    func falsePositiveVoiceDuckNonContext() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let input = "I bought voice duck yesterday."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - no context keywords
+        #expect(result.correctedTranscript == input)
+    }
+
     @Test("False positive: Kovan as name should remain unchanged")
     func falsePositiveKovanAsName() async throws {
         let engine = PersonalTranscriptCorrectionEngine()
         let input = "Kovan called today."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - no VoiceDock/Qwen context
+        #expect(result.correctedTranscript == input)
+    }
+
+    @Test("False positive: Kilwin as name should remain unchanged")
+    func falsePositiveKilwinAsName() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let input = "Kilwin called today."
         let result = engine.correct(input)
 
         // Should NOT be corrected - no VoiceDock/Qwen context
@@ -189,9 +229,28 @@ struct TranscriptCorrectionEngineTests {
         let input = "This product makes Chinese English labels."
         let result = engine.correct(input)
 
-        // "makes Chinese English" should be corrected regardless of broader context
-        // This is acceptable - the phrase itself is the marker
-        #expect(result.didChange == true)
+        // "makes Chinese English" requires product/test context now
+        #expect(result.correctedTranscript == input)
+    }
+
+    @Test("False positive: Qwen as name without context should remain unchanged")
+    func falsePositiveQwenAliasesNonContext() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let input = "Q Win called today."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - no ASR/model context
+        #expect(result.correctedTranscript == input)
+    }
+
+    @Test("False positive: Voice Document without context should remain unchanged")
+    func falsePositiveVoiceDocumentNonContext() async throws {
+        let engine = PersonalTranscriptCorrectionEngine()
+        let input = "Please file the voice document."
+        let result = engine.correct(input)
+
+        // Should NOT be corrected - no product/test context
+        #expect(result.correctedTranscript == input)
     }
 
     @Test("Dates remain unchanged")

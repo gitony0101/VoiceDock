@@ -28,10 +28,16 @@ public actor Qwen3ASRProvider: ASRProvider {
 
     /// Load the Qwen3 model from the canonical directory
     public func load() async throws {
+        Self.writeASRDiagnostic("Qwen3ASRProvider_load_enter")
         logger.info("Loading Qwen3 model: \(self.descriptor.repoID)")
+        Self.writeASRDiagnostic("descriptor_repoID=\(self.descriptor.repoID)")
 
         // Check if model is validly installed
-        guard await modelStorage.isModelValid(descriptor) else {
+        Self.writeASRDiagnostic("modelStorage_isModelValid_checking")
+        let isValid = await modelStorage.isModelValid(descriptor)
+        Self.writeASRDiagnostic("modelStorage_isModelValid_result=\(isValid ? "true" : "false")")
+        guard isValid else {
+            Self.writeASRDiagnostic("model_validation_failed")
             logger.error("Model not found or invalid at canonical path")
             throw VoiceDockError.modelLoadFailed(underlying: NSError(
                 domain: "Qwen3ASRProvider",
@@ -41,17 +47,23 @@ public actor Qwen3ASRProvider: ASRProvider {
         }
 
         // Resolve canonical model directory
+        Self.writeASRDiagnostic("resolving_model_directory")
         let modelDir = await modelStorage.modelDirectory(for: descriptor)
+        Self.writeASRDiagnostic("model_directory_path=\(modelDir.path)")
         logger.info("Loading from: \(modelDir.path)")
 
         do {
             // Load using Qwen3ASRModel.fromModelDirectory
+            Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_will_call")
             model = try await Qwen3ASRModel.fromModelDirectory(modelDir)
+            Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_did_complete")
             logger.info("Qwen3 model loaded successfully")
         } catch {
+            Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_error:\(error.localizedDescription)")
             logger.error("Failed to load Qwen3 model: \(error.localizedDescription)")
             throw VoiceDockError.modelLoadFailed(underlying: error)
         }
+        Self.writeASRDiagnostic("Qwen3ASRProvider_load_exit")
     }
 
     /// Warm up the model with silent audio
@@ -94,6 +106,23 @@ public actor Qwen3ASRProvider: ASRProvider {
     /// Unload the model and release resources
     public func unload() async {
         logger.info("Unloading Qwen3 model")
+        Self.writeASRDiagnostic("Qwen3ASRProvider_unload_called")
         model = nil
+        Self.writeASRDiagnostic("Qwen3ASRProvider_unload_exit")
+    }
+
+    private static func writeASRDiagnostic(_ message: String) {
+        let line = "[\(Date().ISO8601Format())] Qwen3ASRProvider: \(message)\n"
+        let path = "/tmp/voicedock-asr-diagnostics.log"
+        let url = URL(fileURLWithPath: path)
+        if var data = line.data(using: .utf8) {
+            if let fileHandle = try? FileHandle(forUpdating: url) {
+                try? fileHandle.seekToEnd()
+                try? fileHandle.write(contentsOf: data)
+                try? fileHandle.close()
+            } else {
+                try? data.write(to: url)
+            }
+        }
     }
 }
