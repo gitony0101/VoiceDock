@@ -232,7 +232,10 @@ struct MenuBarView: View {
                 }
 
                 // Model picker
-                Picker("Model for next launch:", selection: $modelStatus.selectedModelBinding) {
+                Picker("Model for next launch:", selection: Binding(
+                    get: { self.modelStatus.selectedModel },
+                    set: { newValue in self.modelStatus.updateSelection(newValue) }
+                )) {
                     ForEach(availableModels, id: \.self) { model in
                         Text(model.displayName).tag(model)
                     }
@@ -240,9 +243,6 @@ struct MenuBarView: View {
                 .font(.caption)
                 .pickerStyle(.menu)
                 .disabled(isOverriddenByEnvironment)
-                .onChange(of: modelStatus.selectedModelBinding) { newValue in
-                    handleModelSelectionChange(to: newValue)
-                }
 
                 // Show restart required indicator
                 if modelStatus.restartRequired {
@@ -503,9 +503,9 @@ struct MenuBarView: View {
     }
 }
 
-// MARK: - Binding extension for ModelStatus
+// MARK: - ASRModelSelection Identifiable conformance
 
-extension ASRModelSelection: @retroactive Hashable, @retroactive Identifiable {
+extension ASRModelSelection: @retroactive Identifiable {
     public var id: String { self.rawValue }
 }
 

@@ -50,7 +50,6 @@ public final class ModelStatus: ObservableObject {
     @Published public private(set) var availability: [ASRModelSelection: ModelAvailability] = [:]
 
     private let modelStorage: ModelStorage
-    private let stateQueue = DispatchQueue(label: "com.voicedock.ModelStatus.state", attributes: .concurrent)
 
     /// Initialize and capture the active model for this process lifetime.
     ///

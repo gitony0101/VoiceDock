@@ -15,6 +15,7 @@
 		10818E511B54B1E7E9028C1B /* BenchmarkCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */; };
 		10D74FF434A078BDB1844F2C /* FrontmostApplicationProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */; };
 		11FAC564F5CA5A74A181C1B6 /* ModelStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A8AE2460CB1BB8120FC800 /* ModelStatus.swift */; };
+		1D44F083B78242353E424E5A /* ModelStatusTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2A41C16C4A0292851C5F0CE8 /* ModelStatusTests.swift */; };
 		1D5CD2C3F5B8F56D594A7B3B /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9F12F3F0C0F73BC1272BC9 /* HotKeyManager.swift */; };
 		1E185E9D71C69872574632E0 /* VoiceDockError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4867884BA3D61A84DE408045 /* VoiceDockError.swift */; };
 		1E45B4C1262A4301BC347B86 /* MLXAudioSTT in Frameworks */ = {isa = PBXBuildFile; productRef = 93ADA5D0DC237F24A990CF17 /* MLXAudioSTT */; };
@@ -143,6 +144,7 @@
 		206DABF240C7547BC8891DED /* TranscriptDeliveryDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryDecision.swift; sourceTree = "<group>"; };
 		27F79336829DAA9800BABA1F /* VoiceDock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoiceDock.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2806D661E4B9A380F4DE6ADC /* main.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = main.swift; sourceTree = "<group>"; };
+		2A41C16C4A0292851C5F0CE8 /* ModelStatusTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStatusTests.swift; sourceTree = "<group>"; };
 		31E043A92C66293211B1C11C /* VoiceDockAppTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDockAppTests.swift; sourceTree = "<group>"; };
 		35AFBB87937EAA698473C07D /* QwenIntegrationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QwenIntegrationTests.swift; sourceTree = "<group>"; };
 		38033C7DA5D4976057A3FD99 /* ASRProviderFactory.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRProviderFactory.swift; sourceTree = "<group>"; };
@@ -281,6 +283,7 @@
 				C1D809539088E9B9AE534EC4 /* HotKeyManagerTests.swift */,
 				ECC0832798C21D9E0215E95B /* MockASRProvider.swift */,
 				FB5209C7AACF3589E68CA77B /* MockAudioCapture.swift */,
+				2A41C16C4A0292851C5F0CE8 /* ModelStatusTests.swift */,
 				13220B14EB91840E8E8900AB /* PermissionManagerTests.swift */,
 				E431B10B7AA9C472270F2F74 /* Qwen3ASRProviderTests.swift */,
 				35AFBB87937EAA698473C07D /* QwenIntegrationTests.swift */,
@@ -596,6 +599,7 @@
 				5CD1E1B2DCE93C36BF838B2A /* HotKeyManagerTests.swift in Sources */,
 				B2B6D4403D8595A404237185 /* MockASRProvider.swift in Sources */,
 				9B0D15F297656209C7D4C863 /* MockAudioCapture.swift in Sources */,
+				1D44F083B78242353E424E5A /* ModelStatusTests.swift in Sources */,
 				F2674FDAA238BD35985B0A35 /* PermissionManagerTests.swift in Sources */,
 				08DD718636A83F665FA79EEA /* Qwen3ASRProviderTests.swift in Sources */,
 				AA0290BA4C6093FCEA80D38A /* QwenIntegrationTests.swift in Sources */,

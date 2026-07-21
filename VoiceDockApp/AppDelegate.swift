@@ -27,7 +27,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var activationObserver: NSObjectProtocol?
     private(set) var activationObserverInstallCount = 0
 
-    init() {
+    override init() {
         self.modelStatus = ModelStatus()
         super.init()
     }
