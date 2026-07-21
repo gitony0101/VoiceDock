@@ -34,8 +34,14 @@ public final class SessionCoordinator: ObservableObject {
     private var audioCapture: AudioCaptureProtocol?
     private var asrProvider: ASRProvider?
     private var transcriptDestination: TranscriptDestination?
+    private var correctionEngine: TranscriptCorrectionEngine?
     private var audioBuffer: [Float] = []
     private var ready: Bool = false
+
+    // Correction state
+    private var lastRawTranscript: String?
+    private var lastCorrectedTranscript: String?
+    private var lastAppliedCorrections: [AppliedCorrection] = []
 
     private var modelLoadTask: Task<Void, Never>?
     private var initialState: State = .starting
@@ -43,10 +49,12 @@ public final class SessionCoordinator: ObservableObject {
     // Dependency injection for testing
     public init(audioCapture: AudioCaptureProtocol? = nil,
          asrProvider: ASRProvider? = nil,
-         transcriptDestination: TranscriptDestination? = nil) {
+         transcriptDestination: TranscriptDestination? = nil,
+         correctionEngine: TranscriptCorrectionEngine? = nil) {
         self.audioCapture = audioCapture
         self.asrProvider = asrProvider
         self.transcriptDestination = transcriptDestination
+        self.correctionEngine = correctionEngine
         modelLoadTask = Task { [weak self] in
             await self?.initialize()
         }
@@ -173,13 +181,46 @@ public final class SessionCoordinator: ObservableObject {
 
         // P2-4 Fix: Retry transcription on transient errors
         do {
-            let result = try await transcribeWithRetry()
-            await deliver(text: result)
+            let rawResult = try await transcribeWithRetry()
+
+            // Apply transcript correction
+            let correctionResult = await applyCorrection(rawTranscript: rawResult)
+
+            await deliver(rawTranscript: correctionResult.rawTranscript, correctedTranscript: correctionResult.correctedTranscript)
         } catch {
             let message = "Transcription failed: \(error.localizedDescription)"
             state = .failed(message)
             logger.error("\(message, privacy: .public)")
         }
+    }
+
+    /// Apply correction to a raw transcript based on user preferences
+    private func applyCorrection(rawTranscript: String) async -> CorrectionResult {
+        let preferences = TranscriptCorrectionPreferences.load()
+
+        guard let engine = correctionEngine else {
+            logger.warning("No correction engine; delivering raw transcript")
+            return CorrectionResult(rawTranscript: rawTranscript, correctedTranscript: rawTranscript, appliedCorrections: [])
+        }
+
+        // Load user corrections if enabled
+        if preferences.loadUserCorrections {
+            try? await engine.loadUserCorrections()
+        }
+
+        // Apply correction based on mode
+        let result: CorrectionResult
+        switch preferences.mode {
+        case .off:
+            result = CorrectionResult(rawTranscript: rawTranscript, correctedTranscript: rawTranscript, appliedCorrections: [])
+        case .personalCorrection:
+            result = engine.correct(rawTranscript)
+        }
+
+        // Store applied corrections for later retrieval
+        self.lastAppliedCorrections = result.appliedCorrections
+
+        return result
     }
 
     // P2-4 Fix: Retry logic for transcription with exponential backoff
@@ -211,11 +252,18 @@ public final class SessionCoordinator: ObservableObject {
         throw lastError ?? VoiceDockError.transcriptionFailed(underlying: nil)
     }
 
-    private func deliver(text: String?) async {
+    private func deliver(rawTranscript: String, correctedTranscript: String) async {
         state = .delivering
         let deliverStart = Date()
 
-        if let text = text, !text.isEmpty {
+        // Store correction state
+        self.lastRawTranscript = rawTranscript
+        self.lastCorrectedTranscript = correctedTranscript
+
+        // Determine which text to deliver
+        let textToDeliver = correctedTranscript
+
+        if !textToDeliver.isEmpty {
             // Load user preferences and determine delivery policy
             let preferences = TranscriptDeliveryPreferences.load()
             let appProvider = NSWorkspaceFrontmostAppProvider()
@@ -226,17 +274,32 @@ public final class SessionCoordinator: ObservableObject {
             let decision = policy.determineDelivery()
 
             // Execute delivery based on decision
-            let resultMessage = transcriptDestination?.deliver(text: text, decision: decision) ?? "Delivery failed"
+            let resultMessage = transcriptDestination?.deliver(text: textToDeliver, decision: decision) ?? "Delivery failed"
             let deliverDuration = Date().timeIntervalSince(deliverStart)
             logger.info("deliver: \(resultMessage) (\(String(format: "%.3f", deliverDuration))s)")
 
-            currentTranscript = text
+            currentTranscript = textToDeliver
         } else {
             logger.warning("No transcript text to deliver")
         }
         // Brief delay so the UI shows the delivering state
         try? await Task.sleep(nanoseconds: 200_000_000)
         state = .ready
+    }
+
+    /// Get the last raw transcript (uncorrected)
+    public func getLastRawTranscript() -> String? {
+        return lastRawTranscript
+    }
+
+    /// Get the last corrected transcript
+    public func getLastCorrectedTranscript() -> String? {
+        return lastCorrectedTranscript
+    }
+
+    /// Get the list of applied corrections from the last correction
+    public func getLastAppliedCorrections() -> [AppliedCorrection] {
+        return lastAppliedCorrections
     }
 
     public func cleanup() {
