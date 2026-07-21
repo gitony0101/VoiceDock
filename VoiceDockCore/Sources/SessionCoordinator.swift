@@ -45,6 +45,7 @@ public final class SessionCoordinator: ObservableObject {
 
     private var modelLoadTask: Task<Void, Never>?
     private var initialState: State = .starting
+    private var correctionInitialized: Bool = false
 
     // Dependency injection for testing
     public init(audioCapture: AudioCaptureProtocol? = nil,
@@ -75,6 +76,25 @@ public final class SessionCoordinator: ObservableObject {
                 logger.info("ASR warmup completed in \(String(format: "%.3f", warmupDuration))s")
             } else {
                 logger.warning("No ASR provider; skipping model load (test path).")
+            }
+
+            // Initialize correction engine if not injected (production path)
+            if correctionEngine == nil {
+                logger.info("Creating production correction engine...")
+                let engine = PersonalTranscriptCorrectionEngine()
+                self.correctionEngine = engine
+
+                // Load user corrections once at startup (non-blocking, nonfatal)
+                Task {
+                    do {
+                        try await engine.loadUserCorrections()
+                        logger.info("User corrections loaded at startup")
+                    } catch {
+                        logger.warning("User corrections load skipped or failed: \(error.localizedDescription)")
+                    }
+                }
+            } else {
+                logger.info("Correction engine injected (test path)")
             }
 
             state = .ready
@@ -194,31 +214,42 @@ public final class SessionCoordinator: ObservableObject {
         }
     }
 
-    /// Apply correction to a raw transcript based on user preferences
-    private func applyCorrection(rawTranscript: String) async -> CorrectionResult {
+    /// Apply correction to a raw transcript based on user preferences.
+    ///
+    /// The correction engine is loaded once at startup - this method does NOT reload rules.
+    /// Visible for testing via @testable import.
+    func applyCorrection(rawTranscript: String) async -> CorrectionResult {
         let preferences = TranscriptCorrectionPreferences.load()
 
         guard let engine = correctionEngine else {
             logger.warning("No correction engine; delivering raw transcript")
-            return CorrectionResult(rawTranscript: rawTranscript, correctedTranscript: rawTranscript, appliedCorrections: [])
-        }
-
-        // Load user corrections if enabled
-        if preferences.loadUserCorrections {
-            try? await engine.loadUserCorrections()
+            let result = CorrectionResult(rawTranscript: rawTranscript, correctedTranscript: rawTranscript, appliedCorrections: [])
+            // Store for retrieval even when no engine
+            self.lastRawTranscript = rawTranscript
+            self.lastCorrectedTranscript = rawTranscript
+            self.lastAppliedCorrections = []
+            return result
         }
 
         // Apply correction based on mode
         let result: CorrectionResult
         switch preferences.mode {
         case .off:
+            // Mode Off: deliver raw transcript unchanged
             result = CorrectionResult(rawTranscript: rawTranscript, correctedTranscript: rawTranscript, appliedCorrections: [])
         case .personalCorrection:
+            // Mode Personal Correction: apply deterministic rules
             result = engine.correct(rawTranscript)
         }
 
-        // Store applied corrections for later retrieval
+        // Store correction state for retrieval
+        self.lastRawTranscript = rawTranscript
+        self.lastCorrectedTranscript = result.correctedTranscript
         self.lastAppliedCorrections = result.appliedCorrections
+
+        if result.didChange {
+            logger.info("Correction applied: \(result.appliedCorrections.count) rules fired")
+        }
 
         return result
     }
@@ -300,6 +331,21 @@ public final class SessionCoordinator: ObservableObject {
     /// Get the list of applied corrections from the last correction
     public func getLastAppliedCorrections() -> [AppliedCorrection] {
         return lastAppliedCorrections
+    }
+
+    /// Reload user corrections manually (for UI trigger)
+    public func reloadUserCorrections() async {
+        guard let engine = correctionEngine else {
+            logger.warning("No correction engine; cannot reload")
+            return
+        }
+        await engine.reloadUserCorrections()
+    }
+
+    /// Check if correction is enabled based on user preferences
+    public func isCorrectionEnabled() -> Bool {
+        let preferences = TranscriptCorrectionPreferences.load()
+        return preferences.mode == .personalCorrection
     }
 
     public func cleanup() {

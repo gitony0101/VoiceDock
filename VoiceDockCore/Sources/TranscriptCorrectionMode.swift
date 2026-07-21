@@ -8,7 +8,7 @@
 import Foundation
 
 /// User preference for transcript correction
-public enum TranscriptCorrectionMode: String, Codable, CaseIterable {
+public enum TranscriptCorrectionMode: String, Codable, CaseIterable, Sendable {
     /// Deliver raw ASR transcript without correction
     case off = "off"
     /// Apply deterministic personal correction rules

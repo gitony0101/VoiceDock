@@ -23,6 +23,11 @@ private let logger = Logger(subsystem: "com.voicedock.core", category: "Transcri
 /// - Does NOT change numbers, dates, or unrelated names
 /// - Does NOT remove negation or uncertainty words
 /// - Returns original text unchanged when no rule matches confidently
+///
+/// Thread safety:
+/// - `rules` is immutable after initialization/reload
+/// - `correct()` operates on immutable snapshot, safe for concurrent calls
+/// - `reloadUserCorrections()` is async and replaces `rules` atomically
 public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngine, @unchecked Sendable {
 
     /// User correction file location
@@ -43,13 +48,14 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
         return correctionsDir
     }
 
-    /// Create a sample user corrections file with documented examples
-    public static func createSampleUserCorrectionsFile() throws -> URL {
+    /// Create a sample user corrections file with documented examples.
+    /// Only creates if file does not exist; does not overwrite.
+    public static func createSampleUserCorrectionsFileIfMissing() throws -> URL {
         let dir = try ensureCorrectionsDirectory()
         let fileURL = dir.appendingPathComponent("personal-corrections.json")
 
-        // Don't overwrite existing file
-        if FileManager.default.fileExists(atPath: fileURL.path) {
+        // Only create if missing
+        guard !FileManager.default.fileExists(atPath: fileURL.path) else {
             return fileURL
         }
 
@@ -70,13 +76,11 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
     }
 
     /// All correction rules (builtin + user), sorted by priority (highest first)
-    private var allRules: [CorrectionRule] = []
+    /// Immutable after initialization or reload - safe for concurrent reads
+    private var rules: [CorrectionRule]
 
-    /// User-loaded correction rules
-    private var userRules: [CorrectionRule] = []
-
-    /// Built-in correction rules
-    private let builtinRules: [CorrectionRule] = [
+    /// Built-in correction rules (immutable)
+    private static let builtinRules: [CorrectionRule] = [
         // VoiceDock aliases - highest priority, most specific first
         CorrectionRule(id: "voicedock-voice-document", pattern: "Voice Document", replacement: "VoiceDock", matchType: .caseInsensitivePhrase, priority: 100),
         CorrectionRule(id: "voicedock-voice-doc-kovan", pattern: "voice: Doc", replacement: "VoiceDock", matchType: .caseInsensitivePhrase, priority: 100),
@@ -97,12 +101,27 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
         CorrectionRule(id: "recopy", pattern: "recopy", replacement: "recovery", matchType: .wordBoundaryPhrase, contextKeywords: ["test"], priority: 80),
     ]
 
+    /// Initialize with builtin rules loaded.
+    /// User corrections are NOT loaded automatically - call `loadUserCorrections()` explicitly.
     public init() {
-        // Start with builtin rules
-        self.allRules = builtinRules.sorted { $0.priority > $1.priority }
-        logger.info("PersonalTranscriptCorrectionEngine initialized with \(self.builtinRules.count) builtin rules")
+        self.rules = Self.builtinRules.sorted { $0.priority > $1.priority }
+        logger.info("PersonalTranscriptCorrectionEngine initialized with \(Self.builtinRules.count) builtin rules")
     }
 
+    /// Initialize with pre-loaded rules (for dependency injection).
+    /// This initializer is used in production to inject a prepared engine with rules already loaded.
+    public init(rules: [CorrectionRule]) {
+        self.rules = rules.sorted { $0.priority > $1.priority }
+        logger.info("PersonalTranscriptCorrectionEngine initialized with \(rules.count) rules")
+    }
+
+    /// Load user corrections from the standard location.
+    ///
+    /// This method is idempotent and safe to call multiple times.
+    /// It replaces the `rules` array atomically - concurrent `correct()` calls see a consistent snapshot.
+    ///
+    /// - Throws: `DecodingError` if the file exists but contains invalid JSON.
+    ///   Other errors (file not found, permissions) are logged and nonfatal.
     public func loadUserCorrections() async throws {
         let url = URL(fileURLWithPath: PersonalTranscriptCorrectionEngine.userCorrectionsPath)
 
@@ -130,9 +149,10 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
                 )
             }
 
-            self.userRules = parsedRules
-            self.rebuildAllRules()
-            logger.info("Loaded \(parsedRules.count) user correction rules")
+            // Atomically replace rules with builtin + user rules sorted by priority
+            let newRules = (Self.builtinRules + parsedRules).sorted { $0.priority > $1.priority }
+            self.rules = newRules
+            logger.info("Loaded \(parsedRules.count) user correction rules; total rules: \(newRules.count)")
 
         } catch let error as DecodingError {
             logger.error("Invalid user corrections JSON: \(error.localizedDescription)")
@@ -143,11 +163,15 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
         }
     }
 
+    /// Reload user corrections manually (e.g., after user edits the file).
+    ///
+    /// This method catches errors and logs them - it does not throw.
+    /// Failed reload keeps the current rules unchanged.
     public func reloadUserCorrections() async {
         do {
             try await loadUserCorrections()
         } catch {
-            logger.error("Reload failed: \(error.localizedDescription); continuing with builtin rules only")
+            logger.error("Reload failed: \(error.localizedDescription); continuing with current rules")
         }
     }
 
@@ -161,7 +185,8 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
         var appliedCorrections: [AppliedCorrection] = []
 
         // Apply rules in priority order (highest first)
-        for rule in allRules {
+        // Uses immutable snapshot - safe for concurrent calls
+        for rule in rules {
             let matches = findMatches(for: rule, in: corrected)
 
             for matchRange in matches.reversed() { // Reverse to preserve ranges
@@ -179,7 +204,8 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
                 )
                 appliedCorrections.append(correction)
 
-                logger.debug("Applied rule '\(rule.id)': '\(originalText)' → '\(rule.replacement)'")
+                // Privacy: log rule identifier only, not transcript content
+                logger.debug("Applied rule '\(rule.id)'")
             }
         }
 
@@ -281,11 +307,6 @@ public final class PersonalTranscriptCorrectionEngine: TranscriptCorrectionEngin
         let startIndex = text.index(range.lowerBound, offsetBy: -min(windowSize, text.distance(from: text.startIndex, to: range.lowerBound)), limitedBy: text.startIndex) ?? text.startIndex
         let endIndex = text.index(range.upperBound, offsetBy: min(windowSize, text.distance(from: range.upperBound, to: text.endIndex)), limitedBy: text.endIndex) ?? text.endIndex
         return String(text[startIndex..<endIndex])
-    }
-
-    /// Rebuild the combined rules list with user rules appended
-    private func rebuildAllRules() {
-        self.allRules = (builtinRules + userRules).sorted { $0.priority > $1.priority }
     }
 }
 

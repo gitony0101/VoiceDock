@@ -8,7 +8,7 @@
 import Foundation
 
 /// Represents a single correction applied to a transcript
-public struct AppliedCorrection: Equatable {
+public struct AppliedCorrection: Equatable, Sendable {
     /// The original text that was corrected
     public let originalText: String
     /// The replacement text
@@ -27,7 +27,7 @@ public struct AppliedCorrection: Equatable {
 }
 
 /// Result of running the correction engine on a transcript
-public struct CorrectionResult: Equatable {
+public struct CorrectionResult: Equatable, Sendable {
     /// The original uncorrected transcript
     public let rawTranscript: String
     /// The corrected transcript (may be identical to raw if no corrections applied)
@@ -46,7 +46,7 @@ public struct CorrectionResult: Equatable {
 }
 
 /// Matching strategy for a correction rule
-public enum CorrectionMatchType: String, Codable {
+public enum CorrectionMatchType: String, Codable, Sendable {
     /// Exact match (case-sensitive)
     case exactPhrase
     /// Case-insensitive phrase match
@@ -58,7 +58,7 @@ public enum CorrectionMatchType: String, Codable {
 }
 
 /// A single correction rule
-public struct CorrectionRule: Equatable {
+public struct CorrectionRule: Equatable, Sendable {
     /// Unique identifier for this rule
     public let id: String
     /// The text pattern to match

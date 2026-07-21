@@ -13,7 +13,7 @@ private let logger = Logger(subsystem: "com.voicedock.core", category: "Transcri
 /// User preferences for transcript correction.
 ///
 /// Preferences are persisted via UserDefaults and survive app relaunch.
-public struct TranscriptCorrectionPreferences: Equatable {
+public struct TranscriptCorrectionPreferences: Equatable, Sendable {
     private static let correctionModeKey = "voicedock.transcriptCorrectionMode"
     private static let userCorrectionsFileKey = "voicedock.userCorrectionsFile"
 
