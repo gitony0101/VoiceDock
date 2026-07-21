@@ -14,6 +14,7 @@
 		0E30E9AAD149B5CFECE18021 /* ASRProviderFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9CDC02AEDF25F1AD399A7FC /* ASRProviderFactoryTests.swift */; };
 		10818E511B54B1E7E9028C1B /* BenchmarkCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */; };
 		10D74FF434A078BDB1844F2C /* FrontmostApplicationProviding.swift in Sources */ = {isa = PBXBuildFile; fileRef = 515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */; };
+		11FAC564F5CA5A74A181C1B6 /* ModelStatus.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13A8AE2460CB1BB8120FC800 /* ModelStatus.swift */; };
 		1D5CD2C3F5B8F56D594A7B3B /* HotKeyManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7E9F12F3F0C0F73BC1272BC9 /* HotKeyManager.swift */; };
 		1E185E9D71C69872574632E0 /* VoiceDockError.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4867884BA3D61A84DE408045 /* VoiceDockError.swift */; };
 		1E45B4C1262A4301BC347B86 /* MLXAudioSTT in Frameworks */ = {isa = PBXBuildFile; productRef = 93ADA5D0DC237F24A990CF17 /* MLXAudioSTT */; };
@@ -137,6 +138,7 @@
 		069712CD4B41FB476AC52FE3 /* TranscriptCorrectionPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionPreferences.swift; sourceTree = "<group>"; };
 		0F0BDED5C9E4D4124B41135B /* TranscriptDestinationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDestinationTests.swift; sourceTree = "<group>"; };
 		13220B14EB91840E8E8900AB /* PermissionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManagerTests.swift; sourceTree = "<group>"; };
+		13A8AE2460CB1BB8120FC800 /* ModelStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStatus.swift; sourceTree = "<group>"; };
 		15266A448A1AAD45FF50386E /* VoiceDockTests.xctest */ = {isa = PBXFileReference; explicitFileType = wrapper.cfbundle; includeInIndex = 0; path = VoiceDockTests.xctest; sourceTree = BUILT_PRODUCTS_DIR; };
 		206DABF240C7547BC8891DED /* TranscriptDeliveryDecision.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryDecision.swift; sourceTree = "<group>"; };
 		27F79336829DAA9800BABA1F /* VoiceDock.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = VoiceDock.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -353,6 +355,7 @@
 				515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */,
 				D517477EB39C5A8E25056875 /* MLXAudioSTTProvider.swift */,
 				80A11F7FEA0D81964D8C9743 /* ModelInstaller.swift */,
+				13A8AE2460CB1BB8120FC800 /* ModelStatus.swift */,
 				E48D57B481D32DA8EB6F90AC /* ModelStorage.swift */,
 				B7C5AA83791C3F2C679F4636 /* PersonalTranscriptCorrectionEngine.swift */,
 				5D32E0B6429F27EF894AEE86 /* Qwen3ASRProvider.swift */,
@@ -553,6 +556,7 @@
 				10D74FF434A078BDB1844F2C /* FrontmostApplicationProviding.swift in Sources */,
 				EE66812E3A82F8AB36E48AF4 /* MLXAudioSTTProvider.swift in Sources */,
 				F5A30AA72803A7A453B0B2B3 /* ModelInstaller.swift in Sources */,
+				11FAC564F5CA5A74A181C1B6 /* ModelStatus.swift in Sources */,
 				34E9282C52825E02FFDBFA7D /* ModelStorage.swift in Sources */,
 				A79071BC9CA3873F4E86FC7D /* PersonalTranscriptCorrectionEngine.swift in Sources */,
 				A64A2F6AEEF8F9E4F1B1F62D /* Qwen3ASRProvider.swift in Sources */,

@@ -20,11 +20,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: SessionCoordinator?
     private var hotKeyManager: HotKeyManager?
     private let permissions = PermissionManager()
+    private let modelStatus: ModelStatus
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
     private var menuClickCount = 0
     private var activationObserver: NSObjectProtocol?
     private(set) var activationObserverInstallCount = 0
+
+    init() {
+        self.modelStatus = ModelStatus()
+        super.init()
+    }
 
     // Explicit termination state machine
     enum TerminationState {
@@ -137,7 +143,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // 4) Accessibility permission
             refreshPermissions(reason: .applicationLaunch)
 
-            // 5) Run self-test if requested
+            // 5) Refresh model availability asynchronously (non-blocking)
+            Task { @MainActor in
+                await self.modelStatus.refreshAvailability()
+            }
+
+            // 6) Run self-test if requested
             if selfTestMode {
                 writeUIDiagnostic("Scheduling self-test in 1 second...")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -195,7 +206,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wirePopover(to coordinator: SessionCoordinator) {
         writeUIDiagnostic("wirePopover_start")
 
-        let rootView = MenuBarView(coordinator: coordinator, permissions: permissions)
+        let rootView = MenuBarView(coordinator: coordinator, permissions: permissions, modelStatus: modelStatus)
         let controller = NSHostingController(rootView: rootView)
 
         writeUIDiagnostic("content_view_controller_created=true")

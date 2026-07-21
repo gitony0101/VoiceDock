@@ -14,17 +14,16 @@ private let logger = Logger(subsystem: "com.voicedock.app", category: "MenuBarVi
 struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
     @ObservedObject var permissions: PermissionManager
+    @ObservedObject var modelStatus: ModelStatus
     @State private var showDiagnostics = false
     @State private var automaticPaste: Bool
     @State private var sendReturnAfterPaste: Bool
     @State private var transcriptCorrectionEnabled: Bool
-    @State private var selectedASRModel: String
-    @State private var activeASRModel: String
-    @State private var showRestartRequired = false
 
-    init(coordinator: SessionCoordinator, permissions: PermissionManager) {
+    init(coordinator: SessionCoordinator, permissions: PermissionManager, modelStatus: ModelStatus) {
         self.coordinator = coordinator
         self.permissions = permissions
+        self.modelStatus = modelStatus
         // Load delivery preferences
         let deliveryPrefs = TranscriptDeliveryPreferences.load()
         _automaticPaste = State(initialValue: deliveryPrefs.automaticPaste)
@@ -32,13 +31,6 @@ struct MenuBarView: View {
         // Load correction preferences
         let correctionPrefs = TranscriptCorrectionPreferences.load()
         _transcriptCorrectionEnabled = State(initialValue: correctionPrefs.mode == .personalCorrection)
-        // Load ASR model preferences
-        let modelPrefs = ASRModelPreferences.load()
-        _selectedASRModel = State(initialValue: modelPrefs.selectedModel.rawValue)
-        // Active model is determined by environment or saved preference
-        let effectiveModel = ASRModelPreferences.effectiveModel()
-        _activeASRModel = State(initialValue: effectiveModel.rawValue)
-        _showRestartRequired = State(initialValue: modelPrefs.selectedModel.rawValue != effectiveModel.rawValue)
     }
 
     var body: some View {
@@ -240,20 +232,20 @@ struct MenuBarView: View {
                 }
 
                 // Model picker
-                Picker("Model for next launch:", selection: $selectedASRModel) {
-                    ForEach(ASRModelSelection.allCases.filter { !isRetiredModel($0) }, id: \.self) { model in
-                        Text(model.displayName).tag(model.rawValue)
+                Picker("Model for next launch:", selection: $modelStatus.selectedModelBinding) {
+                    ForEach(availableModels, id: \.self) { model in
+                        Text(model.displayName).tag(model)
                     }
                 }
                 .font(.caption)
                 .pickerStyle(.menu)
                 .disabled(isOverriddenByEnvironment)
-                .onChange(of: selectedASRModel) { newValue in
+                .onChange(of: modelStatus.selectedModelBinding) { newValue in
                     handleModelSelectionChange(to: newValue)
                 }
 
                 // Show restart required indicator
-                if showRestartRequired {
+                if modelStatus.restartRequired {
                     HStack {
                         Image(systemName: "arrow.clockwise")
                             .font(.caption2)
@@ -278,14 +270,16 @@ struct MenuBarView: View {
                 }
 
                 // Show missing model error
-                if selectedModelIsMissing {
-                    HStack {
-                        Image(systemName: "xmark.circle.fill")
-                            .font(.caption2)
-                            .foregroundColor(.red)
-                        Text("\(selectedModelDisplayName) is not installed")
-                            .font(.caption2)
-                            .foregroundColor(.red)
+                if let selectedAvailability = modelStatus.availability[modelStatus.selectedModel] {
+                    if selectedAvailability == .missing || selectedAvailability == .invalid(reason: nil) {
+                        HStack {
+                            Image(systemName: "xmark.circle.fill")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                            Text("\(selectedModelDisplayName) is not installed")
+                                .font(.caption2)
+                                .foregroundColor(.red)
+                        }
                     }
                 }
             }
@@ -456,27 +450,19 @@ struct MenuBarView: View {
     // MARK: - ASR Model Selection Helpers
 
     private var activeModelDisplayName: String {
-        guard let model = ASRModelSelection(rawValue: activeASRModel) else {
-            return "Unknown"
-        }
-        return model.displayName
+        modelStatus.activeModel.displayName
     }
 
     private var selectedModelDisplayName: String {
-        guard let model = ASRModelSelection(rawValue: selectedASRModel) else {
-            return "Unknown"
-        }
-        return model.displayName
+        modelStatus.selectedModel.displayName
     }
 
     private var isOverriddenByEnvironment: Bool {
         ASRModelPreferences.isOverriddenByEnvironment
     }
 
-    private var selectedModelIsMissing: Bool {
-        // Check if the selected model is installed
-        // TODO: Implement async model availability check
-        return false  // For now, assume models are available
+    private var availableModels: [ASRModelSelection] {
+        ASRModelSelection.allCases.filter { !isRetiredModel($0) }
     }
 
     private func isRetiredModel(_ model: ASRModelSelection) -> Bool {
@@ -485,19 +471,9 @@ struct MenuBarView: View {
         return false
     }
 
-    private func handleModelSelectionChange(to newValue: String) {
-        guard let newModel = ASRModelSelection(rawValue: newValue) else { return }
-
-        // Save the selection
-        var prefs = ASRModelPreferences.load()
-        prefs.selectedModel = newModel
-        prefs.save()
-
-        // Check if this is different from the active model
-        let effectiveModel = ASRModelPreferences.effectiveModel()
-        showRestartRequired = newModel.rawValue != effectiveModel.rawValue
-
-        logger.info("Model selection changed to \(newModel.rawValue), restart required: \(showRestartRequired)")
+    private func handleModelSelectionChange(to newValue: ASRModelSelection) {
+        modelStatus.updateSelection(newValue)
+        logger.info("Model selection changed to \(newValue.rawValue), restart required: \(modelStatus.restartRequired)")
     }
 
     private func openMicrophoneSettings() {
@@ -527,8 +503,15 @@ struct MenuBarView: View {
     }
 }
 
+// MARK: - Binding extension for ModelStatus
+
+extension ASRModelSelection: @retroactive Hashable, @retroactive Identifiable {
+    public var id: String { self.rawValue }
+}
+
 #Preview {
     let perm = PermissionManager()
     let coord = SessionCoordinator(audioCapture: nil, asrProvider: nil, transcriptDestination: nil)
-    return MenuBarView(coordinator: coord, permissions: perm)
+    let modelStatus = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_1_7B_4bit)
+    return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus)
 }
