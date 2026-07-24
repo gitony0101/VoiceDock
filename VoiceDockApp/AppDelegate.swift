@@ -358,8 +358,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("creating_audioCapture")
         let audioCapture = AudioCapture()
         writeUIDiagnostic("creating_asrProvider")
-        // Phase 2B: Use factory for runtime model selection
-        let asrProvider = ASRProviderFactory.createProvider()
+        // Active model comes from the descriptor of the provider actually created.
+        // The factory's metadata result lets us source that without inferring from
+        // the picker or saved preference.
+        let factoryResult = ASRProviderFactory.createProviderWithMetadata()
+        let asrProvider = factoryResult.provider
         writeUIDiagnostic("creating_transcriptDestination")
         let transcriptDestination = TranscriptDestination()
         writeUIDiagnostic("creating_coordinator")
@@ -369,6 +372,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             transcriptDestination: transcriptDestination
         )
         writeUIDiagnostic("coordinator_created")
+        // Reflect the real active model into ModelStatus after provider creation.
+        modelStatus.captureActive(factoryResult)
         return coord
     }
 

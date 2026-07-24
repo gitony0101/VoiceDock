@@ -76,6 +76,9 @@ final class PermissionManager: ObservableObject {
             case .notDetermined: return "notDetermined"
             }
         }
+
+        /// Whether the permission has been granted.
+        var isGranted: Bool { self == .granted }
     }
 
     @Published private(set) var microphoneStatus: PermissionStatus = .notDetermined

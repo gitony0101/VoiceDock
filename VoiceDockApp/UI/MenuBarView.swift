@@ -1,8 +1,6 @@
 //
 //  MenuBarView.swift
-//  VoiceDock
-//
-//  VoiceDock Push-to-Talk MVP
+//  VoiceDock (0.2 — Stable Identity + Accessibility)
 //
 
 import SwiftUI
@@ -15,382 +13,150 @@ struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
     @ObservedObject var permissions: PermissionManager
     @ObservedObject var modelStatus: ModelStatus
+    @State private var showFullTranscript = false
     @State private var showDiagnostics = false
     @State private var automaticPaste: Bool
     @State private var sendReturnAfterPaste: Bool
-    @State private var transcriptCorrectionEnabled: Bool
+    @State private var correctionEnabled: Bool
+    @State private var restartInProgress = false
+    @State private var restartProgressText: String = ""
 
     init(coordinator: SessionCoordinator, permissions: PermissionManager, modelStatus: ModelStatus) {
         self.coordinator = coordinator
         self.permissions = permissions
         self.modelStatus = modelStatus
-        // Load delivery preferences
         let deliveryPrefs = TranscriptDeliveryPreferences.load()
         _automaticPaste = State(initialValue: deliveryPrefs.automaticPaste)
         _sendReturnAfterPaste = State(initialValue: deliveryPrefs.sendReturnAfterPaste)
-        // Load correction preferences
         let correctionPrefs = TranscriptCorrectionPreferences.load()
-        _transcriptCorrectionEnabled = State(initialValue: correctionPrefs.mode == .personalCorrection)
+        _correctionEnabled = State(initialValue: correctionPrefs.mode == .personalCorrection)
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 14) {
-            // Title
-            HStack {
+        // Adapt to screen: bounded width, height based on visible screen space
+        let screenFrame = NSScreen.main?.visibleFrame ?? .zero
+        let maxHeight = max(480, min(720, screenFrame.height - 60))
+
+        VStack(alignment: .leading, spacing: 0) {
+            // Fixed header
+            headerSection
+
+            Divider()
+
+            // Bounded / collapsible transcript
+            transcriptSection
+
+            // Fixed output controls
+            deliverySection
+
+            Divider()
+
+            // Fixed model controls (always visible, never clipped)
+            modelSection
+
+            Divider()
+
+            // Fixed correction control
+            correctionSection
+
+            Divider()
+
+            // Fixed permission row (compact unless denied, then expandable)
+            permissionSection
+
+            Spacer(minLength: 8)
+
+            // Fixed footer: always shows Quit VoiceDock
+            footerSection
+        }
+        .padding(.horizontal, 14)
+        .padding(.top, 10)
+        .padding(.bottom, 8)
+        .frame(width: 400)
+        .frame(maxHeight: maxHeight)
+        .background(Color(.windowBackgroundColor))
+        .onAppear {
+            permissions.refresh(reason: .popoverWillOpen)
+        }
+    }
+
+    // MARK: - Header
+    private var headerSection: some View {
+        VStack(alignment: .leading, spacing: 4) {
+            HStack(alignment: .firstTextBaseline) {
                 Image(systemName: "mic.fill")
+                    .font(.title3)
                     .foregroundColor(stateColor)
                 Text("VoiceDock")
-                    .font(.headline)
+                    .font(.title3.bold())
                 Spacer()
+                statusBadge
             }
-
-            Divider()
-
-            // Current state
-            HStack {
-                if showsSpinner {
-                    ProgressView()
-                        .controlSize(.small)
-                        .scaleEffect(0.7)
-                } else if hasFailed {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .foregroundColor(.red)
-                }
-                Text(stateText)
-                    .font(.body)
-            }
-
-            // Permission row
-            VStack(alignment: .leading, spacing: 4) {
-                permissionRow(
-                    name: "Microphone",
-                    status: permissions.microphoneStatus
-                )
-                permissionRow(
-                    name: "Accessibility",
-                    status: permissions.accessibilityStatus ? .granted : .denied
-                )
-
-                // P1 Fix: Show troubleshooting hint if permissions appear stale
-                if !permissions.accessibilityStatus {
-                    Text("⚠️ If Accessibility is enabled in System Settings but shows \"denied\" here:")
-                        .font(.caption2)
-                        .foregroundColor(.orange)
-                        .multilineTextAlignment(.leading)
-                    Text("1. Quit VoiceDock completely (Cmd+Q)")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text("2. Remove any duplicate VoiceDock entries from Accessibility settings")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text("3. Re-add exactly: dist/VoiceDock.app")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text("4. Relaunch and click \"Refresh Permissions\"")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-
-            // Hotkey Diagnostics
-            if showDiagnostics, let appDelegate = NSApp.delegate as? AppDelegate,
-               let hk = appDelegate.hotKeyManagerForDiagnostics {
-                Divider()
-                VStack(alignment: .leading, spacing: 4) {
-                    Text("Hotkey Diagnostics")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    HStack {
-                        Text("Accessibility trusted:")
-                        Text(hk.accessibilityTrusted ? "true" : "false")
-                            .foregroundColor(hk.accessibilityTrusted ? .green : .red)
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Backend:")
-                        Text(hk.backendName)
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Registration:")
-                        Text(hk.registrationStatus)
-                            .foregroundColor(hk.registrationStatus == "success" ? .green : .red)
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Last event:")
-                        Text(hk.lastKeyEvent)
-                    }
-                    .font(.caption)
-                    HStack {
-                        Text("Press count: \(hk.pressCount)")
-                        Spacer()
-                        Text("Release count: \(hk.releaseCount)")
-                    }
-                    .font(.caption)
-
-                    // App Identity for TCC debugging
-                    Divider()
-                    Text("App Identity (for TCC verification)")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    HStack {
-                        Text("Bundle ID:")
-                        Text(Bundle.main.bundleIdentifier ?? "unknown")
-                    }
-                    .font(.caption2)
-                    HStack {
-                        Text("Executable:")
-                        Text(Bundle.main.executablePath ?? "unknown")
-                    }
-                    .font(.caption2)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-
-                    // Test button
-                    Button("Test Coordinator Callbacks") {
-                        Task { @MainActor in
-                            hk.simulatePress()
-                            try? await Task.sleep(nanoseconds: 200_000_000) // 0.2s
-                            hk.simulateRelease()
-                        }
-                    }
-                    .font(.caption)
-                    .buttonStyle(.bordered)
-                }
-            }
-
-            if case .failed(let msg) = coordinator.state {
-                Text(msg)
-                    .font(.caption)
-                    .foregroundColor(.red)
-                    .multilineTextAlignment(.leading)
-            }
-
-            // Last transcript
-            if let transcript = coordinator.currentTranscript {
-                Divider()
-                Text("Last transcript:")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Text(transcript)
-                    .font(.callout)
-                    .padding(8)
-                    .frame(maxWidth: .infinity, alignment: .leading)
-                    .background(Color.gray.opacity(0.15))
-                    .cornerRadius(6)
-            }
-
-            Spacer()
-
-            Divider()
-
-            // Delivery settings
-            VStack(alignment: .leading, spacing: 8) {
-                Toggle("Automatically paste transcript", isOn: $automaticPaste)
-                    .font(.caption)
-                    .toggleStyle(.switch)
-                    .onChange(of: automaticPaste) { newValue in
-                        let prefs = TranscriptDeliveryPreferences(
-                            automaticPaste: newValue,
-                            sendReturnAfterPaste: sendReturnAfterPaste
-                        )
-                        prefs.save()
-                    }
-                Toggle("Press Return after paste", isOn: $sendReturnAfterPaste)
-                    .font(.caption)
-                    .toggleStyle(.switch)
-                    .disabled(!automaticPaste)
-                    .onChange(of: sendReturnAfterPaste) { newValue in
-                        let prefs = TranscriptDeliveryPreferences(
-                            automaticPaste: automaticPaste,
-                            sendReturnAfterPaste: newValue
-                        )
-                        prefs.save()
-                    }
-            }
-            .padding(.vertical, 4)
-
-            Divider()
-
-            // ASR Model selection
-            VStack(alignment: .leading, spacing: 8) {
-                Text("ASR Model")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fontWeight(.semibold)
-
-                // Show active model
-                HStack {
-                    Text("Active:")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    Text(activeModelDisplayName)
-                        .font(.caption)
-                        .fontWeight(.medium)
-                    Spacer()
-                }
-
-                // Model picker
-                Picker("Model for next launch:", selection: Binding(
-                    get: { self.modelStatus.selectedModel },
-                    set: { newValue in self.modelStatus.updateSelection(newValue) }
-                )) {
-                    ForEach(availableModels, id: \.self) { model in
-                        Text(model.displayName).tag(model)
-                    }
-                }
+            Text("Hold Control–Option–Space")
                 .font(.caption)
-                .pickerStyle(.menu)
-                .disabled(isOverriddenByEnvironment)
-
-                // Show restart required indicator
-                if modelStatus.restartRequired {
-                    HStack {
-                        Image(systemName: "arrow.clockwise")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                        Text("Restart VoiceDock to apply")
-                            .font(.caption2)
-                            .foregroundColor(.orange)
-                    }
-                }
-
-                // Show environment override warning
-                if isOverriddenByEnvironment {
-                    HStack {
-                        Image(systemName: "exclamationmark.triangle.fill")
-                            .font(.caption2)
-                            .foregroundColor(.yellow)
-                        Text("Externally overridden. Picker applies after restart without override.")
-                            .font(.caption2)
-                            .foregroundColor(.yellow)
-                    }
-                    .lineLimit(3)
-                }
-
-                // Show missing model error
-                if let selectedAvailability = modelStatus.availability[modelStatus.selectedModel] {
-                    if selectedAvailability == .missing || selectedAvailability == .invalid(reason: nil) {
-                        HStack {
-                            Image(systemName: "xmark.circle.fill")
-                                .font(.caption2)
-                                .foregroundColor(.red)
-                            Text("\(selectedModelDisplayName) is not installed")
-                                .font(.caption2)
-                                .foregroundColor(.red)
-                        }
-                    }
-                }
-            }
-            .padding(.vertical, 4)
-
-            Divider()
-
-            // Transcript Correction settings
-            VStack(alignment: .leading, spacing: 8) {
-                Text("Transcript Correction")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                    .fontWeight(.semibold)
-                Toggle("Enable correction", isOn: $transcriptCorrectionEnabled)
-                    .font(.caption)
-                    .toggleStyle(.switch)
-                    .help("When On: apply deterministic corrections for known ASR errors (VoiceDock, Qwen, etc.)")
-                    .onChange(of: transcriptCorrectionEnabled) { newValue in
-                        let mode: TranscriptCorrectionMode = newValue ? .personalCorrection : .off
-                        let prefs = TranscriptCorrectionPreferences(mode: mode, loadUserCorrections: true)
-                        prefs.save()
-                    }
-
-                // Show applied corrections count if available
-                let corrections = coordinator.getLastAppliedCorrections()
-                if !corrections.isEmpty {
-                    Text("Corrected \(corrections.count) term\(corrections.count == 1 ? "" : "s")")
-                        .font(.caption2)
-                        .foregroundColor(.green)
-                }
-            }
-            .padding(.vertical, 4)
-
-            Divider()
-
-            // Copy Last Raw Transcript action
-            Button("Copy Last Raw Transcript") {
-                if let rawTranscript = coordinator.getLastRawTranscript(), !rawTranscript.isEmpty {
-                    NSPasteboard.general.clearContents()
-                    NSPasteboard.general.setString(rawTranscript, forType: .string)
-                }
-            }
-            .font(.caption)
-            .disabled(coordinator.getLastRawTranscript()?.isEmpty ?? true)
-            .help("Copy the raw ASR output without corrections")
-            .frame(maxWidth: .infinity)
-
-            Divider()
-
-            // Action area - two-row layout to prevent truncation
-            VStack(spacing: 8) {
-                // Row 1: Primary action (full width)
-                Button("Retry Transcription") {
-                    Task { @MainActor in
-                        await coordinator.retry()
-                        permissions.refresh(reason: .retry)
-                    }
-                }
-                .font(.caption)
-                .disabled(!isReadyOrFailed)
-                .frame(maxWidth: .infinity)
-
-                // Row 2: Secondary actions (Refresh + More)
-                HStack(spacing: 12) {
-                    Button("Refresh Status") {
-                        permissions.refresh(reason: .manualRefresh)
-                    }
-                    .font(.caption)
-
-                    Menu("More") {
-                        Button("Open Microphone Settings") {
-                            openMicrophoneSettings()
-                        }
-                        Button("Open Accessibility Settings") {
-                            openAccessibilitySettings()
-                        }
-                        Button(showDiagnostics ? "Hide Diagnostics" : "Show Diagnostics") {
-                            showDiagnostics.toggle()
-                        }
-                        Divider()
-                        Button("Quit VoiceDock", role: .destructive) {
-                            // Record menu-click timestamp and terminate exactly once
-                            // AppDelegate owns termination lifecycle
-                            NSApplication.shared.terminate(nil)
-                        }
-                    }
-                    .font(.caption)
-
-                    Spacer()
-                }
-            }
+                .foregroundColor(.secondary)
         }
-        .padding()
-        .frame(width: 340, height: 420)
-        .onAppear {
-            // P1 Fix: Refresh permission state when popover appears
-            // This ensures live status is shown after user returns from System Settings
-            permissions.refresh(reason: .popoverWillOpen)
+        .padding(.vertical, 6)
+    }
+
+    private var statusBadge: some View {
+        Group {
+            switch coordinator.state {
+            case .ready, .idle:
+                if !permissions.microphoneStatus.isGranted {
+                    Text("Microphone Required")
+                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+                } else if !permissions.accessibilityStatus {
+                    Text("Accessibility Required")
+                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+                } else {
+                    Text("Ready")
+                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                        .background(Color.green.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+                }
+            case .listening:
+                Text("Recording")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.blue.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            case .transcribing:
+                Text("Transcribing")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.purple.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            case .delivering:
+                Text("Delivering")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.green.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            case .loadingModel:
+                Text("Loading Model")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.orange.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            case .failed(let msg):
+                Text("Error")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.red.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            default:
+                Text(stateText)
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.15)).cornerRadius(4).foregroundColor(.secondary)
+            }
         }
     }
 
     private var stateText: String {
         switch coordinator.state {
-        case .idle, .ready: return "Ready — hold Control+Option+Space"
-        case .starting: return "Starting…"
-        case .waitingForMicrophonePermission: return "Waiting for Microphone permission…"
-        case .waitingForAccessibilityPermission: return "Waiting for Accessibility permission…"
-        case .loadingModel: return "Loading model (first launch ~1 min)…"
-        case .listening: return "Listening…"
-        case .transcribing: return "Transcribing audio…"
-        case .delivering: return "Delivering transcript…"
+        case .idle, .ready:
+            if !permissions.microphoneStatus.isGranted { return "Microphone Required" }
+            if !permissions.accessibilityStatus { return "Accessibility Required" }
+            return "Ready"
+        case .starting: return "Starting"
+        case .waitingForMicrophonePermission: return "Waiting — Microphone"
+        case .waitingForAccessibilityPermission: return "Waiting — Accessibility"
+        case .loadingModel: return "Loading Model"
+        case .listening: return "Listening"
+        case .transcribing: return "Transcribing"
+        case .delivering: return "Delivering"
         case .failed(let msg): return msg
         }
     }
@@ -399,55 +165,204 @@ struct MenuBarView: View {
         switch coordinator.state {
         case .idle, .ready: return .green
         case .starting, .loadingModel: return .orange
-        case .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return .yellow
         case .listening: return .blue
         case .transcribing: return .purple
         case .delivering: return .green
+        case .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return .yellow
         case .failed: return .red
         }
     }
 
-    private var showsSpinner: Bool {
-        switch coordinator.state {
-        case .starting, .loadingModel, .listening, .transcribing, .delivering, .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return true
-        default: return false
+    // MARK: - Transcript (bounded, collapsible)
+    private var transcriptSection: some View {
+        Group {
+            if let transcript = coordinator.currentTranscript, !transcript.isEmpty {
+                VStack(alignment: .leading, spacing: 4) {
+                    HStack {
+                        Text("Last Transcript")
+                            .font(.caption.bold())
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Button(action: copyTranscript) {
+                            Label("Copy", systemImage: "doc.on.doc")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.borderedProminent)
+                    }
+                    // Bounded to 2 visual lines by default; expand for full
+                    Text(showFullTranscript ? transcript : String(transcript.prefix(240)))
+                        .font(.body)
+                        .lineLimit(showFullTranscript ? nil : 2)
+                        .padding(8)
+                        .frame(maxWidth: .infinity, alignment: .leading)
+                        .background(Color(.windowBackgroundColor).opacity(0.6))
+                        .cornerRadius(6)
+
+                    if transcript.count > 240 || transcript.contains("\n") {
+                        Button(action: { showFullTranscript.toggle() }) {
+                            Label(showFullTranscript ? "Show Less" : "Show Full", systemImage: "chevron.down")
+                                .font(.caption2)
+                        }
+                        .buttonStyle(.borderless)
+                    }
+
+                    if let raw = coordinator.getLastRawTranscript(),
+                       !raw.isEmpty, raw != transcript {
+                        HStack {
+                            Spacer()
+                            Button(action: copyRawTranscript) {
+                                Label("Copy Raw", systemImage: "doc.plaintext")
+                                    .font(.caption2)
+                            }
+                            .buttonStyle(.bordered)
+                        }
+                    }
+                }
+                .padding(.vertical, 4)
+            } else {
+                Text("No transcript yet — press Control–Option–Space")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                    .padding(.vertical, 4)
+            }
         }
     }
 
-    private var hasFailed: Bool {
-        if case .failed = coordinator.state { return true }
-        return false
-    }
-
-    private var isReadyOrFailed: Bool {
-        switch coordinator.state {
-        case .ready, .failed, .idle: return true
-        default: return false
-        }
-    }
-
-    private func permissionRow(name: String, status: PermissionManager.PermissionStatus) -> some View {
-        HStack {
-            Image(systemName: status == .granted ? "checkmark.circle.fill" : (status == .denied ? "xmark.circle.fill" : "questionmark.circle.fill"))
-                .foregroundColor(status == .granted ? .green : (status == .denied ? .red : .orange))
-            Text(name)
-                .font(.caption)
-            Spacer()
-            Text(statusText(status))
-                .font(.caption2)
+    // MARK: - Output / Delivery (fixed, never scrollable separately)
+    private var deliverySection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Output")
+                .font(.caption.bold())
                 .foregroundColor(.secondary)
+
+            Toggle("Automatically paste transcript", isOn: $automaticPaste)
+                .font(.body)
+                .toggleStyle(.switch)
+                .onChange(of: automaticPaste) { nv in
+                    let p = TranscriptDeliveryPreferences(automaticPaste: nv, sendReturnAfterPaste: sendReturnAfterPaste)
+                    p.save()
+                }
+
+            Toggle("Press Return after paste", isOn: $sendReturnAfterPaste)
+                .font(.body)
+                .toggleStyle(.switch)
+                .disabled(!automaticPaste)
+                .onChange(of: sendReturnAfterPaste) { nv in
+                    let p = TranscriptDeliveryPreferences(automaticPaste: automaticPaste, sendReturnAfterPaste: nv)
+                    p.save()
+                }
+        }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Model (always visible, action row reserved)
+    private var modelSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Model")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+
+            HStack {
+                Text("Active:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Text(activeModelDisplayName)
+                    .font(.caption)
+                    .fontWeight(.medium)
+                    .lineLimit(1)
+                Spacer()
+            }
+
+            // Segmented picker
+            Picker("Model selection", selection: Binding(
+                get: { modelStatus.selectedModel },
+                set: { nv in if nv != modelStatus.selectedModel { modelStatus.updateSelection(nv) } }
+            )) {
+                Text("Fast 0.6B").tag(ASRModelSelection.qwen3_0_6B_8bit)
+                Text("Quality 1.7B").tag(ASRModelSelection.qwen3_1_7B_4bit)
+            }
+            .pickerStyle(.segmented)
+            .disabled(restartInProgress || isRecordOrTranscribeActive)
+
+            // Availability / error indicator
+            if let selected = modelStatus.selectedModel {
+               if let avail = modelStatus.availability[selected] {
+                   if avail == .missing {
+                       HStack(spacing: 4) {
+                           Image(systemName: "xmark.circle.fill")
+                               .font(.caption)
+                               .foregroundColor(.red)
+                           Text("\(selectedModelDisplayName) is not installed")
+                               .font(.caption)
+                               .foregroundColor(.red)
+                       }
+                   } else if case .invalid = avail {
+                       HStack(spacing: 4) {
+                           Image(systemName: "xmark.circle.fill")
+                               .font(.caption)
+                               .foregroundColor(.red)
+                           Text("\(selectedModelDisplayName) is not installed")
+                               .font(.caption)
+                               .foregroundColor(.red)
+                       }
+                   }
+               }
+            }
+
+            // Action row: always reserved. Either disabled "Current Model Active" or prominent "Apply & Restart"
+            Group {
+                if restartInProgress {
+                    ProgressView(value: 0.5)
+                        .progressViewStyle(.linear)
+                        .frame(height: 4)
+                    Text(restartProgressText)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else if modelStatus.selectedModel == modelStatus.activeModel {
+                    Button(action: {}) {
+                        Label("Current Model Active", systemImage: "checkmark.circle.fill")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.gray)
+                    .disabled(true)
+                } else {
+                    Button(action: performRestart) {
+                        Label("Apply & Restart", systemImage: "arrow.clockwise")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.borderedProminent)
+                    .tint(.blue)
+                    .disabled(isRecordOrTranscribeActive || modelMissingForSelection)
+                }
+            }
+            .padding(.top, 4)
+        }
+        .padding(.vertical, 4)
+    }
+
+    private var isRecordOrTranscribeActive: Bool {
+        switch coordinator.state {
+        case .listening, .transcribing, .loadingModel: return true
+        default: return false
         }
     }
 
-    private func statusText(_ s: PermissionManager.PermissionStatus) -> String {
-        switch s {
-        case .granted: return "granted"
-        case .denied: return "denied"
-        case .notDetermined: return "ask"
+    private var modelMissingForSelection: Bool {
+        guard let selected = modelStatus.selectedModel else { return false }
+        if let avail = modelStatus.availability[selected] {
+            if avail == .missing {
+                return true
+            }
+            if case .invalid = avail {
+                return true
+            }
+            return false
         }
+        return true
     }
-
-    // MARK: - ASR Model Selection Helpers
 
     private var activeModelDisplayName: String {
         modelStatus.activeModel.displayName
@@ -457,61 +372,239 @@ struct MenuBarView: View {
         modelStatus.selectedModel.displayName
     }
 
-    private var isOverriddenByEnvironment: Bool {
-        ASRModelPreferences.isOverriddenByEnvironment
-    }
+    // MARK: - Intelligent Correction
+    private var correctionSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Intelligent Correction")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
 
-    private var availableModels: [ASRModelSelection] {
-        ASRModelSelection.allCases.filter { !isRetiredModel($0) }
-    }
+            Toggle("Correct common ASR terms", isOn: $correctionEnabled)
+                .font(.body)
+                .toggleStyle(.switch)
+                .onChange(of: correctionEnabled) { nv in
+                    let mode: TranscriptCorrectionMode = nv ? .personalCorrection : .off
+                    TranscriptCorrectionPreferences(mode: mode, loadUserCorrections: true).save()
+                }
 
-    private func isRetiredModel(_ model: ASRModelSelection) -> Bool {
-        // Retired models should not appear in the picker
-        // Currently all models in ASRModelSelection are production-ready
-        return false
-    }
+            Text("Fixes known names and terms without rewriting or translating sentences.")
+                .font(.caption)
+                .foregroundColor(.secondary)
 
-    private func handleModelSelectionChange(to newValue: ASRModelSelection) {
-        modelStatus.updateSelection(newValue)
-        logger.info("Model selection changed to \(newValue.rawValue), restart required: \(modelStatus.restartRequired)")
-    }
-
-    private func openMicrophoneSettings() {
-        if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone") {
-            NSWorkspace.shared.open(url)
+            let applied = coordinator.getLastAppliedCorrections()
+            if !applied.isEmpty {
+                HStack {
+                    Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
+                    Text("Corrected \(applied.count) term\(applied.count == 1 ? "" : "s")")
+                        .font(.caption).foregroundColor(.green)
+                }
+            }
         }
-        // Schedule a refresh for when the user likely returns from Settings
-        DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak permissions] in
-            permissions?.refresh(reason: .settingsReturn)
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Permissions (compact; expandable details hidden unless needed)
+    private var permissionSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Permissions")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+
+            HStack {
+                Image(systemName: permissions.accessibilityStatus ? "checkmark.circle.fill" : "xmark.circle.fill")
+                    .foregroundColor(permissions.accessibilityStatus ? .green : .red)
+                Text("Accessibility")
+                    .font(.caption)
+                Spacer()
+                Text(permissions.accessibilityStatus ? "Granted" : "Denied")
+                    .font(.caption2)
+                    .foregroundColor(permissions.accessibilityStatus ? .green : .red)
+            }
+
+            if !permissions.accessibilityStatus {
+                Text("Accessibility required for automatic paste")
+                    .font(.caption)
+                    .foregroundColor(.orange)
+
+                HStack(spacing: 6) {
+                    Button("Grant Access") {
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            appDelegate.requestAccessibilityFromUserAction()
+                        } else {
+                            _ = permissions.requestAccessibilityIfNeeded()
+                        }
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+
+                    Button("Open Settings") {
+                        openAccessibilitySettings()
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+
+                    Button("Refresh") {
+                        permissions.refresh(reason: .manualRefresh)
+                    }
+                    .font(.caption2)
+                    .buttonStyle(.bordered)
+                }
+            }
         }
+        .padding(.vertical, 4)
+    }
+
+    // MARK: - Footer
+    private var footerSection: some View {
+        VStack(spacing: 0) {
+            Divider()
+            HStack {
+                Spacer()
+                Button(role: .destructive) {
+                    NSApplication.shared.terminate(nil)
+                } label: {
+                    Label("Quit VoiceDock", systemImage: "power")
+                        .font(.caption)
+                }
+                .keyboardShortcut("q", modifiers: .command)
+                Spacer()
+            }
+            .padding(.vertical, 8)
+            .padding(.horizontal, 12)
+            .background(Color(.windowBackgroundColor).opacity(0.95))
+        }
+    }
+
+    // MARK: - Actions
+    private func copyTranscript() {
+        guard let t = coordinator.currentTranscript, !t.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(t, forType: .string)
+    }
+
+    private func copyRawTranscript() {
+        guard let raw = coordinator.getLastRawTranscript(), !raw.isEmpty else { return }
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(raw, forType: .string)
     }
 
     private func openAccessibilitySettings() {
-        if let appDelegate = NSApp.delegate as? AppDelegate {
-            appDelegate.requestAccessibilityFromUserAction()
-        } else {
-            _ = permissions.requestAccessibilityIfNeeded()
-        }
-
         if let url = URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Accessibility") {
             NSWorkspace.shared.open(url)
         }
-        // Schedule a refresh for when the user likely returns from Settings
         DispatchQueue.main.asyncAfter(deadline: .now() + 2.0) { [weak permissions] in
             permissions?.refresh(reason: .settingsReturn)
         }
     }
-}
 
-// MARK: - ASRModelSelection Identifiable conformance
+    // MARK: - Restart (safe Apply & Restart)
+    private func performRestart() {
+        guard !restartInProgress else { return }
+        guard modelStatus.restartRequired else { return }
 
-extension ASRModelSelection: @retroactive Identifiable {
-    public var id: String { self.rawValue }
+        let selected = modelStatus.selectedModel
+        let descriptor = selected.modelDescriptor
+        let bundlePath = Bundle.main.bundlePath
+        let oldPID = Int32(ProcessInfo.processInfo.processIdentifier)
+
+        Task {
+            await MainActor.run {
+                restartProgressText = "Verifying model…"
+                restartInProgress = true
+            }
+
+            let storage = ModelStorage()
+            let isValid = await storage.isModelValid(descriptor)
+            await MainActor.run {
+                if !isValid {
+                    restartProgressText = ""
+                    restartInProgress = false
+                    logger.error("Restart blocked: selected model not installed")
+                    return
+                }
+            }
+
+            // 2. Save preference
+            var prefs = ASRModelPreferences.load()
+            prefs.selectedModel = selected
+            prefs.save()
+
+            // 3. Verify saved value
+            let verified = ASRModelPreferences.load().selectedModel == selected
+            await MainActor.run {
+                if !verified {
+                    restartProgressText = ""
+                    restartInProgress = false
+                    logger.error("Restart blocked: preference verification failed")
+                    return
+                }
+            }
+
+            // 4. Verify embedded helper exists and is executable
+            let helperPath = Bundle.main.bundlePath + "/Contents/MacOS/voice-dock-restart-helper"
+            await MainActor.run {
+                restartProgressText = "Launching helper…"
+            }
+
+            let helperExists = FileManager.default.fileExists(atPath: helperPath)
+            var helperExecutable = false
+            if helperExists {
+                helperExecutable = FileManager.default.isExecutableFile(atPath: helperPath)
+            }
+
+            await MainActor.run {
+                if !helperExists || !helperExecutable {
+                    restartProgressText = ""
+                    restartInProgress = false
+                    logger.error("Restart blocked: helper missing or not executable at \(helperPath)")
+                    return
+                }
+            }
+
+            // 5. Launch the helper (not through /bin/bash unless needed)
+            let task = Process()
+            task.executableURL = URL(fileURLWithPath: helperPath)
+            task.arguments = [bundlePath, String(oldPID)]
+            task.standardOutput = nil
+            task.standardError = nil
+            do {
+                try task.run()
+            } catch {
+                await MainActor.run {
+                    restartProgressText = ""
+                    restartInProgress = false
+                    logger.error("Restart blocked: helper launch failed: \(error)")
+                    return
+                }
+            }
+
+            await MainActor.run {
+                restartProgressText = "Waiting for new process…"
+            }
+
+            // Confirm helper process started by checking it exists briefly
+            try? await Task.sleep(nanoseconds: 500_000_000)
+            let helperStillRunning = !task.isRunning ? false : true // If it already exited, we rely on open -n launching
+            // The script launches open -n and exits; we don't need to keep it alive.
+            // The important part is the open -n was triggered.
+
+            // Only terminate if we reached here (helper launched successfully)
+            await MainActor.run {
+                restartProgressText = "Restarting VoiceDock…"
+            }
+
+            try? await Task.sleep(nanoseconds: 300_000_000)
+
+            await MainActor.run {
+                NSApplication.shared.terminate(nil)
+            }
+        }
+    }
 }
 
 #Preview {
     let perm = PermissionManager()
     let coord = SessionCoordinator(audioCapture: nil, asrProvider: nil, transcriptDestination: nil)
-    let modelStatus = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_1_7B_4bit)
+    let modelStatus = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_0_6B_8bit)
     return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus)
 }

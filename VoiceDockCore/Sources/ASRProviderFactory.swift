@@ -92,8 +92,38 @@ public enum ASRModelSelection: String, CaseIterable, Sendable {
     }
 }
 
+/// Result of creating an ASR provider via the factory.
+///
+/// Carries the provider AND the selection/descriptor that was actually used, so
+/// callers can report the real active model rather than inferring it from the
+/// picker or saved preference.
+public struct ASRProviderFactoryResult: Sendable {
+    public let provider: ASRProvider
+    public let selection: ASRModelSelection
+    public let descriptor: QwenModelDescriptor
+
+    public init(provider: ASRProvider, selection: ASRModelSelection, descriptor: QwenModelDescriptor) {
+        self.provider = provider
+        self.selection = selection
+        self.descriptor = descriptor
+    }
+}
+
 /// Factory for creating ASR providers based on runtime configuration
 public enum ASRProviderFactory {
+
+    /// Create an ASR provider plus metadata based on environment variable or saved preference.
+    ///
+    /// - Returns: A `ASRProviderFactoryResult` carrying the provider, the selection actually used,
+    ///   and the resolved `QwenModelDescriptor`.
+    public static func createProviderWithMetadata() -> ASRProviderFactoryResult {
+        let selection = ASRModelPreferences.effectiveModel()
+        let descriptor = selection.modelDescriptor
+        logger.info("Creating ASR provider for: \(selection.rawValue) descriptor=\(descriptor.repoID)")
+
+        let provider = Qwen3ASRProvider(descriptor: descriptor)
+        return ASRProviderFactoryResult(provider: provider, selection: selection, descriptor: descriptor)
+    }
 
     /// Create an ASR provider based on environment variable or saved preference
     /// - Returns: Configured ASRProvider instance
@@ -102,10 +132,7 @@ public enum ASRProviderFactory {
     ///   2. Saved user preference (ASRModelPreferences)
     ///   3. Quality default (qwen3-1.7b-4bit)
     public static func createProvider() -> ASRProvider {
-        let selection = ASRModelPreferences.effectiveModel()
-        logger.info("Creating ASR provider for: \(selection.rawValue)")
-
-        return Qwen3ASRProvider(descriptor: selection.modelDescriptor)
+        createProviderWithMetadata().provider
     }
 
     /// Create an ASR provider for a specific model selection (testing)

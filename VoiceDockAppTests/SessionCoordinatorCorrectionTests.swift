@@ -21,6 +21,14 @@ struct SessionCoordinatorCorrectionTests {
         let asrProvider = MockASRProvider()
         let transcriptDestination = TranscriptDestination()
 
+        // Pin correction mode so this test does not depend on shared `.standard` state.
+        let originalPrefs = TranscriptCorrectionPreferences.load()
+        TranscriptCorrectionPreferences(
+            mode: .personalCorrection,
+            loadUserCorrections: false
+        ).save()
+        defer { originalPrefs.save() }
+
         // Act: Create coordinator without injecting correction engine (production path)
         let coordinator = SessionCoordinator(
             audioCapture: audioCapture,
@@ -43,6 +51,15 @@ struct SessionCoordinatorCorrectionTests {
 
     @Test("Injected correction engine is used instead of creating new one")
     func injectedCorrectionEngineIsUsed() async throws {
+        // Pin correction mode so the test does not pick up an Off state left in
+        // `.standard` by another test running first.
+        let originalPrefs = TranscriptCorrectionPreferences.load()
+        TranscriptCorrectionPreferences(
+            mode: .personalCorrection,
+            loadUserCorrections: false
+        ).save()
+        defer { originalPrefs.save() }
+
         // Arrange: Create a custom engine with known behavior
         let customEngine = PersonalTranscriptCorrectionEngine()
         let coordinator = SessionCoordinator(

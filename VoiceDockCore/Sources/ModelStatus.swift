@@ -49,6 +49,9 @@ public final class ModelStatus: ObservableObject {
     @Published public private(set) var restartRequired: Bool = false
     @Published public private(set) var availability: [ASRModelSelection: ModelAvailability] = [:]
 
+    /// The repoID of the descriptor resolved for the active provider. Derived, not inferred.
+    @Published public private(set) var activeDescriptorRepoID: String = ""
+
     private let modelStorage: ModelStorage
 
     /// Initialize and capture the active model for this process lifetime.
@@ -58,12 +61,16 @@ public final class ModelStatus: ObservableObject {
     /// 2. Saved user preference
     /// 3. Quality default (qwen3-1.7b-4bit)
     ///
-    /// Once captured, `activeModel` cannot change without app restart.
+    /// Once captured, `activeModel` cannot change without app restart — but
+    /// `captureActive(_:)` re-asserts it from the descriptor of the provider
+    /// actually created, after fallback/parse-time effects are resolved.
     public init(storage: ModelStorage? = nil) {
         self.modelStorage = storage ?? ModelStorage()
 
         // Capture active model at initialization time
-        self.activeModel = ASRModelPreferences.effectiveModel()
+        let effective = ASRModelPreferences.effectiveModel()
+        self.activeModel = effective
+        self.activeDescriptorRepoID = effective.modelDescriptor.repoID
         self.selectedModel = ASRModelPreferences.load().selectedModel
         self.restartRequired = false  // At launch, selected == active
 
@@ -80,9 +87,22 @@ public final class ModelStatus: ObservableObject {
         self.modelStorage = storage ?? ModelStorage()
         self.activeModel = activeModel
         self.selectedModel = selectedModel
+        self.activeDescriptorRepoID = activeModel.modelDescriptor.repoID
         self.restartRequired = activeModel != selectedModel
 
         logger.info("ModelStatus initialized (explicit): activeModel=\(self.activeModel.rawValue), selectedModel=\(self.selectedModel.rawValue), restartRequired=\(self.restartRequired)")
+    }
+
+    /// Capture the active model from an `ASRProviderFactoryResult`.
+    ///
+    /// The active model must always come from the descriptor of the provider
+    /// actually created, not from the picker or saved preference. Call this
+    /// once during launch, immediately after
+    /// `ASRProviderFactory.createProviderWithMetadata()`.
+    public func captureActive(_ result: ASRProviderFactoryResult) {
+        self.activeModel = result.selection
+        self.activeDescriptorRepoID = result.descriptor.repoID
+        self.restartRequired = (selectedModel != result.selection)
     }
 
     /// Update the selected model preference.
@@ -90,12 +110,15 @@ public final class ModelStatus: ObservableObject {
     /// This saves the preference and updates `restartRequired` flag.
     /// The `activeModel` remains unchanged - only a restart can change it.
     ///
-    /// - Parameter newSelection: The new model selection from user
-    public func updateSelection(_ newSelection: ASRModelSelection) {
+    /// - Parameters:
+    ///   - newSelection: The new model selection from user
+    ///   - defaults: UserDefaults backing store. Defaults to `.standard`.
+    ///     Tests should pass an isolated suite.
+    public func updateSelection(_ newSelection: ASRModelSelection, to defaults: UserDefaults = .standard) {
         // Save the selection
-        var prefs = ASRModelPreferences.load()
+        var prefs = ASRModelPreferences.load(from: defaults)
         prefs.selectedModel = newSelection
-        prefs.save()
+        prefs.save(to: defaults)
 
         self.selectedModel = newSelection
         self.restartRequired = newSelection != self.activeModel
@@ -137,9 +160,18 @@ public final class ModelStatus: ObservableObject {
         availability[model] ?? .checking
     }
 
-    /// Reset to default state (for testing)
+    /// Reset to default state (for testing).
+    /// Use `reset(to:)` with an isolated `UserDefaults` suite to avoid touching
+    /// the owner's production preferences.
     public static func reset() async {
         ASRModelPreferences.reset()
         logger.info("Model preferences reset to defaults")
+    }
+
+    /// Reset to default state on an explicit (usually isolated) `UserDefaults`
+    /// instance. Use this in tests so production preferences are not affected.
+    public static func reset(to defaults: UserDefaults) async {
+        ASRModelPreferences.reset(to: defaults)
+        logger.info("Model preferences reset to defaults on explicit defaults")
     }
 }

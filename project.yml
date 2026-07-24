@@ -82,6 +82,7 @@ targets:
         excludes:
           - "**/*.md"
           - "Core"
+          - "RestartHelper"
     info:
       path: VoiceDockApp/Info.plist
       properties:
@@ -105,6 +106,12 @@ targets:
         CODE_SIGN_IDENTITY: "-"
         CODE_SIGNING_REQUIRED: YES
         CODE_SIGNING_ALLOWED: YES
+        EMBEDDED_HELPERS:
+          - path: VoiceDockApp/RestartHelper/voice-dock-restart-helper
+            destination: Contents/MacOS
+        COPY_FILES:
+          - path: VoiceDockApp/RestartHelper/voice-dock-restart-helper
+            destination: Contents/MacOS
     dependencies:
       - target: VoiceDockCore
         embed: true

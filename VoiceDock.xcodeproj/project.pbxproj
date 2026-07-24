@@ -73,6 +73,7 @@
 		F2674FDAA238BD35985B0A35 /* PermissionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13220B14EB91840E8E8900AB /* PermissionManagerTests.swift */; };
 		F5A30AA72803A7A453B0B2B3 /* ModelInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A11F7FEA0D81964D8C9743 /* ModelInstaller.swift */; };
 		F8B6754D428CF217097E08CD /* TranscriptCorrectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC769B4AAD7276D7828E898 /* TranscriptCorrectionEngine.swift */; };
+		F9DCDBE131AB17F8819FCE18 /* RestartHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B03C478B08F71A626AE842 /* RestartHelperTests.swift */; };
 		FBD8C1023BCFFCB9F393973B /* AppKit.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = E99EBF190DDC9581923460EB /* AppKit.framework */; };
 		FC3C72DA14E209A186EC3BD6 /* TerminalApplicationClassifier.swift in Sources */ = {isa = PBXBuildFile; fileRef = E10580C5CD4F445FB814179C /* TerminalApplicationClassifier.swift */; };
 		FED14CE50DB083203B9AE8D6 /* VoiceDock.app in Frameworks */ = {isa = PBXBuildFile; fileRef = 27F79336829DAA9800BABA1F /* VoiceDock.app */; };
@@ -164,6 +165,7 @@
 		7554FC19DED309B2B44967A2 /* smoke-manifest.json */ = {isa = PBXFileReference; lastKnownFileType = text.json; path = "smoke-manifest.json"; sourceTree = "<group>"; };
 		757ED32AC260012784134505 /* Carbon.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Carbon.framework; path = System/Library/Frameworks/Carbon.framework; sourceTree = SDKROOT; };
 		7980761492370F5F0D8EB2D7 /* TranscriptDeliveryPreferencesTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryPreferencesTests.swift; sourceTree = "<group>"; };
+		79B03C478B08F71A626AE842 /* RestartHelperTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RestartHelperTests.swift; sourceTree = "<group>"; };
 		7D02C291EA2A6EA751E8D3ED /* ASRProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ASRProvider.swift; sourceTree = "<group>"; };
 		7E9F12F3F0C0F73BC1272BC9 /* HotKeyManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyManager.swift; sourceTree = "<group>"; };
 		80A11F7FEA0D81964D8C9743 /* ModelInstaller.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelInstaller.swift; sourceTree = "<group>"; };
@@ -289,6 +291,7 @@
 				35AFBB87937EAA698473C07D /* QwenIntegrationTests.swift */,
 				95C889BAAB38A365A2DCF57E /* QwenModelDescriptorTests.swift */,
 				EA296CF94C4AD6B3B830154A /* QwenModelStorageTests.swift */,
+				79B03C478B08F71A626AE842 /* RestartHelperTests.swift */,
 				67CA238572F42F2927B0A5DA /* SessionCoordinatorCorrectionTests.swift */,
 				A6D748CE4BE74D42579E34B4 /* SessionCoordinatorTests.swift */,
 				EDDCB956C3E2DDB229226689 /* TerminalApplicationClassifierTests.swift */,
@@ -526,9 +529,9 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				4362F32806C27B7928A27D7C /* VoiceDock */,
-				E842CF8FF9AF7F96F6E6E452 /* VoiceDockASRBench */,
 				516401CD28561839D012BB5C /* VoiceDockCore */,
+				E842CF8FF9AF7F96F6E6E452 /* VoiceDockASRBench */,
+				4362F32806C27B7928A27D7C /* VoiceDock */,
 				6BE63CF8E25BE604346E9D16 /* VoiceDockTests */,
 			);
 		};
@@ -605,6 +608,7 @@
 				AA0290BA4C6093FCEA80D38A /* QwenIntegrationTests.swift in Sources */,
 				40213A3A80937A0822317A05 /* QwenModelDescriptorTests.swift in Sources */,
 				2A5BA7F57ADA38DA081DE387 /* QwenModelStorageTests.swift in Sources */,
+				F9DCDBE131AB17F8819FCE18 /* RestartHelperTests.swift in Sources */,
 				663FA63866F22B70C964EACC /* SessionCoordinatorCorrectionTests.swift in Sources */,
 				EEA746707730CD91AEAEE989 /* SessionCoordinatorTests.swift in Sources */,
 				AE3CD988DCB2A6AAEFA0C8A6 /* TerminalApplicationClassifierTests.swift in Sources */,
@@ -843,6 +847,8 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_FILES = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
+				EMBEDDED_HELPERS = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -909,6 +915,8 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
+				COPY_FILES = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
+				EMBEDDED_HELPERS = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
