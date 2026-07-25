@@ -57,6 +57,7 @@
 		BB5F8859F949C4342B409C6C /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA372F47C0C3E86CEFD1DA0F /* Security.framework */; };
 		C2DFCF81CD0B183A65349F3B /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 757ED32AC260012784134505 /* Carbon.framework */; };
 		C430DB6AE6C034463E1941EC /* TranscriptDestinationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 0F0BDED5C9E4D4124B41135B /* TranscriptDestinationTests.swift */; };
+		CB440CC9931E903A6632F219 /* voice-dock-restart-helper in CopyFiles */ = {isa = PBXBuildFile; fileRef = FAEDAC6B995D279D1DDB0AAB /* voice-dock-restart-helper */; };
 		CE652DB39D84969014B7A13F /* TranscriptDeliveryPreferencesTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 7980761492370F5F0D8EB2D7 /* TranscriptDeliveryPreferencesTests.swift */; };
 		CE8F9B2001B96CF5FD9CAC40 /* AppDelegateLifecycleTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 4FE00A06286248E43A292F04 /* AppDelegateLifecycleTests.swift */; };
 		D12EEBD8B9356967FDD9B65D /* TranscriptDeliveryPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97BADEA77803001A6F79A7D3 /* TranscriptDeliveryPreferences.swift */; };
@@ -120,6 +121,16 @@
 				0970155C9BAB0C6C6319D3DD /* VoiceDockCore.framework in Embed Frameworks */,
 			);
 			name = "Embed Frameworks";
+			runOnlyForDeploymentPostprocessing = 0;
+		};
+		51017D7CD4862BCA41D2794D /* CopyFiles */ = {
+			isa = PBXCopyFilesBuildPhase;
+			buildActionMask = 2147483647;
+			dstPath = "";
+			dstSubfolderSpec = 6;
+			files = (
+				CB440CC9931E903A6632F219 /* voice-dock-restart-helper in CopyFiles */,
+			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
 		5E13697B3E2CE32810CC4757 /* Embed Frameworks */ = {
@@ -200,6 +211,7 @@
 		ECC0832798C21D9E0215E95B /* MockASRProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockASRProvider.swift; sourceTree = "<group>"; };
 		EDDCB956C3E2DDB229226689 /* TerminalApplicationClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApplicationClassifierTests.swift; sourceTree = "<group>"; };
 		FA372F47C0C3E86CEFD1DA0F /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
+		FAEDAC6B995D279D1DDB0AAB /* voice-dock-restart-helper */ = {isa = PBXFileReference; path = "voice-dock-restart-helper"; sourceTree = "<group>"; };
 		FB5209C7AACF3589E68CA77B /* MockAudioCapture.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockAudioCapture.swift; sourceTree = "<group>"; };
 		FFC54C6647D93FE6BB24A6AD /* TranscriptCorrectionMode.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionMode.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -254,6 +266,14 @@
 				D2ABEC9CF0B5CD7870E0D156 /* MenuBarView.swift */,
 			);
 			path = UI;
+			sourceTree = "<group>";
+		};
+		28B1C0D97999270882997130 /* RestartHelper */ = {
+			isa = PBXGroup;
+			children = (
+				FAEDAC6B995D279D1DDB0AAB /* voice-dock-restart-helper */,
+			);
+			path = RestartHelper;
 			sourceTree = "<group>";
 		};
 		3ABA380D2B6A8E645490CC42 /* VoiceDockASRBench */ = {
@@ -343,6 +363,7 @@
 				5D5DA4ED61BDE0A8ADD411B7 /* AppDelegate.swift */,
 				3E870A7BA9C8F3D64FD4C698 /* Info.plist */,
 				6CBB783A9369E5DA542F9B77 /* VoiceDockApp.swift */,
+				28B1C0D97999270882997130 /* RestartHelper */,
 				6FA2864606B603865753680E /* Services */,
 				274DA764F0A379A60D8CE456 /* UI */,
 			);
@@ -408,6 +429,7 @@
 			buildConfigurationList = 8F0911CFB0154325DD40BCA8 /* Build configuration list for PBXNativeTarget "VoiceDock" */;
 			buildPhases = (
 				FE924C031E75243CDBCEE1C5 /* Sources */,
+				51017D7CD4862BCA41D2794D /* CopyFiles */,
 				E77C1AE08D280C606E040D2A /* Frameworks */,
 				184B9BE0FCC512F6BC1B5E03 /* Embed Frameworks */,
 			);
@@ -847,8 +869,6 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				COPY_FILES = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
-				EMBEDDED_HELPERS = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;
@@ -915,8 +935,6 @@
 				CODE_SIGN_IDENTITY = "-";
 				CODE_SIGN_STYLE = Manual;
 				COMBINE_HIDPI_IMAGES = YES;
-				COPY_FILES = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
-				EMBEDDED_HELPERS = "[[\"path\": \"VoiceDockApp/RestartHelper/voice-dock-restart-helper\", \"destination\": \"Contents/MacOS\"]]";
 				ENABLE_HARDENED_RUNTIME = NO;
 				ENABLE_TESTABILITY = YES;
 				GENERATE_INFOPLIST_FILE = NO;

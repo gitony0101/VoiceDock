@@ -285,26 +285,25 @@ struct MenuBarView: View {
             .disabled(restartInProgress || isRecordOrTranscribeActive)
 
             // Availability / error indicator
-            if let selected = modelStatus.selectedModel {
-               if let avail = modelStatus.availability[selected] {
-                   if avail == .missing {
-                       HStack(spacing: 4) {
-                           Image(systemName: "xmark.circle.fill")
-                               .font(.caption)
-                               .foregroundColor(.red)
-                           Text("\(selectedModelDisplayName) is not installed")
-                               .font(.caption)
-                               .foregroundColor(.red)
-                       }
-                   } else if case .invalid = avail {
-                       HStack(spacing: 4) {
-                           Image(systemName: "xmark.circle.fill")
-                               .font(.caption)
-                               .foregroundColor(.red)
-                           Text("\(selectedModelDisplayName) is not installed")
-                               .font(.caption)
-                               .foregroundColor(.red)
-                       }
+            let selected = modelStatus.selectedModel
+            if let avail = modelStatus.availability[selected] {
+               if avail == .missing {
+                   HStack(spacing: 4) {
+                       Image(systemName: "xmark.circle.fill")
+                           .font(.caption)
+                           .foregroundColor(.red)
+                       Text("\(selectedModelDisplayName) is not installed")
+                           .font(.caption)
+                           .foregroundColor(.red)
+                   }
+               } else if case .invalid = avail {
+                   HStack(spacing: 4) {
+                       Image(systemName: "xmark.circle.fill")
+                           .font(.caption)
+                           .foregroundColor(.red)
+                       Text("\(selectedModelDisplayName) is not installed")
+                           .font(.caption)
+                           .foregroundColor(.red)
                    }
                }
             }
@@ -351,7 +350,7 @@ struct MenuBarView: View {
     }
 
     private var modelMissingForSelection: Bool {
-        guard let selected = modelStatus.selectedModel else { return false }
+        let selected = modelStatus.selectedModel
         if let avail = modelStatus.availability[selected] {
             if avail == .missing {
                 return true
@@ -584,8 +583,7 @@ struct MenuBarView: View {
 
             // Confirm helper process started by checking it exists briefly
             try? await Task.sleep(nanoseconds: 500_000_000)
-            let helperStillRunning = !task.isRunning ? false : true // If it already exited, we rely on open -n launching
-            // The script launches open -n and exits; we don't need to keep it alive.
+            // The helper launches `open -n` and exits; we don't keep it alive.
             // The important part is the open -n was triggered.
 
             // Only terminate if we reached here (helper launched successfully)
