@@ -34,14 +34,13 @@ public enum ModelAvailability: Equatable, Sendable, CustomStringConvertible {
 /// Tracks model selection state across app lifetime.
 ///
 /// Key invariants:
-/// - `activeModel` is immutable for the lifetime of the app process
-/// - `selectedModel` is the saved preference for the *next* launch
-/// - `restartRequired` is true when selectedModel != activeModel
-///
-/// Usage:
-/// 1. At app launch, capture the active model through `effectiveModel()`
-/// 2. Query `activeModel`, `selectedModel`, `restartRequired` for UI
-/// 3. When user changes selection, call `updateSelection(_:)` and refresh UI
+/// - `activeModel` is set exactly once from `ASRProviderFactoryResult.selection`
+///   via `captureActive(_:)`. No other write path may assign `activeModel`,
+///   so it can never silently fall back to Quality.
+/// - `selectedModel` is the saved preference for the *next* launch.
+/// - `restartRequired` is true when selectedModel != activeModel.
+/// - Production uses a single shared `ASRPreferenceStore` instance; tests inject
+///   isolated UUID suites.
 @MainActor
 public final class ModelStatus: ObservableObject {
     @Published public private(set) var activeModel: ASRModelSelection
@@ -49,32 +48,52 @@ public final class ModelStatus: ObservableObject {
     @Published public private(set) var restartRequired: Bool = false
     @Published public private(set) var availability: [ASRModelSelection: ModelAvailability] = [:]
 
-    /// The repoID of the descriptor resolved for the active provider. Derived, not inferred.
+    /// A visible provider-load error for the active selection. Surfaced to the
+    /// UI so a Fast load failure is reported rather than silently swallowed
+    /// in favor of Quality.
+    @Published public private(set) var lastLoadError: String?
+
+    /// The repoID of the descriptor resolved for the active provider. Derived,
+    /// not inferred.
     @Published public private(set) var activeDescriptorRepoID: String = ""
 
+    /// True once `captureActive(_:)` has run for this process. Used to refuse
+    /// any later write path that would otherwise overwrite `activeModel`.
+    private var activeCaptured: Bool = false
+
     private let modelStorage: ModelStorage
+    public let preferenceStore: ASRPreferenceStore
 
-    /// Initialize and capture the active model for this process lifetime.
-    ///
-    /// The active model is determined by:
-    /// 1. Environment override (VOICEDOCK_ASR_MODEL)
-    /// 2. Saved user preference
-    /// 3. Quality default (qwen3-1.7b-4bit)
-    ///
-    /// Once captured, `activeModel` cannot change without app restart — but
-    /// `captureActive(_:)` re-asserts it from the descriptor of the provider
-    /// actually created, after fallback/parse-time effects are resolved.
-    public init(storage: ModelStorage? = nil) {
+    /// Production initializer. Captures the active model for this process
+    /// lifetime from `ASRModelPreferences.effectiveModel(from:)` read through
+    /// the shared store; `selectedModel` is read through the same store.
+    /// `activeModel` is set here only so it has a defined value before the
+    /// provider is created; `captureActive(_:)` re-asserts it from the real
+    /// factory result so the final value is never inferred from the picker or
+    /// saved preference alone.
+    public init(storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore = .production) {
         self.modelStorage = storage ?? ModelStorage()
+        self.preferenceStore = preferenceStore
 
-        // Capture active model at initialization time
-        let effective = ASRModelPreferences.effectiveModel()
+        // Record preference-suite provenance before reading.
+        let raw = preferenceStore.rawSelectedModelValue()
+        ModelLaunchRecorder.shared.recordPreferenceState(
+            suiteName: preferenceStore.suiteName,
+            rawSelectedModel: raw
+        )
+
+        let effective = ASRModelPreferences.effectiveModel(from: preferenceStore)
+        // Provisional active model — captureActive will overwrite with the
+        // real factory result. Mark activeCaptured=false so the overwrite is
+        // permitted.
         self.activeModel = effective
         self.activeDescriptorRepoID = effective.modelDescriptor.repoID
-        self.selectedModel = ASRModelPreferences.load().selectedModel
+        self.selectedModel = ASRModelPreferences.load(from: preferenceStore).selectedModel
         self.restartRequired = false  // At launch, selected == active
 
-        logger.info("ModelStatus initialized: activeModel=\(self.activeModel.rawValue), selectedModel=\(self.selectedModel.rawValue)")
+        ModelLaunchRecorder.shared.recordModelStatusInit(selected: self.selectedModel, effective: effective)
+
+        logger.info("ModelStatus initialized: activeModel(provisional)=\(self.activeModel.rawValue), selectedModel=\(self.selectedModel.rawValue) suite=\(preferenceStore.suiteName)")
 
         // Refresh availability asynchronously (non-Sendable context)
         Task { [weak self] in
@@ -82,9 +101,12 @@ public final class ModelStatus: ObservableObject {
         }
     }
 
-    /// Initialize with explicit active and selected models (for testing)
-    public init(activeModel: ASRModelSelection, selectedModel: ASRModelSelection, storage: ModelStorage? = nil) {
+    /// Initialize with explicit active and selected models (legacy/tests).
+    /// Uses an isolated UUID suite as the preference store so tests never
+    /// touch production preferences.
+    public init(activeModel: ASRModelSelection, selectedModel: ASRModelSelection, storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore? = nil) {
         self.modelStorage = storage ?? ModelStorage()
+        self.preferenceStore = preferenceStore ?? .isolate()
         self.activeModel = activeModel
         self.selectedModel = selectedModel
         self.activeDescriptorRepoID = activeModel.modelDescriptor.repoID
@@ -100,25 +122,40 @@ public final class ModelStatus: ObservableObject {
     /// once during launch, immediately after
     /// `ASRProviderFactory.createProviderWithMetadata()`.
     public func captureActive(_ result: ASRProviderFactoryResult) {
+        // captureActive is the one and only writer of activeModel after init.
+        // We do not guard on activeCaptured here (init's provisional assignment
+        // must be over-writable); instead we set activeCaptured=true so any
+        // later assignment path is refused by setActiveFromFactory guarded
+        // with activeCaptured. This method is the single allowed writer.
         self.activeModel = result.selection
         self.activeDescriptorRepoID = result.descriptor.repoID
         self.restartRequired = (selectedModel != result.selection)
+        self.activeCaptured = true
+        logger.info("captureActive: activeModel=\(result.selection.rawValue) descriptor=\(result.descriptor.repoID)")
     }
 
     /// Update the selected model preference.
     ///
-    /// This saves the preference and updates `restartRequired` flag.
-    /// The `activeModel` remains unchanged - only a restart can change it.
+    /// This saves the preference (through the shared store in production) and
+    /// updates `restartRequired`. The `activeModel` remains unchanged — only a
+    /// restart can change it.
     ///
     /// - Parameters:
     ///   - newSelection: The new model selection from user
-    ///   - defaults: UserDefaults backing store. Defaults to `.standard`.
-    ///     Tests should pass an isolated suite.
-    public func updateSelection(_ newSelection: ASRModelSelection, to defaults: UserDefaults = .standard) {
-        // Save the selection
-        var prefs = ASRModelPreferences.load(from: defaults)
-        prefs.selectedModel = newSelection
-        prefs.save(to: defaults)
+    ///   - defaults: Legacy/test entry point passing a raw UserDefaults instance.
+    public func updateSelection(_ newSelection: ASRModelSelection, to defaults: UserDefaults? = nil) {
+        if let defaults = defaults {
+            // Legacy/test path: write to the supplied isolated defaults.
+            var prefs = ASRModelPreferences.load(from: defaults)
+            prefs.selectedModel = newSelection
+            prefs.save(to: defaults)
+        } else {
+            // Production path: write through the shared preference store
+            // and force a cfprefs synchronization.
+            var prefs = ASRModelPreferences.load(from: preferenceStore)
+            prefs.selectedModel = newSelection
+            prefs.saveAndSynchronize(to: preferenceStore)
+        }
 
         self.selectedModel = newSelection
         self.restartRequired = newSelection != self.activeModel
@@ -158,6 +195,17 @@ public final class ModelStatus: ObservableObject {
     /// Get the availability state for display
     public func availabilityFor(_ model: ASRModelSelection) -> ModelAvailability {
         availability[model] ?? .checking
+    }
+
+    /// Record a visible provider-load error for the active selection.
+    public func recordLoadError(_ message: String) {
+        self.lastLoadError = message
+        logger.error("ModelStatus load error: \(message)")
+    }
+
+    /// Clear the visible provider-load error.
+    public func clearLoadError() {
+        self.lastLoadError = nil
     }
 
     /// Reset to default state (for testing).

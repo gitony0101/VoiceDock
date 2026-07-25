@@ -39,6 +39,10 @@ public actor Qwen3ASRProvider: ASRProvider {
         guard isValid else {
             Self.writeASRDiagnostic("model_validation_failed")
             logger.error("Model not found or invalid at canonical path")
+            ModelLaunchRecorder.shared.recordProviderLifecycle(
+                loadResult: "fail:model-not-found",
+                warmupResult: "skipped"
+            )
             throw VoiceDockError.modelLoadFailed(underlying: NSError(
                 domain: "Qwen3ASRProvider",
                 code: -1,
@@ -58,9 +62,17 @@ public actor Qwen3ASRProvider: ASRProvider {
             model = try await Qwen3ASRModel.fromModelDirectory(modelDir)
             Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_did_complete")
             logger.info("Qwen3 model loaded successfully")
+            ModelLaunchRecorder.shared.recordProviderLifecycle(
+                loadResult: "ok:\(modelDir.path)",
+                warmupResult: "notrun-yet"
+            )
         } catch {
             Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_error:\(error.localizedDescription)")
             logger.error("Failed to load Qwen3 model: \(error.localizedDescription)")
+            ModelLaunchRecorder.shared.recordProviderLifecycle(
+                loadResult: "fail:\(error.localizedDescription)",
+                warmupResult: "skipped"
+            )
             throw VoiceDockError.modelLoadFailed(underlying: error)
         }
         Self.writeASRDiagnostic("Qwen3ASRProvider_load_exit")
@@ -69,6 +81,10 @@ public actor Qwen3ASRProvider: ASRProvider {
     /// Warm up the model with silent audio
     public func warmup() async throws {
         guard model != nil else {
+            ModelLaunchRecorder.shared.recordProviderLifecycle(
+                loadResult: "ok",
+                warmupResult: "skipped:no-model"
+            )
             throw VoiceDockError.modelWarmupFailed
         }
 
@@ -78,6 +94,10 @@ public actor Qwen3ASRProvider: ASRProvider {
         let silentAudio = MLXArray(Array(repeating: Float(0), count: 16_000))
         _ = model!.generate(audio: silentAudio, generationParameters: .init())
         logger.info("Qwen3 warmup complete")
+        ModelLaunchRecorder.shared.recordProviderLifecycle(
+            loadResult: "ok",
+            warmupResult: "ok"
+        )
     }
 
     /// Transcribe audio using the Qwen3 model

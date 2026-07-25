@@ -20,6 +20,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var coordinator: SessionCoordinator?
     private var hotKeyManager: HotKeyManager?
     private let permissions = PermissionManager()
+    private let preferenceStore: ASRPreferenceStore
     private let modelStatus: ModelStatus
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
@@ -28,7 +29,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private(set) var activationObserverInstallCount = 0
 
     override init() {
-        self.modelStatus = ModelStatus()
+        // Production composition: construct one shared preference store and
+        // thread it through the entire model-selection chain. No component
+        // below may reach for a different default store.
+        self.preferenceStore = .production
+        self.modelStatus = ModelStatus(preferenceStore: self.preferenceStore)
         super.init()
     }
 
@@ -148,7 +153,18 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.modelStatus.refreshAvailability()
             }
 
-            // 6) Run self-test if requested
+            // 6) Record the executable hash (best-effort, off the launch path)
+            // and schedule a deferred flush of the per-launch record so that
+            // provider load + warmup outcomes (recorded by Qwen3ASRProvider)
+            // land in model-launch.jsonl. A second guaranteed flush happens
+            // in applicationWillTerminate.
+            ModelLaunchRecorder.shared.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
+            Task { @MainActor in
+                try? await Task.sleep(nanoseconds: 6_000_000_000)
+                ModelLaunchRecorder.shared.flush()
+            }
+
+            // 7) Run self-test if requested
             if selfTestMode {
                 writeUIDiagnostic("Scheduling self-test in 1 second...")
                 try? await Task.sleep(nanoseconds: 1_000_000_000)
@@ -358,11 +374,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         writeUIDiagnostic("creating_audioCapture")
         let audioCapture = AudioCapture()
         writeUIDiagnostic("creating_asrProvider")
-        // Active model comes from the descriptor of the provider actually created.
-        // The factory's metadata result lets us source that without inferring from
-        // the picker or saved preference.
-        let factoryResult = ASRProviderFactory.createProviderWithMetadata()
+        // Active model comes from the descriptor of the provider actually
+        // created, read through the shared preference store so the factory
+        // and ModelStatus share one durable view of the selection.
+        let factoryResult = ASRProviderFactory.createProviderWithMetadata(from: preferenceStore)
         let asrProvider = factoryResult.provider
+
+        // Pre-compute the canonical model directory for the diagnostic record.
+        // ModelStorage.modelDirectory(for:) is a deterministic pure function
+        // of the descriptor, so this matches the directory the provider will
+        // load from.
+        let resolvedModelDirectory: String
+        if let storage = asyncModelStorageDirectory(for: factoryResult.descriptor) {
+            resolvedModelDirectory = storage
+        } else {
+            resolvedModelDirectory = "unknown"
+        }
+
         writeUIDiagnostic("creating_transcriptDestination")
         let transcriptDestination = TranscriptDestination()
         writeUIDiagnostic("creating_coordinator")
@@ -373,8 +401,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         )
         writeUIDiagnostic("coordinator_created")
         // Reflect the real active model into ModelStatus after provider creation.
+        // This is the single write path for activeModel; no later init path
+        // may overwrite it with Quality.
         modelStatus.captureActive(factoryResult)
+
+        // Record the factory result + resolved directory + activeModel after
+        // capture into the per-launch diagnostic. The provider load and
+        // warmup fields are filled later by Qwen3ASRProvider through the
+        // same recorder.
+        ModelLaunchRecorder.shared.recordFactoryResult(
+            selection: factoryResult.selection,
+            descriptorRepoID: factoryResult.descriptor.repoID,
+            resolvedModelDirectory: resolvedModelDirectory,
+            activeAfterCapture: modelStatus.activeModel
+        )
         return coord
+    }
+
+    /// Resolve the canonical model directory for a descriptor on a background
+    /// task without blocking the main actor. Returns nil if the synchronous
+    /// helper itself fails (e.g. applicationSupportDirectory unavailable).
+    private func asyncModelStorageDirectory(for descriptor: QwenModelDescriptor) -> String? {
+        guard let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
+            return nil
+        }
+        let dir = supportDir
+            .appendingPathComponent("VoiceDock", isDirectory: true)
+            .appendingPathComponent("Models", isDirectory: true)
+            .appendingPathComponent(descriptor.canonicalDirectoryName, isDirectory: true)
+        return dir.path
     }
 
     private func installHotKey(against coordinator: SessionCoordinator) {
@@ -660,6 +715,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Do NOT initiate termination or wait indefinitely
         coordinator?.cleanup()
         hotKeyManager?.unregister()
+
+        // Guaranteed flush of the per-launch diagnostic record so the file is
+        // a faithful witness even if the deferred flush from
+        // fullInitialize has not yet fired.
+        ModelLaunchRecorder.shared.flush()
 
         // P1 Fix: Remove notification observer
         if let activationObserver {

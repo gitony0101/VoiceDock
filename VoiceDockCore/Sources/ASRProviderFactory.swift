@@ -112,27 +112,33 @@ public struct ASRProviderFactoryResult: Sendable {
 /// Factory for creating ASR providers based on runtime configuration
 public enum ASRProviderFactory {
 
-    /// Create an ASR provider plus metadata based on environment variable or saved preference.
+    /// Create an ASR provider plus metadata based on environment variable or
+    /// saved preference read through the shared store.
     ///
-    /// - Returns: A `ASRProviderFactoryResult` carrying the provider, the selection actually used,
-    ///   and the resolved `QwenModelDescriptor`.
-    public static func createProviderWithMetadata() -> ASRProviderFactoryResult {
-        let selection = ASRModelPreferences.effectiveModel()
+    /// - Parameter store: Shared production preference store. When provided,
+    ///   the saved preference is read through it so every component shares
+    ///   one durable view of the selection across the relaunch boundary.
+    /// - Returns: A `ASRProviderFactoryResult` carrying the provider, the
+    ///   selection actually used, and the resolved `QwenModelDescriptor`.
+    public static func createProviderWithMetadata(from store: ASRPreferenceStore = .production) -> ASRProviderFactoryResult {
+        let selection = ASRModelPreferences.effectiveModel(from: store)
         let descriptor = selection.modelDescriptor
-        logger.info("Creating ASR provider for: \(selection.rawValue) descriptor=\(descriptor.repoID)")
+        logger.info("Creating ASR provider for: \(selection.rawValue) descriptor=\(descriptor.repoID) suite=\(store.suiteName)")
 
         let provider = Qwen3ASRProvider(descriptor: descriptor)
         return ASRProviderFactoryResult(provider: provider, selection: selection, descriptor: descriptor)
     }
 
     /// Create an ASR provider based on environment variable or saved preference
+    /// - Parameter store: Shared production preference store (defaults to the
+    ///   production singleton).
     /// - Returns: Configured ASRProvider instance
     /// - Note: Uses precedence:
     ///   1. VOICEDOCK_ASR_MODEL environment variable
-    ///   2. Saved user preference (ASRModelPreferences)
+    ///   2. Saved user preference (ASRModelPreferences) read through `store`
     ///   3. Quality default (qwen3-1.7b-4bit)
-    public static func createProvider() -> ASRProvider {
-        createProviderWithMetadata().provider
+    public static func createProvider(from store: ASRPreferenceStore = .production) -> ASRProvider {
+        createProviderWithMetadata(from: store).provider
     }
 
     /// Create an ASR provider for a specific model selection (testing)
@@ -145,10 +151,11 @@ public enum ASRProviderFactory {
     }
 
     /// Create an ASR provider using saved preferences only (ignores environment)
+    /// - Parameter store: Shared production preference store.
     /// - Returns: Configured ASRProvider instance
-    public static func createProviderFromSavedPreference() -> ASRProvider {
-        let prefs = ASRModelPreferences.load()
-        logger.info("Creating ASR provider from saved preference: \(prefs.selectedModel.rawValue)")
+    public static func createProviderFromSavedPreference(from store: ASRPreferenceStore = .production) -> ASRProvider {
+        let prefs = ASRModelPreferences.load(from: store)
+        logger.info("Creating ASR provider from saved preference: \(prefs.selectedModel.rawValue) suite=\(store.suiteName)")
 
         return Qwen3ASRProvider(descriptor: prefs.selectedModel.modelDescriptor)
     }

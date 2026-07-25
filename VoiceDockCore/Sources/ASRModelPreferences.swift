@@ -21,9 +21,14 @@ private let logger = Logger(subsystem: "com.voicedock.core", category: "ASRModel
 ///
 /// When an environment override is active, the UI must clearly indicate that
 /// the model picker will apply only after a normal restart without the override.
+///
+/// Production composition must read/write through a shared `ASRPreferenceStore`
+/// instance so that no two components drift to different defaults stores.
+/// The static convenience helpers below default to `.standard` only for legacy
+/// entry points and tests; production wiring passes an explicit store.
 public struct ASRModelPreferences: Equatable, Sendable {
-    private static let selectedModelKey = "voicedock.selectedASRModel"
-    private static let hasSeenModelSelectionKey = "voicedock.hasSeenModelSelection"
+    private static let selectedModelKey = ASRPreferenceStore.selectedModelKey
+    private static let hasSeenModelSelectionKey = ASRPreferenceStore.hasSeenModelSelectionKey
 
     /// The user's selected model identifier
     public var selectedModel: ASRModelSelection
@@ -36,10 +41,9 @@ public struct ASRModelPreferences: Equatable, Sendable {
         self.hasSeenModelSelection = hasSeenModelSelection
     }
 
-    /// Load preferences from UserDefaults.
-    ///
-    /// - Parameter defaults: The UserDefaults instance to use (defaults to .standard)
-    /// - Returns: The current preferences, using Quality default for any missing keys.
+    /// Load preferences from a `UserDefaults` instance (legacy/test entry point).
+    /// Defaults to `.standard`. Production should call `load(from:)` on the
+    /// shared `ASRPreferenceStore` instead so the store is explicit.
     public static func load(from defaults: UserDefaults = .standard) -> ASRModelPreferences {
         let modelRaw = defaults.string(forKey: selectedModelKey)
         let hasSeen = defaults.object(forKey: hasSeenModelSelectionKey) as? Bool ?? false
@@ -52,17 +56,35 @@ public struct ASRModelPreferences: Equatable, Sendable {
             model = .qwen3_1_7B_4bit  // Quality default
         }
 
-        logger.debug("Loaded ASR model preferences: selectedModel=\(model.rawValue)")
+        logger.debug("Loaded ASR model preferences: selectedModel=\(model.rawValue) suite=\(String(describing: defaults))")
         return ASRModelPreferences(selectedModel: model, hasSeenModelSelection: hasSeen)
     }
 
-    /// Save preferences to UserDefaults.
-    ///
-    /// - Parameter defaults: The UserDefaults instance to use (defaults to .standard)
+    /// Load preferences from the shared `ASRPreferenceStore`. This is the
+    /// production path — the store guarantees every component reads the same
+    /// durable on-disk value.
+    public static func load(from store: ASRPreferenceStore) -> ASRModelPreferences {
+        load(from: store.defaults)
+    }
+
+    /// Save preferences to a `UserDefaults` instance (legacy/test entry point).
     public func save(to defaults: UserDefaults = .standard) {
         defaults.set(selectedModel.rawValue, forKey: Self.selectedModelKey)
         defaults.set(hasSeenModelSelection, forKey: Self.hasSeenModelSelectionKey)
-        logger.info("Saved ASR model preferences: selectedModel=\(selectedModel.rawValue)")
+        logger.info("Saved ASR model preferences: selectedModel=\(selectedModel.rawValue) suite=\(String(describing: defaults))")
+    }
+
+    /// Save preferences through the shared `ASRPreferenceStore` and force a
+    /// cfprefs synchronization so the value is durable for a process launched
+    /// immediately afterward via `open -n`. Returns the persisted raw value
+    /// read back from the same store (no separate in-memory cache).
+    @discardableResult
+    public func saveAndSynchronize(to store: ASRPreferenceStore) -> String {
+        save(to: store.defaults)
+        store.synchronize()
+        let raw = store.rawSelectedModelValue()
+        logger.info("saveAndSynchronize: wrote=\(selectedModel.rawValue) readBack=\(raw ?? "nil")")
+        return raw ?? ""
     }
 
     /// Reset to default values
@@ -72,16 +94,27 @@ public struct ASRModelPreferences: Equatable, Sendable {
         logger.info("Reset ASR model preferences to defaults")
     }
 
+    public static func reset(to store: ASRPreferenceStore) {
+        store.defaults.removeObject(forKey: selectedModelKey)
+        store.defaults.removeObject(forKey: hasSeenModelSelectionKey)
+        store.synchronize()
+    }
+
     /// Determine the effective model for this launch.
     ///
     /// Precedence:
     /// 1. Environment override (VOICEDOCK_ASR_MODEL)
-    /// 2. Saved user preference
+    /// 2. Saved user preference (read through the shared store when provided)
     /// 3. Quality default
     ///
-    /// - Parameter warningRecorder: Optional closure to record warnings for testing
-    /// - Returns: The model to use for this launch
-    public static func effectiveModel(warningRecorder: ((ASRModelSelection.FallbackReason, String) -> Void)? = nil) -> ASRModelSelection {
+    /// - Parameters:
+    ///   - store: Optional shared preference store. When provided, the saved
+    ///     preference is read through it so production shares one durable view.
+    ///   - warningRecorder: Optional closure to record warnings for testing
+    public static func effectiveModel(
+        from store: ASRPreferenceStore? = nil,
+        warningRecorder: ((ASRModelSelection.FallbackReason, String) -> Void)? = nil
+    ) -> ASRModelSelection {
         // Check environment override first
         let envValue = ProcessInfo.processInfo.environment[ASRModelEnvVarName]
         if let envValue = envValue, !envValue.isEmpty {
@@ -91,9 +124,15 @@ public struct ASRModelPreferences: Equatable, Sendable {
             return envModel
         }
 
-        // Fall back to saved preference
-        let prefs = load()
-        logger.info("Using saved preference for ASR model: \(prefs.selectedModel.rawValue)")
+        // Fall back to saved preference read through the shared store
+        let prefs: ASRModelPreferences
+        if let store = store {
+            prefs = load(from: store)
+            logger.info("Using saved preference (shared store): \(prefs.selectedModel.rawValue) suite=\(store.suiteName)")
+        } else {
+            prefs = load()
+            logger.info("Using saved preference (.standard): \(prefs.selectedModel.rawValue)")
+        }
         return prefs.selectedModel
     }
 
