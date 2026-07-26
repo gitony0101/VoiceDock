@@ -137,10 +137,23 @@ struct ModelSelectionChainTests {
         let reread = store.rawSelectedModelValue()
         #expect(reread == selected.rawValue)
 
-        // A new ModelStatus instance backed by the same store reads Fast.
+        // A new ModelStatus instance backed by the same store reads Fast as
+        // its *selected* model, but activeModel is nil until captureActive —
+        // the saved preference must never be presented as Active before the
+        // provider is actually created.
         let after = ModelStatus(preferenceStore: store)
         #expect(after.selectedModel == .qwen3_0_6B_8bit)
+        #expect(after.activeModel == nil)
+
+        // Simulate the real launch: the factory result for the persisted Fast
+        // selection is captured into the new ModelStatus. Only then does
+        // activeModel reflect Fast (and never silently falls back to Quality).
+        let result = ASRProviderFactory.createProviderWithMetadata(from: store)
+        #expect(result.selection == .qwen3_0_6B_8bit)
+        let captured = after.captureActive(result)
+        #expect(captured == true)
         #expect(after.activeModel == .qwen3_0_6B_8bit)
+        #expect(after.activeModel != .qwen3_1_7B_4bit)
     }
 
     // MARK: - activeModel semantics
@@ -259,10 +272,13 @@ struct ModelSelectionChainTests {
         let result = ASRProviderFactory.createProviderWithMetadata(from: store)
         #expect(result.selection == .qwen3_0_6B_8bit)
 
-        // Even when ModelStatus init captures provisional Fast, captureActive
-        // re-asserts Fast from the real factory result. Quality is never loaded.
+        // ModelStatus init reads the saved Fast preference as selectedModel;
+        // activeModel is nil until captureActive — the saved Fast preference
+        // is NOT presented as Active before provider creation, and the
+        // factory result never silently falls back to Quality.
         let status = ModelStatus(preferenceStore: store)
-        #expect(status.activeModel == .qwen3_0_6B_8bit)
+        #expect(status.selectedModel == .qwen3_0_6B_8bit)
+        #expect(status.activeModel == nil)
         status.captureActive(result)
         #expect(status.activeModel == .qwen3_0_6B_8bit)
         #expect(status.activeModel != .qwen3_1_7B_4bit)

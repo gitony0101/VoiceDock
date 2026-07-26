@@ -8,6 +8,7 @@
 import AppKit
 import SwiftUI
 import VoiceDockCore
+import Combine
 import os.log
 
 private let logger = Logger(subsystem: "com.voicedock.app", category: "AppDelegate")
@@ -27,6 +28,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var menuClickCount = 0
     private var activationObserver: NSObjectProtocol?
     private(set) var activationObserverInstallCount = 0
+    /// Combine subscription on `coordinator.state` used to drive the
+    /// exactly-once terminal diagnostic finalizer. Held for lifetime.
+    private var lifecycleFinalizerCancellable: AnyCancellable?
 
     override init() {
         // Production composition: construct one shared preference store and
@@ -153,15 +157,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 await self.modelStatus.refreshAvailability()
             }
 
-            // 6) Record the executable hash (best-effort, off the launch path)
-            // and schedule a deferred flush of the per-launch record so that
-            // provider load + warmup outcomes (recorded by Qwen3ASRProvider)
-            // land in model-launch.jsonl. A second guaranteed flush happens
-            // in applicationWillTerminate.
+            // 6) Record the executable hash (best-effort, off the launch path).
+            // The per-launch terminal diagnostic record is finalized exactly
+            // once via the Combine sink on coordinator.state installed below:
+            //   .ready            → finalizeAndFlush(.complete)
+            //   .failed(message)  → finalizeAndFlush(.loadFailed/.warmupFailed)
+            // and a guaranteed `applicationWillTerminate` flush covers the
+            // case where the app terminates before a terminal state is
+            // reached (`finalizeAndFlush(.incomplete)`). Replaced the prior
+            // fixed six-second deferred flush: a success arriving after that
+            // timer could be lost, and a failure before it was swept.
             ModelLaunchRecorder.shared.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
-            Task { @MainActor in
-                try? await Task.sleep(nanoseconds: 6_000_000_000)
-                ModelLaunchRecorder.shared.flush()
+
+            // 6b) Exactly-once terminal finalizer driven by the coordinator's
+            // published state. The provider already records load and warmup
+            // outcomes into the same shared recorder; this sink translates a
+            // terminal coordinator state into one `finalizeAndFlush(_:)`.
+            // Because the recorder's `hasFlushed` guard is exactly-once, the
+            // guaranteed terminate-time flush is a no-op if a terminal flush
+            // already fired (and vice-versa).
+            lifecycleFinalizerCancellable = newCoordinator.$state.sink { [weak self] state in
+                guard let self = self else { return }
+                switch state {
+                case .ready, .idle:
+                    ModelLaunchRecorder.shared.finalizeAndFlush(.complete)
+                case .failed(let message):
+                    let phase = ModelLaunchRecorder.shared.failureTerminalState()
+                    ModelLaunchRecorder.shared.finalizeAndFlush(phase, reason: message)
+                default:
+                    break
+                }
             }
 
             // 7) Run self-test if requested

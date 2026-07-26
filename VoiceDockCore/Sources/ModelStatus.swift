@@ -34,16 +34,20 @@ public enum ModelAvailability: Equatable, Sendable, CustomStringConvertible {
 /// Tracks model selection state across app lifetime.
 ///
 /// Key invariants:
-/// - `activeModel` is set exactly once from `ASRProviderFactoryResult.selection`
-///   via `captureActive(_:)`. No other write path may assign `activeModel`,
-///   so it can never silently fall back to Quality.
-/// - `selectedModel` is the saved preference for the *next* launch.
-/// - `restartRequired` is true when selectedModel != activeModel.
+/// - `activeModel` is `nil` until a provider has actually been created, then
+///   set exactly once from `ASRProviderFactoryResult.selection` via
+///   `captureActive(_:)`. No other write path may assign `activeModel`,
+///   so the saved preference can never be presented as Active before provider
+///   creation, and `activeModel` can never silently fall back to Quality.
+/// - `selectedModel` is the saved preference for the *next* launch, loaded
+///   through the shared `ASRPreferenceStore`.
+/// - `restartRequired` is true when `selectedModel != activeModel` (nil
+///   activeModel ⇒ restart not yet meaningful ⇒ false).
 /// - Production uses a single shared `ASRPreferenceStore` instance; tests inject
 ///   isolated UUID suites.
 @MainActor
 public final class ModelStatus: ObservableObject {
-    @Published public private(set) var activeModel: ASRModelSelection
+    @Published public private(set) var activeModel: ASRModelSelection?
     @Published public private(set) var selectedModel: ASRModelSelection
     @Published public private(set) var restartRequired: Bool = false
     @Published public private(set) var availability: [ASRModelSelection: ModelAvailability] = [:]
@@ -54,23 +58,33 @@ public final class ModelStatus: ObservableObject {
     @Published public private(set) var lastLoadError: String?
 
     /// The repoID of the descriptor resolved for the active provider. Derived,
-    /// not inferred.
+    /// not inferred. Empty until `captureActive(_:)`.
     @Published public private(set) var activeDescriptorRepoID: String = ""
 
     /// True once `captureActive(_:)` has run for this process. Used to refuse
-    /// any later write path that would otherwise overwrite `activeModel`.
+    /// any later call to `captureActive(_:)` (exactly-once enforcement) and to
+    /// refuse any other write path that would overwrite `activeModel`.
+    /// Starts `false` even when an explicit `activeModel` is passed to the
+    /// test initializer — a presenter's stand-in is not equivalent to a real
+    /// capture, so the first real `captureActive(_:)` call always wins and
+    /// overwrites the stand-in.
     private var activeCaptured: Bool = false
+
+    /// Injectable duplicate-capture assertion hook. Production defaults to
+    /// `assertionFailure` (a debug-only trap); tests inject a no-op (or a
+    /// recorder) so a second `captureActive(_:)` does not crash the suite but
+    /// is still observable through the returned `Bool`.
+    public var duplicateCaptureHandler: (String) -> Void = { message in
+        assertionFailure(message)
+    }
 
     private let modelStorage: ModelStorage
     public let preferenceStore: ASRPreferenceStore
 
-    /// Production initializer. Captures the active model for this process
-    /// lifetime from `ASRModelPreferences.effectiveModel(from:)` read through
-    /// the shared store; `selectedModel` is read through the same store.
-    /// `activeModel` is set here only so it has a defined value before the
-    /// provider is created; `captureActive(_:)` re-asserts it from the real
-    /// factory result so the final value is never inferred from the picker or
-    /// saved preference alone.
+    /// Production initializer. Loads `selectedModel` from the shared preference
+    /// store. `activeModel` starts `nil` and is set exactly once by
+    /// `captureActive(_:)` after the provider is created. The saved preference
+    /// is never presented as Active before provider creation.
     public init(storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore = .production) {
         self.modelStorage = storage ?? ModelStorage()
         self.preferenceStore = preferenceStore
@@ -82,18 +96,20 @@ public final class ModelStatus: ObservableObject {
             rawSelectedModel: raw
         )
 
-        let effective = ASRModelPreferences.effectiveModel(from: preferenceStore)
-        // Provisional active model — captureActive will overwrite with the
-        // real factory result. Mark activeCaptured=false so the overwrite is
-        // permitted.
-        self.activeModel = effective
-        self.activeDescriptorRepoID = effective.modelDescriptor.repoID
+        // selectedModel comes from the shared store. activeModel is nil until
+        // captureActive — the saved preference must never be presented as the
+        // Active model before the provider is actually created.
+        self.activeModel = nil
+        self.activeDescriptorRepoID = ""
         self.selectedModel = ASRModelPreferences.load(from: preferenceStore).selectedModel
-        self.restartRequired = false  // At launch, selected == active
+        self.restartRequired = false  // activeModel is nil; not yet meaningful
 
-        ModelLaunchRecorder.shared.recordModelStatusInit(selected: self.selectedModel, effective: effective)
+        // activeModel is nil here, so the "effective before provider" state is
+        // notCreated, NOT the saved preference — the saved selection is never
+        // reported as a real effective selection before the provider exists.
+        ModelLaunchRecorder.shared.recordModelStatusInit(selected: self.selectedModel, effective: nil)
 
-        logger.info("ModelStatus initialized: activeModel(provisional)=\(self.activeModel.rawValue), selectedModel=\(self.selectedModel.rawValue) suite=\(preferenceStore.suiteName)")
+        logger.info("ModelStatus initialized: activeModel=nil (pending provider), selectedModel=\(self.selectedModel.rawValue) suite=\(preferenceStore.suiteName)")
 
         // Refresh availability asynchronously (non-Sendable context)
         Task { [weak self] in
@@ -101,44 +117,68 @@ public final class ModelStatus: ObservableObject {
         }
     }
 
-    /// Initialize with explicit active and selected models (legacy/tests).
+    /// Initialize with an explicit *selected* model and `activeModel = nil`
+    /// (the default), simulating the production pre-provider-creation state.
     /// Uses an isolated UUID suite as the preference store so tests never
-    /// touch production preferences.
-    public init(activeModel: ASRModelSelection, selectedModel: ASRModelSelection, storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore? = nil) {
+    /// touch production preferences. Pass a non-nil `activeModel:` to seed a
+    /// pre-capture presenter state for tests; that stand-in is NOT treated as
+    /// captured — the first real `captureActive(_:)` call always wins and
+    /// overwrites it.
+    public init(activeModel: ASRModelSelection? = nil, selectedModel: ASRModelSelection, storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore? = nil) {
         self.modelStorage = storage ?? ModelStorage()
         self.preferenceStore = preferenceStore ?? .isolate()
         self.activeModel = activeModel
         self.selectedModel = selectedModel
-        self.activeDescriptorRepoID = activeModel.modelDescriptor.repoID
-        self.restartRequired = activeModel != selectedModel
+        // A non-nil activeModel passed here is a test stand-in, not a real
+        // capture; restartRequired reflects the stand-in only for display, and
+        // activeCaptured stays false so the first captureActive() returns true.
+        self.activeDescriptorRepoID = activeModel?.modelDescriptor.repoID ?? ""
+        self.restartRequired = (activeModel.map { $0 != selectedModel }) ?? false
+        self.activeCaptured = false
 
-        logger.info("ModelStatus initialized (explicit): activeModel=\(self.activeModel.rawValue), selectedModel=\(self.selectedModel.rawValue), restartRequired=\(self.restartRequired)")
+        logger.info("ModelStatus initialized (explicit): activeModel=\(self.activeModel?.rawValue ?? "nil") (stand-in), selectedModel=\(self.selectedModel.rawValue), restartRequired=\(self.restartRequired)")
     }
 
     /// Capture the active model from an `ASRProviderFactoryResult`.
     ///
     /// The active model must always come from the descriptor of the provider
     /// actually created, not from the picker or saved preference. Call this
-    /// once during launch, immediately after
+    /// exactly once during launch, immediately after
     /// `ASRProviderFactory.createProviderWithMetadata()`.
-    public func captureActive(_ result: ASRProviderFactoryResult) {
-        // captureActive is the one and only writer of activeModel after init.
-        // We do not guard on activeCaptured here (init's provisional assignment
-        // must be over-writable); instead we set activeCaptured=true so any
-        // later assignment path is refused by setActiveFromFactory guarded
-        // with activeCaptured. This method is the single allowed writer.
+    ///
+    /// A second call is a programming error: it is a no-op for state, records
+    /// an assertion/diagnostic, and does not mutate `activeModel` or the
+    /// descriptor repo ID. Returns `true` on the first call (state assigned)
+    /// and `false` on any subsequent call, so deterministic tests can observe
+    /// the no-mutation postcondition without an `assertionFailure` trapping
+    /// the suite. Production still surfaces a debug trap through the injectable
+    /// `duplicateCaptureHandler`.
+    @discardableResult
+    public func captureActive(_ result: ASRProviderFactoryResult) -> Bool {
+        if activeCaptured {
+            let msg = "captureActive called more than once: ignoring duplicate; existing activeModel=\(self.activeModel?.rawValue ?? "nil") descriptor=\(self.activeDescriptorRepoID), attempted=\(result.selection.rawValue)"
+            logger.error("\(msg, privacy: .public)")
+            duplicateCaptureHandler(msg)
+            ModelLaunchRecorder.shared.recordDuplicateCaptureActive(
+                attemptedSelection: result.selection,
+                existingActive: self.activeModel
+            )
+            return false
+        }
         self.activeModel = result.selection
         self.activeDescriptorRepoID = result.descriptor.repoID
         self.restartRequired = (selectedModel != result.selection)
         self.activeCaptured = true
         logger.info("captureActive: activeModel=\(result.selection.rawValue) descriptor=\(result.descriptor.repoID)")
+        return true
     }
 
     /// Update the selected model preference.
     ///
     /// This saves the preference (through the shared store in production) and
     /// updates `restartRequired`. The `activeModel` remains unchanged — only a
-    /// restart can change it.
+    /// restart can change it. Before provider creation (`activeModel == nil`)
+    /// `restartRequired` stays false: there is nothing yet to restart away from.
     ///
     /// - Parameters:
     ///   - newSelection: The new model selection from user
@@ -158,7 +198,8 @@ public final class ModelStatus: ObservableObject {
         }
 
         self.selectedModel = newSelection
-        self.restartRequired = newSelection != self.activeModel
+        // restartRequired is only meaningful once a provider is active.
+        self.restartRequired = (activeModel.map { $0 != newSelection }) ?? false
 
         logger.info("Model selection updated: selectedModel=\(newSelection.rawValue), restartRequired=\(self.restartRequired)")
     }

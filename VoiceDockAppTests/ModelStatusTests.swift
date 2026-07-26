@@ -207,4 +207,70 @@ struct ModelStatusTests {
         #expect(modelStatus.activeDescriptorRepoID == ASRModelSelection.qwen3_0_6B_8bit.modelDescriptor.repoID)
         #expect(modelStatus.restartRequired == true)
     }
+
+    // MARK: - optional activeModel contract (pre-provider-creation)
+
+    @Test("activeModel is nil and restartRequired false before provider creation")
+    func activeModelIsNilBeforeProviderCreation() {
+        let modelStatus = ModelStatus(
+            selectedModel: .qwen3_0_6B_8bit
+        )
+        #expect(modelStatus.activeModel == nil)
+        #expect(modelStatus.activeDescriptorRepoID == "")
+        #expect(modelStatus.restartRequired == false)
+        // A selected preference must never be reported as Active before
+        // captureActive. Quality fallback must not occur implicitly.
+        #expect(modelStatus.activeModel != .qwen3_1_7B_4bit)
+    }
+
+    // MARK: - captureActive exactly-once
+
+    @Test("First captureActive returns true and assigns the active model")
+    func firstCaptureReturnsTrueAndAssigns() {
+        let result = ASRProviderFactoryResult(
+            provider: MockASRProvider(),
+            selection: .qwen3_0_6B_8bit,
+            descriptor: .qwen3_0_6B_8bit
+        )
+        let modelStatus = ModelStatus(selectedModel: .qwen3_0_6B_8bit)
+
+        let ok = modelStatus.captureActive(result)
+
+        #expect(ok == true)
+        #expect(modelStatus.activeModel == .qwen3_0_6B_8bit)
+        #expect(modelStatus.activeDescriptorRepoID == ASRModelSelection.qwen3_0_6B_8bit.modelDescriptor.repoID)
+        #expect(modelStatus.restartRequired == false)
+    }
+
+    @Test("Second captureActive returns false and does not mutate state")
+    func secondCaptureReturnsFalseWithoutMutation() {
+        // Inject a no-op duplicate handler so the second call does not trap
+        // the suite (production would trap in debug via assertionFailure).
+        var recordedMessages: [String] = []
+        let modelStatus = ModelStatus(selectedModel: .qwen3_0_6B_8bit)
+        modelStatus.duplicateCaptureHandler = { msg in recordedMessages.append(msg) }
+
+        let first = ASRProviderFactoryResult(
+            provider: MockASRProvider(),
+            selection: .qwen3_0_6B_8bit,
+            descriptor: .qwen3_0_6B_8bit
+        )
+        let second = ASRProviderFactoryResult(
+            provider: MockASRProvider(),
+            selection: .qwen3_1_7B_4bit,  // a different selection attempting to overwrite
+            descriptor: .qwen3_1_7B_4bit
+        )
+
+        let ok1 = modelStatus.captureActive(first)
+        let ok2 = modelStatus.captureActive(second)
+
+        #expect(ok1 == true)
+        #expect(ok2 == false)
+        // Second call does NOT mutate the active model or descriptor.
+        #expect(modelStatus.activeModel == .qwen3_0_6B_8bit)
+        #expect(modelStatus.activeDescriptorRepoID == ASRModelSelection.qwen3_0_6B_8bit.modelDescriptor.repoID)
+        // The duplicate handler was invoked exactly once with a non-empty message.
+        #expect(recordedMessages.count == 1)
+        #expect(recordedMessages.first?.isEmpty == false)
+    }
 }

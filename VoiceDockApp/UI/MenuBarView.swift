@@ -280,6 +280,7 @@ struct MenuBarView: View {
                     .font(.caption)
                     .fontWeight(.medium)
                     .lineLimit(1)
+                    .foregroundColor(modelStatus.activeModel == nil ? .orange : .primary)
                 Spacer()
             }
 
@@ -334,7 +335,14 @@ struct MenuBarView: View {
                }
             }
 
-            // Action row: always reserved. Either disabled "Current Model Active" or prominent "Apply & Restart"
+            // Action row: always reserved.
+            //   - restartInProgress          → progress + status text
+            //   - activeModel == nil           → disabled "Starting…" (provider not
+            //                                   created yet; the saved selection is
+            //                                   NOT Active, and restartRequired is
+            //                                   false so Apply & Restart is hidden)
+            //   - selected == active           → disabled "Current Model Active"
+            //   - otherwise                    → prominent "Apply & Restart"
             Group {
                 if restartInProgress {
                     ProgressView(value: 0.5)
@@ -343,6 +351,15 @@ struct MenuBarView: View {
                     Text(restartProgressText)
                         .font(.caption2)
                         .foregroundColor(.secondary)
+                } else if modelStatus.activeModel == nil {
+                    Button(action: {}) {
+                        Label("Starting…", systemImage: "circle.dotted")
+                            .font(.body)
+                            .frame(maxWidth: .infinity)
+                    }
+                    .buttonStyle(.bordered)
+                    .tint(.gray)
+                    .disabled(true)
                 } else if modelStatus.selectedModel == modelStatus.activeModel {
                     Button(action: {}) {
                         Label("Current Model Active", systemImage: "checkmark.circle.fill")
@@ -390,7 +407,11 @@ struct MenuBarView: View {
     }
 
     private var activeModelDisplayName: String {
-        modelStatus.activeModel.displayName
+        // activeModel is nil until the provider is actually created (captureActive).
+        // Do not force-unwrap and do not infer a display name from selectedModel
+        // — the saved preference must never be presented as Active before the
+        // provider exists.
+        modelStatus.activeModel?.displayName ?? "Starting…"
     }
 
     private var selectedModelDisplayName: String {
@@ -523,17 +544,37 @@ struct MenuBarView: View {
     }
 
     // MARK: - Restart (safe Apply & Restart)
+    //
+    // Strict order (per spec), delegated to `RestartPreflight.run(...)` so the
+    // persistence and helper verifications run OUTSIDE any MainActor closure:
+    //   1. validate selected model
+    //   2. write preference through the shared store
+    //   3. CFPreferences synchronize the suite domain, read back, verify equality
+    //   4. final read through the store, verify exact equality
+    //   5. verify the embedded helper exists and is executable
+    //   6. only then launch the helper
+    //   7. immediately request normal termination
+    //
+    // The helper is NOT launched before step 5. Each failure `return`s from
+    // the outer `Task` (not from inside an `await MainActor.run { ... }`
+    // closure — a `return` there returns only from the closure and the Task
+    // would continue). The pattern is:
+    //
+    //   guard outcome.isOk else { await MainActor.run { updateUI }; return }
+    //
+    // so the Task itself stops on the failure boundary. A helper is launched
+    // and the app is terminated only when the preflight returns `.ok`.
     private func performRestart() {
         guard !restartInProgress else { return }
         guard modelStatus.restartRequired else { return }
 
         let selected = modelStatus.selectedModel
-        let descriptor = selected.modelDescriptor
         let bundlePath = Bundle.main.bundlePath
         let oldPID = Int32(ProcessInfo.processInfo.processIdentifier)
         // Use the SAME preference store that ModelStatus and the factory use,
         // so persistence verification matches what the new process will read.
         let store = modelStatus.preferenceStore
+        let helperPath = Bundle.main.bundlePath + "/Contents/MacOS/voice-dock-restart-helper"
 
         Task {
             await MainActor.run {
@@ -541,76 +582,40 @@ struct MenuBarView: View {
                 restartInProgress = true
             }
 
-            let storage = ModelStorage()
-            let isValid = await storage.isModelValid(descriptor)
-            await MainActor.run {
-                if !isValid {
+            // Run the verifiable preflight (steps 1-5) OUTSIDE any MainActor
+            // closure. Injected primitives match production behavior.
+            let outcome = await RestartPreflight.run(
+                selected: selected,
+                store: store,
+                helperPath: helperPath,
+                modelIsValid: { desc in
+                    // The selected model's descriptor is the one that must be
+                    // valid locally; ignore the argument's provenance and use
+                    // the canonical storage for the preflight descriptor.
+                    await ModelStorage().isModelValid(desc)
+                },
+                helperExistsAndExecutable: {
+                    let exists = FileManager.default.fileExists(atPath: helperPath)
+                    return exists && FileManager.default.isExecutableFile(atPath: helperPath)
+                }
+            )
+
+            // On failure: surface the UI state and STOP the Task. The `return`
+            // here is on the Task, not inside an await MainActor.run closure.
+            guard outcome.isOk else {
+                await MainActor.run {
                     restartProgressText = ""
                     restartInProgress = false
-                    modelStatus.recordLoadError("\(selected.displayName) is not installed locally (path: \(modelPathDescription(for: selected))). Keeping selection; not restarting.")
-                    logger.error("Restart blocked: selected model not installed")
-                    return
+                    if case .failure(let message) = outcome {
+                        modelStatus.recordLoadError(message)
+                    }
                 }
+                return
             }
 
-            // 2. Write selection through the shared store and force a
-            // cfprefs synchronization so the value is durable for the new
-            // process launched by `open -n`. saveAndSynchronize returns the
-            // raw value read back from the same store.
-            var prefs = ASRModelPreferences.load(from: store)
-            prefs.selectedModel = selected
-            let readBack = prefs.saveAndSynchronize(to: store)
-            let step2Verified = (readBack == selected.rawValue)
-            await MainActor.run {
-                guard step2Verified else {
-                    restartProgressText = ""
-                    restartInProgress = false
-                    let msg = "Model preference verification failed: wrote \(selected.rawValue) but read back \(readBack). Not restarting to avoid loading the wrong model."
-                    modelStatus.recordLoadError(msg)
-                    logger.error("\(msg, privacy: .public)")
-                    return
-                }
-                restartProgressText = "Persisting model selection…"
-            }
-
-            // 3. Re-read through the same store (no cached in-process view)
-            // and require exact equality. A second process reading this
-            // store immediately after must see the same value.
-            let reread = store.rawSelectedModelValue()
-            let step3Verified = (reread == selected.rawValue)
-            await MainActor.run {
-                guard step3Verified else {
-                    restartProgressText = ""
-                    restartInProgress = false
-                    let msg = "Cross-process persistence check failed: stored value is \(reread ?? "nil"), expected \(selected.rawValue). Not restarting."
-                    modelStatus.recordLoadError(msg)
-                    logger.error("\(msg, privacy: .public)")
-                    return
-                }
-                restartProgressText = "Launching helper…"
-            }
-
-            // 4. Verify embedded helper exists and is executable
-            let helperPath = Bundle.main.bundlePath + "/Contents/MacOS/voice-dock-restart-helper"
-            let helperExists = FileManager.default.fileExists(atPath: helperPath)
-            var helperExecutable = false
-            if helperExists {
-                helperExecutable = FileManager.default.isExecutableFile(atPath: helperPath)
-            }
-
-            await MainActor.run {
-                guard helperExists, helperExecutable else {
-                    restartProgressText = ""
-                    restartInProgress = false
-                    let msg = "Restart helper missing or not executable at \(helperPath). Not restarting."
-                    modelStatus.recordLoadError(msg)
-                    logger.error("\(msg, privacy: .public)")
-                    return
-                }
-                restartProgressText = "Waiting for new process…"
-            }
-
-            // 5. Launch the helper
+            // 6. Only now launch the helper. A failed launch is its own
+            // failure boundary: record the error and STOP the Task — no
+            // termination.
             let task = Process()
             task.executableURL = URL(fileURLWithPath: helperPath)
             task.arguments = [bundlePath, String(oldPID)]
@@ -629,41 +634,17 @@ struct MenuBarView: View {
                 return
             }
 
-            // Confirm helper process started by checking it exists briefly
-            try? await Task.sleep(nanoseconds: 500_000_000)
-
-            // Only terminate if every verification passed AND the helper launched.
+            // 7. Immediately request normal termination. The helper waits for
+            //    the old PID to exit and then `open -n`s the new instance; we
+            //    terminate now so the new process inherits the verified
+            //    stored preference. No further verification is performed
+            //    after the launch — the last verified state is the one the
+            //    new process will read.
             await MainActor.run {
                 restartProgressText = "Restarting VoiceDock…"
-            }
-
-            try? await Task.sleep(nanoseconds: 300_000_000)
-
-            // Final re-verification immediately before terminating. If the
-            // stored value changed (unlikely but possible), abort the restart
-            // rather than relaunch into the wrong model.
-            let finalRead = store.rawSelectedModelValue()
-            let finalOK = (finalRead == selected.rawValue)
-            await MainActor.run {
-                guard finalOK else {
-                    restartProgressText = ""
-                    restartInProgress = false
-                    let msg = "Pre-terminate verification failed: stored value changed to \(finalRead ?? "nil"). Not restarting."
-                    modelStatus.recordLoadError(msg)
-                    logger.error("\(msg, privacy: .public)")
-                    return
-                }
                 NSApplication.shared.terminate(nil)
             }
         }
-    }
-
-    private func modelPathDescription(for selection: ASRModelSelection) -> String {
-        guard let supportDir = FileManager.default.urls(for: .applicationSupportDirectory, in: .userDomainMask).first else {
-            return "unknown"
-        }
-        return supportDir
-            .appendingPathComponent("VoiceDock/Models/\(selection.modelDescriptor.canonicalDirectoryName)").path
     }
 }
 
