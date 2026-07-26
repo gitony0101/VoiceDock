@@ -180,7 +180,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
                 guard let self = self else { return }
                 switch state {
                 case .ready, .idle:
-                    ModelLaunchRecorder.shared.finalizeAndFlush(.complete)
+                    // Only finalize `.complete` when the recorder has actually
+                    // observed a successful provider load AND warmup. A `.ready`
+                    // reached on the no-ASR test path, and an `.idle` reached
+                    // via `cleanup()` during an early quit (before load+warmup
+                    // finished), must NOT be recorded as `complete` — they are
+                    // not provable post-conditions of load+warmup success. Leave
+                    // the record unfinalized in that case so the guaranteed
+                    // `applicationWillTerminate` flush records the truthful
+                    // `.incomplete` witness. Exactly-once is preserved: if the
+                    // gate fires `.complete`, the terminate flush is a no-op; if
+                    // the gate does not fire, the terminate flush finalizes.
+                    if ModelLaunchRecorder.shared.shouldFinalizeComplete() {
+                        ModelLaunchRecorder.shared.finalizeAndFlush(.complete)
+                    }
                 case .failed(let message):
                     let phase = ModelLaunchRecorder.shared.failureTerminalState()
                     ModelLaunchRecorder.shared.finalizeAndFlush(phase, reason: message)

@@ -80,18 +80,29 @@ public final class ModelStatus: ObservableObject {
 
     private let modelStorage: ModelStorage
     public let preferenceStore: ASRPreferenceStore
+    /// Injectable per-launch diagnostic recorder. Production composition
+    /// passes `ModelLaunchRecorder.shared`; tests pass an independent
+    /// `FakeModelLaunchRecorder` (or a temp-dir `ModelLaunchRecorder`) so
+    /// `ModelStatus` never mutates the production singleton or writes to the
+    /// owner's `~/Library/Application Support/VoiceDock/Diagnostics` file.
+    private let recorder: ModelLaunchDiagnosticRecording
 
     /// Production initializer. Loads `selectedModel` from the shared preference
     /// store. `activeModel` starts `nil` and is set exactly once by
     /// `captureActive(_:)` after the provider is created. The saved preference
     /// is never presented as Active before provider creation.
-    public init(storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore = .production) {
+    public init(
+        storage: ModelStorage? = nil,
+        preferenceStore: ASRPreferenceStore = .production,
+        recorder: ModelLaunchDiagnosticRecording = ModelLaunchRecorder.shared
+    ) {
         self.modelStorage = storage ?? ModelStorage()
         self.preferenceStore = preferenceStore
+        self.recorder = recorder
 
         // Record preference-suite provenance before reading.
         let raw = preferenceStore.rawSelectedModelValue()
-        ModelLaunchRecorder.shared.recordPreferenceState(
+        self.recorder.recordPreferenceState(
             suiteName: preferenceStore.suiteName,
             rawSelectedModel: raw
         )
@@ -107,7 +118,7 @@ public final class ModelStatus: ObservableObject {
         // activeModel is nil here, so the "effective before provider" state is
         // notCreated, NOT the saved preference — the saved selection is never
         // reported as a real effective selection before the provider exists.
-        ModelLaunchRecorder.shared.recordModelStatusInit(selected: self.selectedModel, effective: nil)
+        self.recorder.recordModelStatusInit(selected: self.selectedModel, effective: nil)
 
         logger.info("ModelStatus initialized: activeModel=nil (pending provider), selectedModel=\(self.selectedModel.rawValue) suite=\(preferenceStore.suiteName)")
 
@@ -123,10 +134,19 @@ public final class ModelStatus: ObservableObject {
     /// touch production preferences. Pass a non-nil `activeModel:` to seed a
     /// pre-capture presenter state for tests; that stand-in is NOT treated as
     /// captured — the first real `captureActive(_:)` call always wins and
-    /// overwrites it.
-    public init(activeModel: ASRModelSelection? = nil, selectedModel: ASRModelSelection, storage: ModelStorage? = nil, preferenceStore: ASRPreferenceStore? = nil) {
+    /// overwrites it. The injected recorder defaults to a fresh in-memory
+    /// `FakeModelLaunchRecorder` so deterministic tests never mutate
+    /// `ModelLaunchRecorder.shared`.
+    public init(
+        activeModel: ASRModelSelection? = nil,
+        selectedModel: ASRModelSelection,
+        storage: ModelStorage? = nil,
+        preferenceStore: ASRPreferenceStore? = nil,
+        recorder: ModelLaunchDiagnosticRecording = FakeModelLaunchRecorder()
+    ) {
         self.modelStorage = storage ?? ModelStorage()
         self.preferenceStore = preferenceStore ?? .isolate()
+        self.recorder = recorder
         self.activeModel = activeModel
         self.selectedModel = selectedModel
         // A non-nil activeModel passed here is a test stand-in, not a real
@@ -159,7 +179,7 @@ public final class ModelStatus: ObservableObject {
             let msg = "captureActive called more than once: ignoring duplicate; existing activeModel=\(self.activeModel?.rawValue ?? "nil") descriptor=\(self.activeDescriptorRepoID), attempted=\(result.selection.rawValue)"
             logger.error("\(msg, privacy: .public)")
             duplicateCaptureHandler(msg)
-            ModelLaunchRecorder.shared.recordDuplicateCaptureActive(
+            self.recorder.recordDuplicateCaptureActive(
                 attemptedSelection: result.selection,
                 existingActive: self.activeModel
             )

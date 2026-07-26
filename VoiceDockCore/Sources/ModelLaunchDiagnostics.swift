@@ -99,6 +99,57 @@ public enum LaunchLifecycleState: String, Sendable {
     case incomplete
 }
 
+/// Injectable recording surface for the subset of `ModelLaunchRecorder` calls
+/// that `ModelStatus` makes during preference capture and exactly-once
+/// `captureActive` enforcement. Production composition binds this to
+/// `ModelLaunchRecorder.shared`; tests bind a process-independent fake so the
+/// duplicate-capture deterministic test can mutate the injected recorder
+/// without ever touching the production singleton or writing to the owner's
+/// diagnostics directory.
+public protocol ModelLaunchDiagnosticRecording: AnyObject {
+    func recordPreferenceState(suiteName: String, rawSelectedModel: String?)
+    func recordModelStatusInit(selected: ASRModelSelection, effective: ASRModelSelection?)
+    func recordDuplicateCaptureActive(
+        attemptedSelection: ASRModelSelection,
+        existingActive: ASRModelSelection?
+    )
+}
+
+extension ModelLaunchRecorder: ModelLaunchDiagnosticRecording {}
+
+/// In-memory recorder conforming to `ModelLaunchDiagnosticRecording` for use
+/// in `ModelStatus` unit tests. Stores only what the protocol records; never
+/// writes to disk and never references `ModelLaunchRecorder.shared`. A test
+/// that needs to assert a duplicate-capture attempt reached the recorder reads
+/// `duplicateCaptureAttempts`; a test that needs to prove the production
+/// recorder stayed untouched inspects `ModelLaunchRecorder.shared` independently.
+public final class FakeModelLaunchRecorder: ModelLaunchDiagnosticRecording {
+    public private(set) var preferenceSuiteNames: [String] = []
+    public private(set) var preferenceRawSelectedModels: [String?] = []
+    public private(set) var modelStatusInitSelected: [ASRModelSelection] = []
+    public private(set) var modelStatusInitEffective: [ASRModelSelection?] = []
+    public private(set) var duplicateCaptureAttempts: [(attempted: ASRModelSelection, existing: ASRModelSelection?)] = []
+
+    public init() {}
+
+    public func recordPreferenceState(suiteName: String, rawSelectedModel: String?) {
+        preferenceSuiteNames.append(suiteName)
+        preferenceRawSelectedModels.append(rawSelectedModel)
+    }
+
+    public func recordModelStatusInit(selected: ASRModelSelection, effective: ASRModelSelection?) {
+        modelStatusInitSelected.append(selected)
+        modelStatusInitEffective.append(effective)
+    }
+
+    public func recordDuplicateCaptureActive(
+        attemptedSelection: ASRModelSelection,
+        existingActive: ASRModelSelection?
+    ) {
+        duplicateCaptureAttempts.append((attempted: attemptedSelection, existing: existingActive))
+    }
+}
+
 /// Error raised by the injectable `ModelLaunchRecorder.init` when a test
 /// attempts to bind a recorder to the production diagnostics directory.
 /// `precondition`/`fatalError` would trap the whole test process; a
@@ -456,6 +507,28 @@ public final class ModelLaunchRecorder: @unchecked Sendable {
     /// construct an independent recorder via `init(outputDir:pid:...)`.
     public func hasFinalized() -> Bool {
         queue.sync { hasFlushed }
+    }
+
+    /// True iff the recorder has observed a successful provider load AND a
+    /// successful warmup. Used by the AppDelegate terminal-state sink to gate
+    /// `finalizeAndFlush(.complete)`: a `.ready` or `.idle` coordinator state
+    /// alone does not prove the provider actually finished load+warmup (e.g.
+    /// `.idle` is reached via `cleanup()` on an early quit before loading
+    /// completes, and the no-ASR test path reaches `.ready` without any load).
+    /// Only finalize `.complete` when this returns true; otherwise leave the
+    /// record unfinalized so the guaranteed terminate-time flush records the
+    /// truthful `.incomplete` witness.
+    public func shouldFinalizeComplete() -> Bool {
+        queue.sync { loadCompleted && warmupCompleted }
+    }
+
+    /// Test-only accessor for the duplicate-capture-attempted flag. Not reset by
+    /// any test (no `resetForTesting`): a correctly-injected `ModelStatus` never
+    /// mutates the shared recorder, so this stays `false` for the life of a
+    /// process whose tests inject `FakeModelLaunchRecorder`. Tests assert this
+    /// to prove the isolation contract holds across the whole suite.
+    public func duplicateCaptureWasAttempted() -> Bool {
+        queue.sync { duplicateCaptureAttempted }
     }
 
     private func writeToDisk(_ record: ModelLaunchRecord) {

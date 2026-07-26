@@ -245,9 +245,15 @@ struct ModelStatusTests {
     @Test("Second captureActive returns false and does not mutate state")
     func secondCaptureReturnsFalseWithoutMutation() {
         // Inject a no-op duplicate handler so the second call does not trap
-        // the suite (production would trap in debug via assertionFailure).
+        // the suite (production would trap in debug via assertionFailure), and
+        // inject an independent fake recorder so the duplicate-capture witness
+        // flows through the injected recorder — never `ModelLaunchRecorder.shared`.
         var recordedMessages: [String] = []
-        let modelStatus = ModelStatus(selectedModel: .qwen3_0_6B_8bit)
+        let fakeRecorder = FakeModelLaunchRecorder()
+        let modelStatus = ModelStatus(
+            selectedModel: .qwen3_0_6B_8bit,
+            recorder: fakeRecorder
+        )
         modelStatus.duplicateCaptureHandler = { msg in recordedMessages.append(msg) }
 
         let first = ASRProviderFactoryResult(
@@ -272,5 +278,57 @@ struct ModelStatusTests {
         // The duplicate handler was invoked exactly once with a non-empty message.
         #expect(recordedMessages.count == 1)
         #expect(recordedMessages.first?.isEmpty == false)
+        // The injected recorder observed the duplicate-capture attempt exactly
+        // once, with the attempted and existing selections recorded faithfully.
+        #expect(fakeRecorder.duplicateCaptureAttempts.count == 1)
+        let witness = fakeRecorder.duplicateCaptureAttempts[0]
+        #expect(witness.attempted == .qwen3_1_7B_4bit)
+        #expect(witness.existing == .qwen3_0_6B_8bit)
+    }
+
+    @Test("Duplicate captureActive records through the injected recorder and never touches the shared production recorder")
+    func duplicateCaptureIsolationFromSharedRecorder() {
+        // The shared production recorder is a process-global singleton whose
+        // state persists for the life of the test process and would, if
+        // mutated here, leak a duplicate-capture marker into any later test
+        // that finalizes it. This test proves the production singleton is left
+        // untouched by exercising a `ModelStatus` constructed with an
+        // independent injected recorder.
+        let fakeRecorder = FakeModelLaunchRecorder()
+        let modelStatus = ModelStatus(
+            selectedModel: .qwen3_0_6B_8bit,
+            recorder: fakeRecorder
+        )
+        // Suppress the production debug trap (assertionFailure) so the suite
+        // stays alive; the duplicate still surfaces through the injected
+        // recorder and the captureActive return value.
+        modelStatus.duplicateCaptureHandler = { _ in }
+
+        let first = ASRProviderFactoryResult(
+            provider: MockASRProvider(),
+            selection: .qwen3_0_6B_8bit,
+            descriptor: .qwen3_0_6B_8bit
+        )
+        let second = ASRProviderFactoryResult(
+            provider: MockASRProvider(),
+            selection: .qwen3_1_7B_4bit,
+            descriptor: .qwen3_1_7B_4bit
+        )
+
+        _ = modelStatus.captureActive(first)
+        // Sanity: the first capture produced no duplicate marker.
+        #expect(fakeRecorder.duplicateCaptureAttempts.count == 0)
+
+        _ = modelStatus.captureActive(second)
+        // The injected recorder saw the duplicate.
+        #expect(fakeRecorder.duplicateCaptureAttempts.count == 1)
+
+        // Isolation contract: `ModelStatus.captureActive` never references
+        // `ModelLaunchRecorder.shared` — it only ever calls the injected
+        // recorder — so the production singleton must NEVER observe a
+        // duplicate-capture attempt, regardless of test execution order.
+        // This flag is never reset (no `resetForTesting`), so if any test in
+        // the suite were to mutate the shared recorder it would leak here.
+        #expect(ModelLaunchRecorder.shared.duplicateCaptureWasAttempted() == false)
     }
 }
