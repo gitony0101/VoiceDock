@@ -59,7 +59,7 @@ struct ModelSelectionChainTests {
         prefs.saveAndSynchronize(to: store)
 
         // ModelStatus reads from the same store
-        let status = ModelStatus(preferenceStore: store)
+        let status = ModelStatus(preferenceStore: store, recorder: FakeModelLaunchRecorder())
         #expect(status.selectedModel == .qwen3_0_6B_8bit)
 
         // Factory reads from the same store and returns Fast
@@ -77,7 +77,7 @@ struct ModelSelectionChainTests {
     func selectingFastPersistsFast() async {
         let store = ASRPreferenceStore.isolate("chain-\(#function)")
         // Start with Quality selected; ModelStatus will provisionally capture it.
-        let status = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_1_7B_4bit, preferenceStore: store)
+        let status = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_1_7B_4bit, preferenceStore: store, recorder: FakeModelLaunchRecorder())
         status.updateSelection(.qwen3_0_6B_8bit)
 
         #expect(status.selectedModel == .qwen3_0_6B_8bit)
@@ -124,7 +124,8 @@ struct ModelSelectionChainTests {
         let status = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
             selectedModel: .qwen3_1_7B_4bit,
-            preferenceStore: store
+            preferenceStore: store,
+            recorder: FakeModelLaunchRecorder()
         )
         status.updateSelection(.qwen3_0_6B_8bit)
 
@@ -141,7 +142,7 @@ struct ModelSelectionChainTests {
         // its *selected* model, but activeModel is nil until captureActive —
         // the saved preference must never be presented as Active before the
         // provider is actually created.
-        let after = ModelStatus(preferenceStore: store)
+        let after = ModelStatus(preferenceStore: store, recorder: FakeModelLaunchRecorder())
         #expect(after.selectedModel == .qwen3_0_6B_8bit)
         #expect(after.activeModel == nil)
 
@@ -164,7 +165,8 @@ struct ModelSelectionChainTests {
         let status = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
             selectedModel: .qwen3_0_6B_8bit,
-            preferenceStore: store
+            preferenceStore: store,
+            recorder: FakeModelLaunchRecorder()
         )
         // Changes to selection must not touch activeModel before captureActive.
         status.updateSelection(.qwen3_1_7B_4bit)
@@ -184,7 +186,8 @@ struct ModelSelectionChainTests {
         let status = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
             selectedModel: .qwen3_0_6B_8bit,
-            preferenceStore: store
+            preferenceStore: store,
+            recorder: FakeModelLaunchRecorder()
         )
         status.captureActive(result)
         #expect(status.activeModel == .qwen3_0_6B_8bit)
@@ -202,7 +205,8 @@ struct ModelSelectionChainTests {
         let status = ModelStatus(
             activeModel: .qwen3_0_6B_8bit,
             selectedModel: .qwen3_1_7B_4bit,
-            preferenceStore: store
+            preferenceStore: store,
+            recorder: FakeModelLaunchRecorder()
         )
         status.captureActive(result)
         #expect(status.activeModel == .qwen3_1_7B_4bit)
@@ -220,7 +224,8 @@ struct ModelSelectionChainTests {
         let status = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
             selectedModel: .qwen3_0_6B_8bit,
-            preferenceStore: store
+            preferenceStore: store,
+            recorder: FakeModelLaunchRecorder()
         )
         status.captureActive(result)
         // Subsequent selection changes must NOT touch activeModel.
@@ -276,7 +281,7 @@ struct ModelSelectionChainTests {
         // activeModel is nil until captureActive — the saved Fast preference
         // is NOT presented as Active before provider creation, and the
         // factory result never silently falls back to Quality.
-        let status = ModelStatus(preferenceStore: store)
+        let status = ModelStatus(preferenceStore: store, recorder: FakeModelLaunchRecorder())
         #expect(status.selectedModel == .qwen3_0_6B_8bit)
         #expect(status.activeModel == nil)
         status.captureActive(result)

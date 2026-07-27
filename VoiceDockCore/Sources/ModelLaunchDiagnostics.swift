@@ -102,7 +102,8 @@ public enum LaunchLifecycleState: String, Sendable {
 /// Injectable recording surface for the subset of `ModelLaunchRecorder` calls
 /// that `ModelStatus` makes during preference capture and exactly-once
 /// `captureActive` enforcement. Production composition binds this to
-/// `ModelLaunchRecorder.shared`; tests bind a process-independent fake so the
+/// `ModelLaunchRecorder.shared`; tests bind an independent fake (defined in
+/// the test-support file shared by SwiftPM and Xcode test targets) so the
 /// duplicate-capture deterministic test can mutate the injected recorder
 /// without ever touching the production singleton or writing to the owner's
 /// diagnostics directory.
@@ -116,39 +117,6 @@ public protocol ModelLaunchDiagnosticRecording: AnyObject {
 }
 
 extension ModelLaunchRecorder: ModelLaunchDiagnosticRecording {}
-
-/// In-memory recorder conforming to `ModelLaunchDiagnosticRecording` for use
-/// in `ModelStatus` unit tests. Stores only what the protocol records; never
-/// writes to disk and never references `ModelLaunchRecorder.shared`. A test
-/// that needs to assert a duplicate-capture attempt reached the recorder reads
-/// `duplicateCaptureAttempts`; a test that needs to prove the production
-/// recorder stayed untouched inspects `ModelLaunchRecorder.shared` independently.
-public final class FakeModelLaunchRecorder: ModelLaunchDiagnosticRecording {
-    public private(set) var preferenceSuiteNames: [String] = []
-    public private(set) var preferenceRawSelectedModels: [String?] = []
-    public private(set) var modelStatusInitSelected: [ASRModelSelection] = []
-    public private(set) var modelStatusInitEffective: [ASRModelSelection?] = []
-    public private(set) var duplicateCaptureAttempts: [(attempted: ASRModelSelection, existing: ASRModelSelection?)] = []
-
-    public init() {}
-
-    public func recordPreferenceState(suiteName: String, rawSelectedModel: String?) {
-        preferenceSuiteNames.append(suiteName)
-        preferenceRawSelectedModels.append(rawSelectedModel)
-    }
-
-    public func recordModelStatusInit(selected: ASRModelSelection, effective: ASRModelSelection?) {
-        modelStatusInitSelected.append(selected)
-        modelStatusInitEffective.append(effective)
-    }
-
-    public func recordDuplicateCaptureActive(
-        attemptedSelection: ASRModelSelection,
-        existingActive: ASRModelSelection?
-    ) {
-        duplicateCaptureAttempts.append((attempted: attemptedSelection, existing: existingActive))
-    }
-}
 
 /// Error raised by the injectable `ModelLaunchRecorder.init` when a test
 /// attempts to bind a recorder to the production diagnostics directory.

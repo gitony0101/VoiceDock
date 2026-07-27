@@ -60,7 +60,8 @@ struct ModelStatusTests {
     func initialStateCapturesActiveModel() {
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_1_7B_4bit
+            selectedModel: .qwen3_1_7B_4bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         #expect(modelStatus.activeModel == .qwen3_1_7B_4bit)
@@ -73,7 +74,8 @@ struct ModelStatusTests {
     func initialStateWithDifferentSelectedShowsRestartRequired() {
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_0_6B_8bit
+            selectedModel: .qwen3_0_6B_8bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         #expect(modelStatus.activeModel == .qwen3_1_7B_4bit)
@@ -90,7 +92,8 @@ struct ModelStatusTests {
 
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_1_7B_4bit
+            selectedModel: .qwen3_1_7B_4bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         modelStatus.updateSelection(.qwen3_0_6B_8bit, to: defaults)
@@ -110,7 +113,8 @@ struct ModelStatusTests {
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
             selectedModel: .qwen3_0_6B_8bit,
-            storage: ModelStorage()
+            storage: ModelStorage(),
+            recorder: FakeModelLaunchRecorder()
         )
 
         #expect(modelStatus.restartRequired == true)
@@ -129,7 +133,8 @@ struct ModelStatusTests {
 
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_1_7B_4bit
+            selectedModel: .qwen3_1_7B_4bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         modelStatus.updateSelection(.qwen3_0_6B_8bit, to: defaults)
@@ -150,7 +155,8 @@ struct ModelStatusTests {
     func availabilityStartsAsChecking() {
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_1_7B_4bit
+            selectedModel: .qwen3_1_7B_4bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         #expect(modelStatus.availability.isEmpty)
@@ -198,7 +204,8 @@ struct ModelStatusTests {
         )
         let modelStatus = ModelStatus(
             activeModel: .qwen3_1_7B_4bit,
-            selectedModel: .qwen3_1_7B_4bit
+            selectedModel: .qwen3_1_7B_4bit,
+            recorder: FakeModelLaunchRecorder()
         )
 
         modelStatus.captureActive(result)
@@ -213,7 +220,8 @@ struct ModelStatusTests {
     @Test("activeModel is nil and restartRequired false before provider creation")
     func activeModelIsNilBeforeProviderCreation() {
         let modelStatus = ModelStatus(
-            selectedModel: .qwen3_0_6B_8bit
+            selectedModel: .qwen3_0_6B_8bit,
+            recorder: FakeModelLaunchRecorder()
         )
         #expect(modelStatus.activeModel == nil)
         #expect(modelStatus.activeDescriptorRepoID == "")
@@ -232,7 +240,7 @@ struct ModelStatusTests {
             selection: .qwen3_0_6B_8bit,
             descriptor: .qwen3_0_6B_8bit
         )
-        let modelStatus = ModelStatus(selectedModel: .qwen3_0_6B_8bit)
+        let modelStatus = ModelStatus(selectedModel: .qwen3_0_6B_8bit, recorder: FakeModelLaunchRecorder())
 
         let ok = modelStatus.captureActive(result)
 

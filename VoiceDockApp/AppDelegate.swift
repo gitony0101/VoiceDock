@@ -22,6 +22,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private var hotKeyManager: HotKeyManager?
     private let permissions = PermissionManager()
     private let preferenceStore: ASRPreferenceStore
+    private let launchRecorder: ModelLaunchRecorder
     private let modelStatus: ModelStatus
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
@@ -32,12 +33,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// exactly-once terminal diagnostic finalizer. Held for lifetime.
     private var lifecycleFinalizerCancellable: AnyCancellable?
 
+    /// Production initializer. Threads one shared preference store and the
+    /// shared per-launch diagnostic recorder through the entire model-selection
+    /// chain. No component below may reach for a different default store or
+    /// recorder. Tests inject isolated stores and independent recorders
+    /// through the explicit `init(preferenceStore:launchRecorder:)`.
     override init() {
-        // Production composition: construct one shared preference store and
-        // thread it through the entire model-selection chain. No component
-        // below may reach for a different default store.
         self.preferenceStore = .production
-        self.modelStatus = ModelStatus(preferenceStore: self.preferenceStore)
+        self.launchRecorder = .shared
+        self.modelStatus = ModelStatus(
+            preferenceStore: self.preferenceStore,
+            recorder: self.launchRecorder
+        )
+        super.init()
+    }
+
+    /// Explicit initializer accepting both dependencies. Production
+    /// composition (in `init()`) constructs the shared store and recorder;
+    /// tests pass isolated stores and independent recorders so that
+    /// `~/Library/Application Support/VoiceDock/Diagnostics/model-launch.jsonl`
+    /// and the production preference suite are never touched from the test
+    /// process. The recorder is captured eagerly so every AppDelegate recorder
+    /// call routes through this single injection point.
+    init(preferenceStore: ASRPreferenceStore, launchRecorder: ModelLaunchRecorder) {
+        self.preferenceStore = preferenceStore
+        self.launchRecorder = launchRecorder
+        self.modelStatus = ModelStatus(
+            preferenceStore: preferenceStore,
+            recorder: launchRecorder
+        )
         super.init()
     }
 
@@ -167,7 +191,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // reached (`finalizeAndFlush(.incomplete)`). Replaced the prior
             // fixed six-second deferred flush: a success arriving after that
             // timer could be lost, and a failure before it was swept.
-            ModelLaunchRecorder.shared.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
+            launchRecorder.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
 
             // 6b) Exactly-once terminal finalizer driven by the coordinator's
             // published state. The provider already records load and warmup
@@ -178,28 +202,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             // already fired (and vice-versa).
             lifecycleFinalizerCancellable = newCoordinator.$state.sink { [weak self] state in
                 guard let self = self else { return }
-                switch state {
-                case .ready, .idle:
-                    // Only finalize `.complete` when the recorder has actually
-                    // observed a successful provider load AND warmup. A `.ready`
-                    // reached on the no-ASR test path, and an `.idle` reached
-                    // via `cleanup()` during an early quit (before load+warmup
-                    // finished), must NOT be recorded as `complete` — they are
-                    // not provable post-conditions of load+warmup success. Leave
-                    // the record unfinalized in that case so the guaranteed
-                    // `applicationWillTerminate` flush records the truthful
-                    // `.incomplete` witness. Exactly-once is preserved: if the
-                    // gate fires `.complete`, the terminate flush is a no-op; if
-                    // the gate does not fire, the terminate flush finalizes.
-                    if ModelLaunchRecorder.shared.shouldFinalizeComplete() {
-                        ModelLaunchRecorder.shared.finalizeAndFlush(.complete)
-                    }
-                case .failed(let message):
-                    let phase = ModelLaunchRecorder.shared.failureTerminalState()
-                    ModelLaunchRecorder.shared.finalizeAndFlush(phase, reason: message)
-                default:
-                    break
-                }
+                self.handleCoordinatorStateForLaunchDiagnostics(state)
             }
 
             // 7) Run self-test if requested
@@ -211,6 +214,63 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         } else {
             writeUIDiagnostic("ERROR: coordinator_creation_failed")
             logger.error("Failed to create coordinator")
+        }
+    }
+
+    /// Translate one observed `SessionCoordinator.State` into the
+    /// exactly-once per-launch diagnostic finalization. Caller owns nothing
+    /// else; this method only invokes `launchRecorder` (never
+    /// `ModelLaunchRecorder.shared`) and the recorder's own exactly-once
+    /// guard makes redundant terminal-state flushes no-ops.
+    ///
+    /// Mapping:
+    /// - `.starting`, `.loadingModel`, `.recording-equivalents` (e.g.
+    ///   `.waitingForMicrophonePermission`, `.waitingForAccessibility`,
+    ///   `.listening`, `.transcribing`, `.delivering`): no finalization — the
+    ///   process is still in flight.
+    /// - `.idle`: never finalize `.complete` merely because the coordinator
+    ///   has reached idle. An `.idle` reached via `cleanup()` during an
+    ///   early quit (before load+warmup finished) and any test path that
+    ///   constructed the coordinator without a real provider must leave the
+    ///   record unfinalized; the guaranteed `applicationWillTerminate` flush
+    ///   records the truthful `.incomplete` witness.
+    /// - `.ready`: finalize `.complete` only when
+    ///   `launchRecorder.shouldFinalizeComplete() == true` (the recorder has
+    ///   observed a successful provider load AND a successful warmup).
+    /// - `.failed(message)`: finalize with the recorder-derived failure
+    ///   phase (`launchRecorder.failureTerminalState()`) so the row records
+    ///   `.loadFailed` or `.warmupFailed` rather than the generic
+    ///   `.incomplete` family.
+    /// - Subsequent finalization attempts are absorbed by the recorder's
+    ///   `hasFlushed` exactly-once guard (the terminate-time flush remains
+    ///   a guarantee on its own).
+    internal func handleCoordinatorStateForLaunchDiagnostics(_ state: SessionCoordinator.State) {
+        switch state {
+        case .starting,
+             .waitingForMicrophonePermission,
+             .waitingForAccessibilityPermission,
+             .loadingModel,
+             .listening,
+             .transcribing,
+             .delivering,
+             .idle:
+            // No finalization. `.idle` is reached via cleanup() on early
+            // exit before load+warmup finished, or on any no-ASR / test
+            // path; it does NOT prove a successful load+warmup cycle, so
+            // it must not finalize `.complete`. The guaranteed terminate
+            // flush will record the truthful `.incomplete` witness.
+            return
+        case .ready:
+            // Only finalize `.complete` when the recorder has actually
+            // observed a successful provider load AND warmup. The
+            // recorder's exactly-once guard keeps a later terminate
+            // flush a no-op when this guard fires.
+            if launchRecorder.shouldFinalizeComplete() {
+                launchRecorder.finalizeAndFlush(.complete)
+            }
+        case .failed(let message):
+            let phase = launchRecorder.failureTerminalState()
+            launchRecorder.finalizeAndFlush(phase, reason: message)
         }
     }
 
@@ -447,7 +507,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // capture into the per-launch diagnostic. The provider load and
         // warmup fields are filled later by Qwen3ASRProvider through the
         // same recorder.
-        ModelLaunchRecorder.shared.recordFactoryResult(
+        launchRecorder.recordFactoryResult(
             selection: factoryResult.selection,
             descriptorRepoID: factoryResult.descriptor.repoID,
             resolvedModelDirectory: resolvedModelDirectory,
@@ -757,7 +817,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Guaranteed flush of the per-launch diagnostic record so the file is
         // a faithful witness even if the deferred flush from
         // fullInitialize has not yet fired.
-        ModelLaunchRecorder.shared.flush()
+        launchRecorder.flush()
 
         // P1 Fix: Remove notification observer
         if let activationObserver {

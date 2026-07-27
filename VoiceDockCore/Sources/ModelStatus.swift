@@ -134,15 +134,17 @@ public final class ModelStatus: ObservableObject {
     /// touch production preferences. Pass a non-nil `activeModel:` to seed a
     /// pre-capture presenter state for tests; that stand-in is NOT treated as
     /// captured — the first real `captureActive(_:)` call always wins and
-    /// overwrites it. The injected recorder defaults to a fresh in-memory
-    /// `FakeModelLaunchRecorder` so deterministic tests never mutate
-    /// `ModelLaunchRecorder.shared`.
+    /// overwrites it. The recorder parameter has no default: tests that take
+    /// this path must pass a `FakeModelLaunchRecorder` (in-memory test fakes
+    /// live in the test-support file shared by SwiftPM and Xcode test targets)
+    /// or `ModelLaunchRecorder.shared` so the production singleton is never
+    /// mutated implicitly.
     public init(
         activeModel: ASRModelSelection? = nil,
         selectedModel: ASRModelSelection,
         storage: ModelStorage? = nil,
         preferenceStore: ASRPreferenceStore? = nil,
-        recorder: ModelLaunchDiagnosticRecording = FakeModelLaunchRecorder()
+        recorder: ModelLaunchDiagnosticRecording
     ) {
         self.modelStorage = storage ?? ModelStorage()
         self.preferenceStore = preferenceStore ?? .isolate()

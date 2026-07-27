@@ -651,6 +651,10 @@ struct MenuBarView: View {
 #Preview {
     let perm = PermissionManager()
     let coord = SessionCoordinator(audioCapture: nil, asrProvider: nil, transcriptDestination: nil)
-    let modelStatus = ModelStatus(activeModel: .qwen3_1_7B_4bit, selectedModel: .qwen3_0_6B_8bit)
+    let modelStatus = ModelStatus(
+        activeModel: .qwen3_1_7B_4bit,
+        selectedModel: .qwen3_0_6B_8bit,
+        recorder: ModelLaunchRecorder.shared
+    )
     return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus)
 }

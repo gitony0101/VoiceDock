@@ -32,9 +32,11 @@ let package = Package(
             path: "VoiceDockAppTests",
             exclude: [
                 "AppDelegateIsolationTests.swift",
+                "AppDelegateLaunchDiagnosticTests.swift",
                 "AppDelegateLifecycleTests.swift",
                 "HotKeyManagerTests.swift",
-                "PermissionManagerTests.swift"
+                "PermissionManagerTests.swift",
+                "TestSupport/AppDelegateTestSupport.swift"
             ]),
         // Standalone benchmark executable
         .executableTarget(

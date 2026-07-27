@@ -13,6 +13,7 @@ Icon?
 DerivedData/
 build/
 Build/
+.derived/
 *.xcuserstate
 *.xcuserdata/
 xcuserdata/

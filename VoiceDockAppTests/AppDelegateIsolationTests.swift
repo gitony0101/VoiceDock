@@ -16,10 +16,18 @@
 //  executor verification while keeping main-thread access semantics valid
 //  (AppKit guarantees main-thread dispatch for these selectors).
 //
+//  Isolation contract: every test in this file constructs an AppDelegate
+//  through `AppDelegateTestSupport.makeIsolatedAppDelegate()`, which injects
+//  a UUID-suffixed `ASRPreferenceStore` and a fresh per-test temporary
+//  `ModelLaunchRecorder`. No test in this file may write to
+//  `~/Library/Application Support/VoiceDock/Diagnostics` or to the
+//  `com.voicedock.app.asr-prefs` suite.
+//
 
 import AppKit
 import XCTest
 @testable import VoiceDock
+@testable import VoiceDockCore
 
 final class AppDelegateIsolationTests: XCTestCase {
 
@@ -30,7 +38,9 @@ final class AppDelegateIsolationTests: XCTestCase {
     /// which would otherwise reintroduce the Candidate 1 crash path.
     @MainActor
     func testTogglePopoverIsNonisolated() throws {
-        let appDelegate = AppDelegate()
+        let bundle = try AppDelegateTestSupport.makeIsolatedAppDelegate()
+        defer { AppDelegateTestSupport.cleanup(bundle) }
+        let appDelegate = bundle.appDelegate
         let mirror = Mirror(reflecting: appDelegate)
         _ = mirror
 
@@ -58,7 +68,9 @@ final class AppDelegateIsolationTests: XCTestCase {
     /// Same crash-path rationale as togglePopover.
     @MainActor
     func testHandleDiagnosticTestIsNonisolated() throws {
-        let appDelegate = AppDelegate()
+        let bundle = try AppDelegateTestSupport.makeIsolatedAppDelegate()
+        defer { AppDelegateTestSupport.cleanup(bundle) }
+        let appDelegate = bundle.appDelegate
         let sel = NSSelectorFromString("handleDiagnosticTest:")
         XCTAssertTrue(
             appDelegate.responds(to: sel),
@@ -75,7 +87,9 @@ final class AppDelegateIsolationTests: XCTestCase {
     /// calling MainActor.assumeIsolated from the Objective-C trampoline.
     @MainActor
     func testTogglePopoverInvocationDoesNotTrap() async throws {
-        let appDelegate = AppDelegate()
+        let bundle = try AppDelegateTestSupport.makeIsolatedAppDelegate()
+        defer { AppDelegateTestSupport.cleanup(bundle) }
+        let appDelegate = bundle.appDelegate
         // performSelector on the main thread mimics AppKit's sendAction path.
         appDelegate.perform(NSSelectorFromString("togglePopover:"), with: nil)
         try await Task.sleep(nanoseconds: 50_000_000)
@@ -96,7 +110,9 @@ final class AppDelegateIsolationTests: XCTestCase {
 
     @MainActor
     func testActivationObserverInstallIsIdempotent() throws {
-        let appDelegate = AppDelegate()
+        let bundle = try AppDelegateTestSupport.makeIsolatedAppDelegate()
+        defer { AppDelegateTestSupport.cleanup(bundle) }
+        let appDelegate = bundle.appDelegate
 
         appDelegate.installActivationObserverIfNeeded()
         appDelegate.installActivationObserverIfNeeded()
@@ -107,7 +123,9 @@ final class AppDelegateIsolationTests: XCTestCase {
 
     @MainActor
     func testApplicationDidBecomeActiveRefreshesPermissions() throws {
-        let appDelegate = AppDelegate()
+        let bundle = try AppDelegateTestSupport.makeIsolatedAppDelegate()
+        defer { AppDelegateTestSupport.cleanup(bundle) }
+        let appDelegate = bundle.appDelegate
 
         appDelegate.applicationDidBecomeActive(Notification(name: NSApplication.didBecomeActiveNotification))
 
