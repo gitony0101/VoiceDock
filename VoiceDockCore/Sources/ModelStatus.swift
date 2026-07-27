@@ -91,19 +91,27 @@ public final class ModelStatus: ObservableObject {
     /// store. `activeModel` starts `nil` and is set exactly once by
     /// `captureActive(_:)` after the provider is created. The saved preference
     /// is never presented as Active before provider creation.
+    ///
+    /// Both dependencies default to the runtime composition's instances
+    /// (`.production` and `.shared` in a normal launch, the isolated test-host
+    /// store and recorder when the Xcode TEST_HOST was launched with
+    /// `VOICEDOCK_TEST_MODE=1`), so the production singletons are never
+    /// referenced directly from this initializer.
     public init(
         storage: ModelStorage? = nil,
-        preferenceStore: ASRPreferenceStore = .production,
-        recorder: ModelLaunchDiagnosticRecording = ModelLaunchRecorder.shared
+        preferenceStore: ASRPreferenceStore? = nil,
+        recorder: ModelLaunchDiagnosticRecording? = nil
     ) {
+        let resolvedStore = preferenceStore ?? VoiceDockRuntimeComposition.current.preferenceStore
+        let resolvedRecorder = recorder ?? VoiceDockRuntimeComposition.current.launchRecorder
         self.modelStorage = storage ?? ModelStorage()
-        self.preferenceStore = preferenceStore
-        self.recorder = recorder
+        self.preferenceStore = resolvedStore
+        self.recorder = resolvedRecorder
 
         // Record preference-suite provenance before reading.
-        let raw = preferenceStore.rawSelectedModelValue()
+        let raw = resolvedStore.rawSelectedModelValue()
         self.recorder.recordPreferenceState(
-            suiteName: preferenceStore.suiteName,
+            suiteName: resolvedStore.suiteName,
             rawSelectedModel: raw
         )
 
@@ -112,7 +120,7 @@ public final class ModelStatus: ObservableObject {
         // Active model before the provider is actually created.
         self.activeModel = nil
         self.activeDescriptorRepoID = ""
-        self.selectedModel = ASRModelPreferences.load(from: preferenceStore).selectedModel
+        self.selectedModel = ASRModelPreferences.load(from: resolvedStore).selectedModel
         self.restartRequired = false  // activeModel is nil; not yet meaningful
 
         // activeModel is nil here, so the "effective before provider" state is
@@ -120,7 +128,7 @@ public final class ModelStatus: ObservableObject {
         // reported as a real effective selection before the provider exists.
         self.recorder.recordModelStatusInit(selected: self.selectedModel, effective: nil)
 
-        logger.info("ModelStatus initialized: activeModel=nil (pending provider), selectedModel=\(self.selectedModel.rawValue) suite=\(preferenceStore.suiteName)")
+        logger.info("ModelStatus initialized: activeModel=nil (pending provider), selectedModel=\(self.selectedModel.rawValue) suite=\(resolvedStore.suiteName)")
 
         // Refresh availability asynchronously (non-Sendable context)
         Task { [weak self] in

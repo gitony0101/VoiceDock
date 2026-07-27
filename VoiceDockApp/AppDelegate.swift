@@ -33,14 +33,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// exactly-once terminal diagnostic finalizer. Held for lifetime.
     private var lifecycleFinalizerCancellable: AnyCancellable?
 
-    /// Production initializer. Threads one shared preference store and the
-    /// shared per-launch diagnostic recorder through the entire model-selection
-    /// chain. No component below may reach for a different default store or
-    /// recorder. Tests inject isolated stores and independent recorders
-    /// through the explicit `init(preferenceStore:launchRecorder:)`.
+    /// Default initializer invoked by `@NSApplicationDelegateAdaptor(AppDelegate.self)`
+    /// at host app launch. Obtains the preference store and per-launch recorder
+    /// from the runtime composition, so the Xcode TEST_HOST (launched with
+    /// `VOICEDOCK_TEST_MODE=1` by the test action before `AppDelegate.init()`
+    /// runs) binds an isolated PID+UUID preference suite and a temp-directory
+    /// recorder — never the production `com.voicedock.app.asr-prefs` suite and
+    /// never `ModelLaunchRecorder.shared`. A normal owner launch resolves to
+    /// the production composition (`ASRPreferenceStore.production` +
+    /// `ModelLaunchRecorder.shared`).
     override init() {
-        self.preferenceStore = .production
-        self.launchRecorder = .shared
+        let composition = VoiceDockRuntimeComposition.current
+        self.preferenceStore = composition.preferenceStore
+        self.launchRecorder = composition.launchRecorder
         self.modelStatus = ModelStatus(
             preferenceStore: self.preferenceStore,
             recorder: self.launchRecorder
@@ -81,6 +86,25 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     var permissionRefreshReasonForTests: PermissionManager.RefreshReason {
         permissions.lastRefreshReason
+    }
+
+    /// Read-only identity of the preference store the no-argument init bound
+    /// this AppDelegate to. Surfaced for the deterministic host-isolation tests
+    /// so they can assert the host AppDelegate (constructed by
+    /// `@NSApplicationDelegateAdaptor` before any XCTest runs) bound itself to
+    /// the isolated test-host suite, not the production
+    /// `com.voicedock.app.asr-prefs` domain. No setter; no resetForTesting.
+    internal var composedPreferenceSuiteName: String {
+        preferenceStore.suiteName
+    }
+
+    /// Read-only identity of the per-launch recorder the no-argument init bound
+    /// this AppDelegate to. Surfaced for the deterministic host-isolation tests
+    /// so they can assert the host AppDelegate writes diagnostics under a
+    /// temporary `NSTemporaryDirectory()` path, never the canonical production
+    /// diagnostics directory. No setter; no resetForTesting.
+    internal var composedRecorderOutputDirectory: String {
+        launchRecorder.outputDirectoryForDiagnostics.path
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {

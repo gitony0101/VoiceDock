@@ -162,6 +162,16 @@ public final class ModelLaunchRecorder: @unchecked Sendable {
     /// Hard guard: a recorder bound to the production diagnostics directory
     /// must never be constructed by tests.
     private let isProduction: Bool
+    /// Read-only view of the recorder's output directory. Surfaced so the
+    /// runtime composition and the deterministic host-isolation tests can
+    /// assert which directory a recorder writes to without the tests reaching
+    /// into the recorder's private state (and without the host having to
+    /// re-derive the production path independently). Production points at the
+    /// canonical Application Support/Diagnostics path; a test-host recorder
+    /// points at a temporary directory under `NSTemporaryDirectory()`.
+    public var outputDirectoryForDiagnostics: URL {
+        queue.sync { outputDirectory.standardizedFileURL }
+    }
     /// Exactly-once guard. Set atomically under `queue` inside the finalizer.
     /// Once true, subsequent `finalizeAndFlush(_:)`/`flush()` calls are no-ops.
     private var hasFlushed: Bool = false

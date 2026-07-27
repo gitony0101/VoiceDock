@@ -10,6 +10,7 @@
 		08DD718636A83F665FA79EEA /* Qwen3ASRProviderTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = E431B10B7AA9C472270F2F74 /* Qwen3ASRProviderTests.swift */; };
 		0945BED280D0BDE8138F62A1 /* ASRModelPreferences.swift in Sources */ = {isa = PBXBuildFile; fileRef = 725D8325568061185FC52178 /* ASRModelPreferences.swift */; };
 		0970155C9BAB0C6C6319D3DD /* VoiceDockCore.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 9525B6385CCA25648679D25D /* VoiceDockCore.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
+		0C6B4EC6C74236FCA4D6E8D6 /* VoiceDockRuntimeComposition.swift in Sources */ = {isa = PBXBuildFile; fileRef = 03846F1845BB919804D19049 /* VoiceDockRuntimeComposition.swift */; };
 		0CC6AC15D437870B268CBF48 /* TranscriptDeliveryPolicyTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6EF1CC795F41E1578DE7F0E1 /* TranscriptDeliveryPolicyTests.swift */; };
 		0E30E9AAD149B5CFECE18021 /* ASRProviderFactoryTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = D9CDC02AEDF25F1AD399A7FC /* ASRProviderFactoryTests.swift */; };
 		10818E511B54B1E7E9028C1B /* BenchmarkCore.swift in Sources */ = {isa = PBXBuildFile; fileRef = DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */; };
@@ -80,6 +81,7 @@
 		EE66812E3A82F8AB36E48AF4 /* MLXAudioSTTProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = D517477EB39C5A8E25056875 /* MLXAudioSTTProvider.swift */; };
 		EEA746707730CD91AEAEE989 /* SessionCoordinatorTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = A6D748CE4BE74D42579E34B4 /* SessionCoordinatorTests.swift */; };
 		F2674FDAA238BD35985B0A35 /* PermissionManagerTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 13220B14EB91840E8E8900AB /* PermissionManagerTests.swift */; };
+		F36CE74BDCCDDD8BDC061A60 /* RuntimeCompositionHostIsolationTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 1236A858D24B76C28A055954 /* RuntimeCompositionHostIsolationTests.swift */; };
 		F5A30AA72803A7A453B0B2B3 /* ModelInstaller.swift in Sources */ = {isa = PBXBuildFile; fileRef = 80A11F7FEA0D81964D8C9743 /* ModelInstaller.swift */; };
 		F8B6754D428CF217097E08CD /* TranscriptCorrectionEngine.swift in Sources */ = {isa = PBXBuildFile; fileRef = DCC769B4AAD7276D7828E898 /* TranscriptCorrectionEngine.swift */; };
 		F9DCDBE131AB17F8819FCE18 /* RestartHelperTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 79B03C478B08F71A626AE842 /* RestartHelperTests.swift */; };
@@ -157,8 +159,10 @@
 
 /* Begin PBXFileReference section */
 		00021278B266843AA3E4A402 /* TranscriptDestination.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDestination.swift; sourceTree = "<group>"; };
+		03846F1845BB919804D19049 /* VoiceDockRuntimeComposition.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDockRuntimeComposition.swift; sourceTree = "<group>"; };
 		069712CD4B41FB476AC52FE3 /* TranscriptCorrectionPreferences.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionPreferences.swift; sourceTree = "<group>"; };
 		0F0BDED5C9E4D4124B41135B /* TranscriptDestinationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDestinationTests.swift; sourceTree = "<group>"; };
+		1236A858D24B76C28A055954 /* RuntimeCompositionHostIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RuntimeCompositionHostIsolationTests.swift; sourceTree = "<group>"; };
 		13220B14EB91840E8E8900AB /* PermissionManagerTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PermissionManagerTests.swift; sourceTree = "<group>"; };
 		13A8AE2460CB1BB8120FC800 /* ModelStatus.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStatus.swift; sourceTree = "<group>"; };
 		1462380CB5BAC24E533D036A /* FakeModelLaunchRecorder.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FakeModelLaunchRecorder.swift; sourceTree = "<group>"; };
@@ -334,6 +338,7 @@
 				EA296CF94C4AD6B3B830154A /* QwenModelStorageTests.swift */,
 				79B03C478B08F71A626AE842 /* RestartHelperTests.swift */,
 				5D3A86E001A6BB097A30118E /* RestartPreflightTests.swift */,
+				1236A858D24B76C28A055954 /* RuntimeCompositionHostIsolationTests.swift */,
 				67CA238572F42F2927B0A5DA /* SessionCoordinatorCorrectionTests.swift */,
 				A6D748CE4BE74D42579E34B4 /* SessionCoordinatorTests.swift */,
 				EDDCB956C3E2DDB229226689 /* TerminalApplicationClassifierTests.swift */,
@@ -433,6 +438,7 @@
 				97BADEA77803001A6F79A7D3 /* TranscriptDeliveryPreferences.swift */,
 				00021278B266843AA3E4A402 /* TranscriptDestination.swift */,
 				4867884BA3D61A84DE408045 /* VoiceDockError.swift */,
+				03846F1845BB919804D19049 /* VoiceDockRuntimeComposition.swift */,
 			);
 			path = Sources;
 			sourceTree = "<group>";
@@ -638,6 +644,7 @@
 				D12EEBD8B9356967FDD9B65D /* TranscriptDeliveryPreferences.swift in Sources */,
 				337D8FA32B4FF87DD0C4B017 /* TranscriptDestination.swift in Sources */,
 				1E185E9D71C69872574632E0 /* VoiceDockError.swift in Sources */,
+				0C6B4EC6C74236FCA4D6E8D6 /* VoiceDockRuntimeComposition.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -675,6 +682,7 @@
 				2A5BA7F57ADA38DA081DE387 /* QwenModelStorageTests.swift in Sources */,
 				F9DCDBE131AB17F8819FCE18 /* RestartHelperTests.swift in Sources */,
 				64B0BC01C424B8A740F0967C /* RestartPreflightTests.swift in Sources */,
+				F36CE74BDCCDDD8BDC061A60 /* RuntimeCompositionHostIsolationTests.swift in Sources */,
 				663FA63866F22B70C964EACC /* SessionCoordinatorCorrectionTests.swift in Sources */,
 				EEA746707730CD91AEAEE989 /* SessionCoordinatorTests.swift in Sources */,
 				AE3CD988DCB2A6AAEFA0C8A6 /* TerminalApplicationClassifierTests.swift in Sources */,

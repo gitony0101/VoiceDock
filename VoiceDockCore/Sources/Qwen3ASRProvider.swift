@@ -18,12 +18,29 @@ public actor Qwen3ASRProvider: ASRProvider {
     private var model: Qwen3ASRModel?
     private let modelStorage: ModelStorage
     private let descriptor: QwenModelDescriptor
+    /// Per-launch diagnostic recorder the provider records load/warmup outcomes
+    /// into. Bound from the runtime composition through `ASRProviderFactory` so
+    /// the provider and the AppDelegate that owns it share one recorder. A
+    /// test host (VOICEDOCK_TEST_MODE=1) binds an isolated temp-directory
+    /// recorder here; production binds `ModelLaunchRecorder.shared`. The
+    /// provider never references `ModelLaunchRecorder.shared` directly.
+    private let launchRecorder: ModelLaunchRecorder
 
-    /// Initialize with optional custom storage (for testing)
+    /// Initialize with optional custom storage (for testing) and an explicit
+    /// descriptor. The per-launch recorder defaults to the runtime
+    /// composition's recorder (production `.shared` in a normal launch, the
+    /// isolated test-host recorder under the Xcode test host), so a provider
+    /// constructed without an explicit recorder still records into the same
+    /// recorder the owning AppDelegate owns.
     /// - Note: descriptor must be passed explicitly - no default value
-    public init(storage: ModelStorage? = nil, descriptor: QwenModelDescriptor) {
+    public init(
+        storage: ModelStorage? = nil,
+        descriptor: QwenModelDescriptor,
+        launchRecorder: ModelLaunchRecorder? = nil
+    ) {
         self.modelStorage = storage ?? ModelStorage()
         self.descriptor = descriptor
+        self.launchRecorder = launchRecorder ?? VoiceDockRuntimeComposition.current.launchRecorder
     }
 
     /// Load the Qwen3 model from the canonical directory
@@ -39,7 +56,7 @@ public actor Qwen3ASRProvider: ASRProvider {
         guard isValid else {
             Self.writeASRDiagnostic("model_validation_failed")
             logger.error("Model not found or invalid at canonical path")
-            ModelLaunchRecorder.shared.recordProviderLifecycle(
+            launchRecorder.recordProviderLifecycle(
                 loadResult: "fail:model-not-found",
                 warmupResult: "skipped"
             )
@@ -62,14 +79,14 @@ public actor Qwen3ASRProvider: ASRProvider {
             model = try await Qwen3ASRModel.fromModelDirectory(modelDir)
             Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_did_complete")
             logger.info("Qwen3 model loaded successfully")
-            ModelLaunchRecorder.shared.recordProviderLifecycle(
+            launchRecorder.recordProviderLifecycle(
                 loadResult: "ok:\(modelDir.path)",
                 warmupResult: "notrun-yet"
             )
         } catch {
             Self.writeASRDiagnostic("Qwen3ASRModel_fromModelDirectory_error:\(error.localizedDescription)")
             logger.error("Failed to load Qwen3 model: \(error.localizedDescription)")
-            ModelLaunchRecorder.shared.recordProviderLifecycle(
+            launchRecorder.recordProviderLifecycle(
                 loadResult: "fail:\(error.localizedDescription)",
                 warmupResult: "skipped"
             )
@@ -81,7 +98,7 @@ public actor Qwen3ASRProvider: ASRProvider {
     /// Warm up the model with silent audio
     public func warmup() async throws {
         guard model != nil else {
-            ModelLaunchRecorder.shared.recordProviderLifecycle(
+            launchRecorder.recordProviderLifecycle(
                 loadResult: "ok",
                 warmupResult: "skipped:no-model"
             )
@@ -94,7 +111,7 @@ public actor Qwen3ASRProvider: ASRProvider {
         let silentAudio = MLXArray(Array(repeating: Float(0), count: 16_000))
         _ = model!.generate(audio: silentAudio, generationParameters: .init())
         logger.info("Qwen3 warmup complete")
-        ModelLaunchRecorder.shared.recordProviderLifecycle(
+        launchRecorder.recordProviderLifecycle(
             loadResult: "ok",
             warmupResult: "ok"
         )

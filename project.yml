@@ -156,6 +156,16 @@ schemes:
       gatherCoverageData: false
       targets:
         - VoiceDockTests
+      # Selects the isolated test-host runtime composition. The host VoiceDock
+      # app's no-argument AppDelegate.init() reads this BEFORE any XCTest
+      # method can inject dependencies, so the host binds a temporary PID+UUID
+      # preference suite and a temp-directory per-launch recorder instead of the
+      # production `com.voicedock.app.asr-prefs` suite and
+      # `ModelLaunchRecorder.shared`. The shipping Release app never sets this,
+      # so it always resolves to the production composition. See
+      # VoiceDockRuntimeComposition.swift.
+      environmentVariables:
+        VOICEDOCK_TEST_MODE: "1"
     archive:
       config: Release
 

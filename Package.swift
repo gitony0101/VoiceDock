@@ -34,6 +34,7 @@ let package = Package(
                 "AppDelegateIsolationTests.swift",
                 "AppDelegateLaunchDiagnosticTests.swift",
                 "AppDelegateLifecycleTests.swift",
+                "RuntimeCompositionHostIsolationTests.swift",
                 "HotKeyManagerTests.swift",
                 "PermissionManagerTests.swift",
                 "TestSupport/AppDelegateTestSupport.swift"
