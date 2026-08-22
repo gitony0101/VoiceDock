@@ -1,103 +1,35 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-07-13 (Stage A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-07-27 — VoiceDock 0.2 RC1 source-sealing pass
 
-## Executive Summary
+## Live Status
 
-Qwen Dual-Model Routing Stage A is **COMPLETE — OWNER VERIFIED**.
+This document no longer maintains an independent status record.
 
-**Default ASR model**: Qwen3-ASR 1.7B 4-bit (Quality)
-**Fast ASR model**: Qwen3-ASR 0.6B 8-bit (via `VOICEDOCK_ASR_MODEL`)
-**Nemotron status**: Retired from active baseline; retained for Stage B rollback
+**For current operational status, read `.loop/NOW.md` — it is the single
+source of truth for live project state.**
 
-## Automated Verification (Complete)
+## Summary (non-authoritative)
 
-| Check | Result |
-|-------|--------|
-| `swift test` | ✅ 26 tests passed |
-| `xcodegen generate` | ✅ Success |
-| `xcodebuild` Debug | ✅ BUILD SUCCEEDED |
-| `xcodebuild` Release | ✅ BUILD SUCCEEDED |
-| `xcodebuild test` | ✅ 50 tests passed |
-| `git diff --check` | ✅ No errors |
+- Project: VoiceDock 0.2 RC1, source sealed on the
+  `fix/stable-identity-accessibility` release-sealing branch.
+- Canonical repository:
+  `/Users/sagawithme/Documents/Github/portfolio-projects/VoiceDock-Stable-Identity-Accessibility-Fix`
+- Automated engineering gates: complete at seal time.
+- Final owner acceptance: **PENDING** — requires final artifact build and
+  owner physical proof (Quality/Fast models, Accessibility-gated paste,
+  paste/Return behavior).
 
-## Owner Physical Verification (Complete)
+## Historical Context (do not treat as current claims)
 
-| Category | Result |
-|----------|--------|
-| Quality model (no env var) | ✅ Qwen3 1.7B 4-bit loads, warmups, transcribes |
-| Fast model (env var) | ✅ Qwen3 0.6B 8-bit loads, warmups, transcribes |
-| No Nemotron fallback | ✅ Confirmed |
-| Routing (nil/empty/invalid) | ✅ Falls back to Quality |
+Earlier stages are recorded in their own evidence documents:
 
-**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
+- Qwen dual-model routing Stage A owner verification:
+  `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
+- Nemotron retirement decision:
+  `docs/decisions/VOICEDOCK_NEMOTRON_RETIREMENT.md`
+- Qwen3 0.6B 6-bit retirement decision:
+  `docs/decisions/VOICEDOCK_QWEN3_06B_6BIT_RETIREMENT.md`
 
-## Repository Status
-
-**Current branch**: `feat/candidate7-phase-b-branding`
-
-**Dirty working tree**: Yes — multiple untracked production files from Qwen duel implementation.
-
-### Untracked Production Files
-
-| File | Description |
-|------|-------------|
-| `VoiceDockCore/Sources/ASRProviderFactory.swift` | Stage A routing |
-| `VoiceDockCore/Sources/Qwen3ASRProvider.swift` | Qwen provider |
-| `VoiceDockCore/Sources/QwenModelDescriptor.swift` | Qwen descriptors |
-| `VoiceDockCore/Sources/ModelStorage.swift` | Model storage |
-| `VoiceDockCore/Sources/ModelInstaller.swift` | Model installer |
-| `VoiceDockCore/Sources/BenchmarkCore.swift` | Benchmark core |
-| `VoiceDockAppTests/ASRProviderFactoryTests.swift` | Stage A tests |
-| `VoiceDockAppTests/Qwen3ASRProviderTests.swift` | Qwen tests |
-| `VoiceDockAppTests/QwenModelDescriptorTests.swift` | Descriptor tests |
-| `VoiceDockAppTests/QwenModelStorageTests.swift` | Storage tests |
-| `VoiceDockAppTests/QwenIntegrationTests.swift` | Integration tests |
-| `Benchmarks/` | Benchmark suite |
-| `docs/QWEN3_*.md` | Qwen investigation docs |
-| `docs/RALPH_*.md` | Ralph duel docs |
-| `docs/archive/qwen-duel/` | Archived duel evidence |
-
-**Recommendation**: Review and commit these files as a coherent baseline before Stage B.
-
-## Nemotron Rollback Components (Preserved)
-
-| Component | Status |
-|-----------|--------|
-| `MLXAudioSTTProvider.swift` | ✅ Preserved |
-| `ASRModelSelection.nemotron` | ✅ Preserved |
-| `QwenModelDescriptor.nemotron_0_6B_8bit` | ✅ Preserved |
-| Factory creation path | ✅ Preserved |
-
-## Next Action
-
-**Stage B — Nemotron Retirement Verification**
-
-Before Stage B:
-1. Owner confirms no rollback needed from Quality model
-2. Review and commit untracked production files
-3. Stage B will verify Nemotron can be safely removed
-
-**Do NOT delete any Nemotron code or model data until Stage B approval.**
-
-## How to Resume
-
-### Continue Development
-```bash
-# Already on: feat/candidate7-phase-b-branding
-# Review untracked files, then commit Stage A baseline
-```
-
-### Stage B Prerequisites
-- ✅ Stage A automated gates passed
-- ✅ Stage A owner physical verification passed
-- ✅ Routing behavior verified
-- ✅ Evidence document created
-- ⏳ Owner confirmation: no rollback needed
-- ⏳ Checkpoint commit of untracked files
-
-### After Stage B Complete
-1. Remove Nemotron code (if owner approves)
-2. Clean up model data directories
-3. Update documentation
-4. Consider next product milestone
+Per-stage test counts and verification tables from those stages are preserved
+in those documents only; they are not current status claims.

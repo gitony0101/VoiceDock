@@ -20,29 +20,25 @@ VoiceDock is a native macOS application that provides global push-to-talk speech
 1. Hold Control+Option+Space
 2. Speak into the microphone
 3. Release the shortcut
-4. Nemotron ASR transcribes locally
+4. The active Qwen3-ASR model transcribes locally
 5. Transcript is copied to the clipboard
-6. Transcript is pasted into the focused app
-7. Return may be sent after paste in the current MVP build
+6. Transcript is pasted into the focused app (Accessibility-gated)
+7. Return may be sent after paste — separately controlled, default OFF
 ```
 
 ## Current Status
 
-**Candidate 6** is the first physically verified development baseline and the current rollback candidate.
+**VoiceDock 0.2 RC1** is the current release candidate line.
 
-**Candidate 7 Phase A** is complete (automated gates pass) and awaiting owner physical review.
+```text
+AUTOMATED ENGINEERING GATES COMPLETE
+FINAL OWNER ACCEPTANCE PENDING
+```
 
-| Verification item | Candidate 6 | Candidate 7 Phase A |
-|---|---|---|
-| Debug build | PASS | PASS |
-| Release build | PASS | PASS |
-| Automated tests | PASS — 24 tests | PASS — 46 tests |
-| Character counter | ⚠️ Visible | ✅ Removed |
-| Bottom button labels | ⚠️ Truncated | ✅ Redesigned (More menu) |
-| Automatic paste | Hardcoded ON | ✅ User toggle (default ON) |
-| Return after paste | Hardcoded ON | ✅ User toggle (default OFF) |
-| Terminal safety | ❌ No suppression | ✅ Return suppressed |
-| Physical verification | ✅ COMPLETE | ⏳ PENDING |
+Live operational status is maintained in `.loop/NOW.md`. Earlier baselines
+(Candidate 6, Candidate 7 Phase A/B) are historical; their verification tables
+and artifact identities are preserved in their own stage documents and are not
+repeated here as current claims.
 
 ### Recognition-quality notes
 
@@ -60,19 +56,46 @@ Candidate 6 is therefore an **MVP baseline**, not the final polished release. Ca
 VoiceDockApp/                    UI and macOS integration
 ├── VoiceDockApp.swift           App entry point
 ├── AppDelegate.swift            NSApplicationDelegate
-├── MenuBarView.swift            SwiftUI menu-bar popover
-├── HotKeyManager.swift          Carbon/NSEvent hotkey handling
-└── PermissionManager.swift      Microphone and Accessibility status
+├── UI/MenuBarView.swift         SwiftUI menu-bar popover
+├── Services/HotKeyManager.swift Carbon/NSEvent hotkey handling
+├── Services/PermissionManager.swift Microphone and Accessibility status
+└── RestartHelper/               Packaged restart helper (Apply & Restart)
 
 VoiceDockCore/                   Reusable business logic
-├── ASRProvider.swift            ASR protocol
-├── MLXAudioSTTProvider.swift    Nemotron/MLX implementation
+├── ASRProvider.swift            Model-agnostic ASR protocol (actor)
+├── Qwen3ASRProvider.swift       Active Qwen3-ASR implementation
+├── ASRProviderFactory.swift     Quality/Fast model routing (one active provider)
+├── ASRModelPreferences.swift    Persistent model preference
+├── ModelStatus.swift            Selected-vs-active model state tracking
+├── ModelStorage.swift           Local model storage
 ├── AudioCapture.swift           AVAudioEngine capture
 ├── AudioNormalizer.swift        Hardware format to 16 kHz mono Float32
 ├── TranscriptDestination.swift  Clipboard and CGEvent paste
+├── TranscriptDeliveryPolicy.swift   Delivery policy (paste/Return safety)
+├── TranscriptCorrectionEngine.swift Transcript correction
 ├── SessionCoordinator.swift     Session state machine
 └── VoiceDockError.swift         Error definitions
 ```
+
+### ASR models
+
+| Role | Model | Selection |
+|---|---|---|
+| Quality (default) | `qwen3-1.7b-4bit` | No env var, or explicit |
+| Fast | `qwen3-0.6b-8bit` | UI menu or `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit` |
+
+Exactly one provider is active at a time. The selection is persisted; changing
+it takes effect through **Apply & Restart**, which uses the packaged restart
+helper to relaunch the app. `ModelStatus` distinguishes the *selected* model
+(saved preference for next launch) from the *active* model (the provider that
+was actually created). Nemotron is retired from the active baseline — see
+`docs/decisions/VOICEDOCK_NEMOTRON_RETIREMENT.md`.
+
+### Automatic paste and Return
+
+Automatic paste into the focused application is gated on macOS Accessibility
+permission. Return-after-paste is a separate control, default OFF, with Return
+suppression for terminal applications (`TerminalApplicationClassifier`).
 
 ## System Requirements
 
@@ -87,7 +110,7 @@ VoiceDockCore/                   Reusable business logic
 |---|---|---|
 | `mlx-audio-swift` | revision `3f6b055` | MLX audio and ASR integration |
 | `mlx-swift` | `0.31.4` | MLX runtime |
-| Nemotron ASR | `nemotron-3.5-asr-streaming-0.6b-8bit` | Local speech recognition |
+| Qwen3-ASR | `qwen3-1.7b-4bit` (Quality, default) / `qwen3-0.6b-8bit` (Fast) | Local speech recognition |
 
 ## Build Instructions
 
@@ -157,18 +180,17 @@ The first model download may require network access.
 
 ## Known Limitations
 
-**Candidate 7 Phase A addresses issues 1-3 below:**
-
-- ~~Candidate 6 still displays a diagnostic character counter in the popover.~~ **→ FIXED in Candidate 7 Phase A**
-- ~~Some bottom-button labels are truncated in the current UI.~~ **→ FIXED in Candidate 7 Phase A**
-- ~~Return-after-paste is active in the current MVP and can execute text when Terminal is focused.~~ **→ FIXED in Candidate 7 Phase A (default OFF, terminal suppression)**
 - Recognition quality varies by phrase, accent, and code-switching.
 - Product-name recognition is not yet vocabulary-adapted.
 - The first model download is large.
 - Intel Macs are not supported.
 - Signing and notarization are not yet part of this checkpoint.
 
-## Candidate 6 Identity
+Historical note (Candidate 6 era): a diagnostic character counter, truncated
+button labels, and unsafe Return-after-paste existed in that baseline. These
+were addressed in the Candidate 7 line and are retained here only as history.
+
+## Historical Baseline Identity (Candidate 6 — superseded)
 
 ```text
 SHA-256: 6515bcf1ac229a3e4289e3d0c1bb223819768bf7083698fda20fa5540027e317
@@ -176,33 +198,19 @@ CDHash: 3f03a7ed95bdf87593b79ec5101f2c35c18b8fd4
 Mach-O UUID: 3745FA4C-2619-3DDB-8565-0CBBA80AC7E1
 ```
 
+This identity belongs to the retired Candidate 6 artifact, not to the current
+0.2 RC1 line.
+
 The `.app` bundle, models, crash reports, raw logs, and local build products are intentionally excluded from the repository.
 
-## Next Milestone: Candidate 7
+## Next Milestone: VoiceDock 0.2 RC1 Final Acceptance
 
-### Phase A (Complete — Automated Gates Pass)
-
-- ✅ Remove the visible character counter
-- ✅ Improve popover layout and button labels (Retry, Refresh, More menu)
-- ✅ Add explicit automatic paste control (default ON)
-- ✅ Add explicit Return-after-paste control (default OFF)
-- ✅ Add terminal safety (Return suppression for Terminal, iTerm2, Warp)
-- ✅ Add 26 new automated tests
-
-**Status**: Awaiting owner physical review. See `.loop/evidence/candidates/candidate-7-phase-a/OWNER_UI_REVIEW_REQUIRED.md`.
-
-### Phase B (Pending — After Phase A Verification)
-
-- Add the VoiceDock icon and updated screenshots
-- Improve recognition documentation
-- Consider vocabulary/prompt-bias for "VoiceDock" product name
-
-### Candidate 7 Freeze (Pending — After Phase B)
-
-- Freeze Candidate 7
-- Perform Candidate 7 physical verification
+- ✅ Source sealing on the `fix/stable-identity-accessibility` branch
+- ⏳ Final artifact build from the sealed source HEAD
+- ⏳ Owner physical proof: Quality model, Fast model,
+  Accessibility-gated paste, paste/Return behavior
+- ⏳ Explicit owner sign-off
 - Consider signing/notarization (requires credentials)
-- Consider v0.1.0 prerelease and public repository visibility
 
 ## Project Governance
 

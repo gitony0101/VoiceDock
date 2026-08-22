@@ -61,8 +61,15 @@ Swift structured concurrency
 Xcode macOS App target
 Blaizzy/mlx-audio-swift
 MLXAudioSTT
-mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit
+Qwen3-ASR family:
+  qwen3-1.7b-4bit   (Quality, default)
+  qwen3-0.6b-8bit   (Fast)
 ```
+
+Historical note: the original MVP baseline used
+`mlx-community/nemotron-3.5-asr-streaming-0.6b-8bit`. Nemotron has been
+retired from the active baseline — see
+`docs/decisions/VOICEDOCK_NEMOTRON_RETIREMENT.md`.
 
 The distributed application must not require:
 
@@ -89,7 +96,7 @@ Accessibility permission handling
 global push-to-talk
 real microphone capture
 16 kHz mono Float32 normalization
-local Nemotron transcription
+local Qwen3-ASR transcription
 English transcription
 Mandarin Chinese transcription
 mixed Chinese-English transcription

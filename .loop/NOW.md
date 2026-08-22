@@ -1,56 +1,107 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-07-13 (Stage A COMPLETE — OWNER VERIFIED)
+**Last Updated**: 2026-07-27 — VoiceDock 0.2 RC1 source-sealing pass
 
 ## Status
 
 ```text
-QWEN_DUAL_MODEL_ROUTING_STAGE_A_OWNER_VERIFIED
+AUTOMATED ENGINEERING GATES COMPLETE
+FINAL OWNER ACCEPTANCE PENDING
 ```
 
-## ASR Model Configuration (Stage A)
+(This document is the single operational source of truth for live project
+status. `.loop/HANDOFF.md` points here and does not maintain an independent
+status.)
 
-| Model | Role | Selection |
-|-------|------|-----------|
-| `qwen3-1.7b-4bit` | **Quality (DEFAULT)** | No env var, or explicit |
-| `qwen3-0.6b-8bit` | **Fast** | `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit` |
-| `qwen3-0.6b-6bit` | Preserved | Explicit selection only |
-| `nemotron-0.6b-8bit` | Rollback | Explicit selection only (Stage B) |
+## Project
 
-**Owner dogfooding**: `qwen3-1.7b-4bit` (Quality)
+- **Project**: VoiceDock 0.2 RC1
+- **Canonical repository**: `/Users/sagawithme/Documents/Github/portfolio-projects/VoiceDock-Stable-Identity-Accessibility-Fix`
+- **Canonical source status**: clean release-sealing branch (`fix/stable-identity-accessibility`)
+- **Baseline HEAD at seal start**: `61eea56ffbdd1a82331c4219cbb1ee2b319c02ec`
+- The sealing commit itself is not recorded here until it exists.
+- **Owner acceptance**: PENDING
+- **Next milestone**: final artifact build → owner Quality/Fast/Accessibility/paste proof
 
-## Stage A Automated Verification
+The checkout at `/Users/sagawithme/Documents/Github/portfolio-projects/VoiceDock`
+is legacy/superseded for VoiceDock 0.2. Do not merge, cherry-pick, rebase, or
+copy files from it.
 
-| Check | Result |
-|-------|--------|
-| `swift test` | ✅ 26 tests |
-| `xcodegen generate` | ✅ Success |
-| `xcodebuild` Debug | ✅ BUILD SUCCEEDED |
-| `xcodebuild` Release | ✅ BUILD SUCCEEDED |
-| `xcodebuild test` | ✅ 50 tests |
-| `git diff --check` | ✅ No errors |
+## Current Architecture (as implemented in source)
 
-## Stage A Owner Physical Verification
+Native macOS menu-bar push-to-talk speech-to-text app. Local-only processing:
+no telemetry, no transcript history, no cloud upload.
 
-| Category | Result |
-|----------|--------|
-| Quality model (no env var) | ✅ PASS — Qwen3 1.7B 4-bit loads, warmups, transcribes |
-| Fast model (env var) | ✅ PASS — Qwen3 0.6B 8-bit loads, warmups, transcribes |
-| No Nemotron fallback | ✅ Confirmed — failures remain visible |
-| Routing behavior | ✅ Verified — nil/empty/invalid → Quality |
+### ASR
 
-**Evidence**: `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`
+- Active ASR family: **Qwen3-ASR** (MLX, via `mlx-audio-swift`).
+- **Quality** = `qwen3-1.7b-4bit` (default selection)
+- **Fast** = `qwen3-0.6b-8bit`
+- Exactly **one active provider at a time**; the provider is created through
+  `ASRProviderFactory` from the persistent model preference.
+- Nemotron is retired from the active baseline (see
+  `docs/decisions/VOICEDOCK_NEMOTRON_RETIREMENT.md`). Historical rollback
+  references remain in code but are explicit-selection/retired only.
 
-## Repository Status
+### Model preference & ModelStatus semantics
 
-**Current branch**: `feat/candidate7-phase-b-branding`
+- The selected model is persisted through a shared `ASRPreferenceStore`.
+- `ModelStatus.selectedModel` is the saved preference applied on next launch;
+  `ModelStatus.activeModel` is set exactly once from the factory result after a
+  provider has actually been created. A saved preference is never presented as
+  Active before provider creation, and load failures are surfaced rather than
+  silently falling back to Quality.
+- Changing the selection requires **Apply & Restart**: the packaged restart
+  helper (`voice-dock-restart-helper`, copied into `Contents/MacOS` via an
+  XcodeGen CopyFiles phase) relaunches the app so the new selection becomes
+  active.
 
-**Dirty working tree**: Yes — multiple untracked production files from Qwen duel implementation. See evidence document for full inventory.
+### Delivery & safety
 
-**Checkpoint recommendation**: Review and commit untracked production files before Stage B.
+- Automatic paste into the focused application is gated on macOS
+  **Accessibility permission**.
+- Return-after-paste remains separately controlled and defaults OFF, with
+  Return suppression for terminal applications
+  (`TerminalApplicationClassifier`).
+- Transcript correction (`TranscriptCorrectionEngine`,
+  `PersonalTranscriptCorrectionEngine`) and delivery policy
+  (`TranscriptDeliveryPolicy`, `TranscriptDeliveryPreferences`) exist in
+  current source and are part of the delivery path.
 
-## Next Action
+### Runtime composition
 
-**Awaiting Stage B**: Nemotron retirement verification after owner confirms no rollback needed.
+```text
+VoiceDockApp/        UI + macOS integration (AppDelegate, MenuBarView,
+                     HotKeyManager, PermissionManager, RestartHelper)
+VoiceDockCore/       Business logic framework (ASR providers/factory,
+                     audio capture+normalization, SessionCoordinator,
+                     delivery/correction policy, model storage/status)
+```
 
-**Do not delete Nemotron code or model data until Stage B approval.**
+Xcode unit tests run with **TEST_HOST isolation**: the test bundle loads into a
+dedicated `VoiceDock.app` test host with injected recorders/stores so tests
+cannot touch production diagnostics or preferences.
+
+## Verification Record
+
+Stage A of Qwen dual-model routing was previously owner-verified physically
+(see `docs/status/VOICEDOCK_QWEN_DUAL_MODEL_STAGE_A_EVIDENCE.md`). That
+evidence applies to that stage only; it does not constitute final acceptance
+for VoiceDock 0.2 RC1.
+
+Historical per-stage test counts (24 / 26 / 46 / 50) are recorded in their own
+stage documents and are intentionally not repeated here as current claims.
+Current automated-gate results are produced by running the gates; see the
+release-sealing evidence in this repository's git history for the seal-pass
+record.
+
+## Owner Acceptance (PENDING)
+
+Final owner acceptance for 0.2 RC1 still requires:
+
+1. Final artifact build from the sealed source HEAD
+2. Owner physical proof: Quality model, Fast model, Accessibility-gated paste,
+   paste/Return behavior
+3. Explicit owner sign-off
+
+Do not mark final acceptance complete until all three are recorded.

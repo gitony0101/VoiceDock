@@ -93,12 +93,15 @@ targets:
       properties:
         NSMicrophoneUsageDescription: "VoiceDock needs microphone access to transcribe your speech locally. No audio is sent to the cloud or stored."
         LSUIElement: true
-        CFBundleShortVersionString: "0.1.0"
+        CFBundleShortVersionString: "0.2.0"
+        CFBundleVersion: "2"
         LSMinimumSystemVersion: "14.0"
     settings:
       base:
         PRODUCT_BUNDLE_IDENTIFIER: com.voicedock.app
         PRODUCT_NAME: VoiceDock
+        MARKETING_VERSION: "0.2.0"
+        CURRENT_PROJECT_VERSION: 2
         ASSETCATALOG_COMPILER_APPICON_NAME: ""
         ENABLE_HARDENED_RUNTIME: NO
         GENERATE_INFOPLIST_FILE: NO
