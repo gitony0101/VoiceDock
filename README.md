@@ -48,7 +48,7 @@ The complete workflow is operational, but transcription quality is not yet unifo
 - Mixed Chinese-English speech is preserved, but English words and product names may drift.
 - The product name `VoiceDock` has occasionally been recognized as variants such as `Voice Docks`, `VoyStock`, or similar text.
 
-Candidate 6 is therefore an **MVP baseline**, not the final polished release. Candidate 7 Phase A addresses UI cleanup and safer Return behavior. Phase B will address branding assets.
+These quality notes carried over from the historical Candidate 6 evaluation and still describe known recognition limitations of the current line.
 
 ## Architecture
 

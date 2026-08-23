@@ -31,7 +31,7 @@ Primary MVP flow:
 global push-to-talk
 → microphone capture
 → 16 kHz mono Float32 audio
-→ local Nemotron ASR
+→ local Qwen3-ASR (active model)
 → transcript
 → clipboard
 → focused application paste
@@ -111,18 +111,13 @@ manual M1 verification
 delivery documentation
 ```
 
-Explicitly excluded from this Smart Ralph specification:
+Explicitly excluded from the original Smart Ralph specification:
 
 ```text
 VAD
 automatic endpointing
 pre-roll
 partial streaming transcripts
-model selection
-model switching
-model registry
-managed model downloads
-external model folders
 AI assistant
 chat providers
 conversation history
@@ -130,11 +125,18 @@ TTS
 signing and notarization unless credentials are available
 ```
 
-Do not widen scope until the Push-to-Talk MVP is verified.
+Historical note: "model selection / model switching / model registry / managed
+model downloads / external model folders" were excluded from the original MVP
+specification. VoiceDock 0.2 intentionally supersedes this: Quality/Fast Qwen3
+model selection, persistent preference, and Apply & Restart are implemented
+product features. That part of the exclusion list no longer applies.
+
+Do not widen scope beyond the implemented 0.2 feature set without a new
+specification.
 
 ## Architecture
 
-**Current Implementation (2026-06-22 Refactored)**:
+**Current Implementation (VoiceDock 0.2 RC1)**:
 
 ```text
 VoiceDockApp/ (UI Layer)
@@ -142,14 +144,21 @@ VoiceDockApp/ (UI Layer)
 ├── AppDelegate.swift       NSApplicationDelegate, menu bar, popover
 ├── MenuBarView.swift       SwiftUI view, observes SessionCoordinator
 ├── HotKeyManager.swift     Carbon + NSEvent hybrid (Control+Option+Space)
-└── PermissionManager.swift Microphone + Accessibility prompts
+├── PermissionManager.swift Microphone + Accessibility prompts
+└── RestartHelper/          Packaged restart helper (Apply & Restart)
 
 VoiceDockCore/ (Business Logic Framework)
 ├── ASRProvider.swift       Protocol: actor ASRProvider
-├── MLXAudioSTTProvider.swift Nemotron ASR implementation
+├── Qwen3ASRProvider.swift  Active Qwen3-ASR implementation
+├── ASRProviderFactory.swift  Quality/Fast routing, one active provider
+├── ASRModelPreferences.swift Persistent model preference
+├── ModelStatus.swift       Selected-vs-active model state
+├── ModelStorage.swift      Local model storage
 ├── AudioCapture.swift      AVAudioEngine, 16 kHz mono Float32
 ├── AudioNormalizer.swift   Format conversion (pure function)
 ├── TranscriptDestination.swift Clipboard + CGEvent paste
+├── TranscriptDeliveryPolicy.swift Paste/Return delivery policy
+├── TranscriptCorrectionEngine.swift Transcript correction
 ├── SessionCoordinator.swift  State machine, workflow orchestration
 └── VoiceDockError.swift    Unified error types
 
@@ -189,6 +198,14 @@ Rules:
 12. Do not create speculative abstractions for future releases.
 13. Do not create duplicate physical source trees.
 14. Keep one large ASR model resident on the M1 baseline.
+15. Exactly one ASR provider is active at a time; selection changes take
+    effect only via Apply & Restart using the packaged restart helper.
+16. `ModelStatus.activeModel` is written exactly once from the factory result;
+    the saved preference (`selectedModel`) must never be presented as Active
+    before provider creation.
+17. Xcode unit tests run with TEST_HOST isolation; tests inject isolated
+    preference stores and recorders and must never touch production
+    diagnostics.
 
 ## ASR Boundary
 
@@ -205,7 +222,7 @@ protocol ASRProvider: Actor {
 }
 ```
 
-The implementation may evolve from verified requirements, but shared interfaces must not expose unnecessary Nemotron internals.
+The implementation may evolve from verified requirements, but shared interfaces must not expose unnecessary provider internals (Qwen3, Nemotron-historical, or future providers).
 
 ## Audio Contract
 
@@ -313,18 +330,21 @@ Do not depend on a floating branch for the release build.
 
 The primary project is an Xcode macOS application.
 
-**Verified (2026-06-22)**:
-- ✅ Debug build passes
-- ✅ Release build passes
-- ✅ 24 unit tests pass (all Mock-based)
+**Automated engineering status (VoiceDock 0.2 RC1)**:
 
-**Pending Verification**:
-- ⏳ Real microphone audio capture
-- ⏳ Real ASR inference with Nemotron model
-- ⏳ Accessibility permission + paste simulation
-- ⏳ Carbon hotkey global registration (currently falls back to NSEvent)
-- ⏳ English/Mandarin/Mixed speech transcription quality
-- ⏳ Performance metrics (latency, memory)
+```text
+AUTOMATED ENGINEERING GATES COMPLETE
+FINAL OWNER ACCEPTANCE PENDING
+```
+
+Automated gates — Debug build, Release build, `swift test`, `xcodebuild test`
+— are run at every sealing point; current results live in git history for the
+relevant release-sealing commit rather than as hard-coded counts here.
+
+**Pending Verification (owner-only)**:
+- ⏳ Final artifact acceptance for VoiceDock 0.2 RC1
+- ⏳ Owner physical proof: Quality model, Fast model, Accessibility-gated
+  paste, paste/Return behavior
 
 Normal checks include:
 
@@ -352,7 +372,11 @@ Use mocks and small deterministic fixtures for ordinary automated tests.
 
 Production-model and microphone checks must be recorded as separate integration or manual evidence.
 
-**Current Test Coverage Gap**: All 24 tests use `MockASRProvider` and `MockAudioCapture`. No test exercises the real ASR pipeline.
+Historical note (2026-06-22 MVP era): at that stage all tests were Mock-based
+and no test exercised the real ASR pipeline. That gap has since been closed by
+the Qwen3 provider test suite (unit, storage, factory routing, and
+environment-gated integration tests); current coverage is evidenced in the
+release-sealing commits rather than as a hard-coded count here.
 
 ## Git Discipline
 
@@ -385,32 +409,29 @@ Before stopping:
 
 ## Completion
 
-**Current Status (2026-06-22)**:
+**Current Status (VoiceDock 0.2 RC1)**:
 
 ```text
-✅ passing automated tests          (24 tests, Mock-based)
-✅ successful Debug build
-✅ successful Release build
-⏳ manual M1 test evidence          (PENDING - requires owner)
-✅ documented architecture          (docs/VOICELOCK_DEEP_AUDIT_REPORT.md)
-✅ documented privacy behavior      (AGENTS.md Privacy section)
-⏳ documented setup and usage       (DELIVERY_REPORT.md deleted - needs rewrite)
-⏳ documented limitations           (in audit report, needs summary)
-✅ runnable local release artifact  (dist/VoiceDock.app)
+AUTOMATED ENGINEERING GATES COMPLETE
+FINAL OWNER ACCEPTANCE PENDING
 ```
 
-The MVP is complete only when verified evidence shows that a user can:
+Historical note: the 2026-06-22 MVP-era completion checklist (24 Mock-based
+tests, dist/VoiceDock.app artifact, DELIVERY_REPORT status) described that
+baseline only and is preserved in git history. It is not the current state.
+
+The product is complete only when verified evidence shows that a user can:
 
 ```text
 launch the native menu bar application
 grant required permissions
 trigger push-to-talk
 speak into a real microphone
-run Nemotron locally through MLXAudioSTT
+run the active Qwen3-ASR model locally through MLXAudioSTT
 receive English, Mandarin, and mixed-language transcripts
 copy the transcript
-paste it into the focused application
-optionally send Return
+paste it into the focused application (Accessibility-gated)
+optionally send Return (separately controlled, default OFF)
 ```
 
 Completion also requires:
@@ -419,16 +440,16 @@ Completion also requires:
 passing automated tests
 successful Debug build
 successful Release build
-manual M1 test evidence          ← PENDING
+final owner acceptance           ← PENDING (artifact build + physical proof)
 documented architecture
 documented privacy behavior
-documented setup and usage       ← TODO
+documented setup and usage
 documented limitations
 runnable local release artifact
 final local commit
 ```
 
-**Do not output `VOICEDOCK_COMPLETE` until manual M1 verification is done.**
+**Do not output `VOICEDOCK_COMPLETE` until final owner verification is done.**
 
 
 Before any file modification, verify that `pwd` equals
@@ -546,7 +567,7 @@ launch VoiceDock.app
 → activate global push-to-talk
 → capture real microphone audio
 → normalize audio
-→ run Nemotron locally
+→ run the active Qwen3-ASR model locally
 → obtain transcript
 → copy transcript
 → paste into the focused application
