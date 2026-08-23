@@ -340,24 +340,19 @@ struct TranscriptCorrectionEngineTests {
 
     @Test("Correction mode Off delivers raw transcript")
     func correctionModeOff() async {
-        // Save current preferences
-        let original = TranscriptCorrectionPreferences.load()
-
-        // Set mode to off
-        let prefs = TranscriptCorrectionPreferences(mode: .off, loadUserCorrections: false)
-        prefs.save()
+        // Note: This suite deliberately does NOT write correction preferences.
+        // The engine itself doesn't know about mode — mode is applied at the
+        // coordinator level. Writing to shared `UserDefaults.standard` here
+        // raced with parallel suites reading preferences (the engine corrects
+        // regardless), so the save/restore was removed as part of making
+        // correction-preference tests deterministic.
 
         // Test
         let engine = PersonalTranscriptCorrectionEngine()
         let rawInput = "Testing Voice Duck Kovan recovery."
         let result = engine.correct(rawInput)
 
-        // Even with engine, mode=off should return raw
-        // Note: The engine itself doesn't know about mode - that's in SessionCoordinator
-        // This test verifies the engine always corrects; mode is handled at coordinator level
-        #expect(result.didChange == true) // Engine corrects; coordinator decides whether to use it
-
-        // Restore preferences
-        original.save()
+        // The engine always corrects; the coordinator decides whether to use it
+        #expect(result.didChange == true)
     }
 }

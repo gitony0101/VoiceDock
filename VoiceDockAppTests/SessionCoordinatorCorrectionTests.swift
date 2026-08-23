@@ -37,8 +37,15 @@ struct SessionCoordinatorCorrectionTests {
             correctionEngine: nil  // Production path: nil means coordinator creates it
         )
 
-        // Wait for initialization
-        try await Task.sleep(nanoseconds: 500_000_000) // 0.5s
+        // Wait for initialization deterministically: the coordinator publishes
+        // its completion through the observable `state` property. Poll until
+        // `.ready` (engine created) with a bounded timeout instead of sleeping
+        // a fixed wall-clock duration.
+        let readinessDeadline = Date().addingTimeInterval(10)
+        while coordinator.state != .ready && Date() < readinessDeadline {
+            try await Task.sleep(nanoseconds: 10_000_000) // 10 ms poll interval
+        }
+        #expect(coordinator.state == .ready, "Coordinator did not become ready within 10s")
 
         // Assert: Coordinator should have created a correction engine
         // We verify this by checking that correction is actually applied
