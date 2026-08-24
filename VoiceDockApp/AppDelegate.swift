@@ -181,6 +181,22 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func fullInitialize(selfTestMode: Bool) async {
         writeUIDiagnostic("fullInitialize_started")
 
+        // TEST_HOST guard: when running as the Xcode test host
+        // (VOICEDOCK_TEST_MODE=1, selected by VoiceDockRuntimeComposition),
+        // the host app must NOT construct the production coordinator,
+        // Qwen3ASRProvider, or ModelStorage. The prior behavior performed a
+        // real ~1.5 GB model load and MLX warmup inside every `xcodebuild
+        // test` run (~37 minutes) and could write tokenizer artifacts into
+        // the owner's production model directory. The test bundle constructs
+        // its own coordinators with injected mocks; the host exists only to
+        // host XCTest and the minimal app shell. Production launches never
+        // set VOICEDOCK_TEST_MODE and are unaffected.
+        if VoiceDockRuntimeComposition.current.isTestHost {
+            writeUIDiagnostic("fullInitialize_skipped_test_host")
+            logger.info("Test host detected; skipping production coordinator/provider initialization")
+            return
+        }
+
         // 2) Coordinator + hotkey wiring
         writeUIDiagnostic("makeCoordinator_start")
         if let newCoordinator = makeCoordinator() {
