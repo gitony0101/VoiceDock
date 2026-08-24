@@ -13,6 +13,18 @@ import os.log
 
 private let logger = Logger(subsystem: "com.voicedock.core", category: "Qwen3ASRProvider")
 
+/// System context passed to every Qwen3-ASR generation call.
+///
+/// The Qwen3 decoder is a generative LLM: without an explicit system context it is
+/// free to translate, summarize, or stylistically rewrite the spoken content. This
+/// instruction constrains decoding to verbatim transcription in the language(s)
+/// actually spoken. It must never be weakened to allow translation — translation
+/// would be a separate, explicitly requested feature.
+public let qwen3ASRTranscriptionFidelityContext =
+    "Transcribe the speech faithfully. Preserve the language actually spoken. " +
+    "For mixed-language speech, keep each segment in its original language. " +
+    "Do not translate, summarize, rewrite, or omit content."
+
 /// Qwen3-ASR provider implementing the ASRProvider protocol
 public actor Qwen3ASRProvider: ASRProvider {
     private var model: Qwen3ASRModel?
@@ -134,7 +146,23 @@ public actor Qwen3ASRProvider: ASRProvider {
         logger.info("Transcribing \(audio.count) samples with Qwen3")
 
         let audioArray = MLXArray(audio)
-        let result = model.generate(audio: audioArray, generationParameters: .init())
+        // Transcription-fidelity system context: request verbatim transcription in
+        // the spoken language(s) instead of relying on upstream defaults, which
+        // pass an empty system context and leave the generative decoder free to
+        // translate (e.g. Chinese speech decoded as English).
+        //
+        // `language` intentionally stays nil: forcing one language would pin the
+        // `language X<asr_text>` assistant prefix in buildPromptText and break
+        // mixed-language recognition. nil is the automatic/mixed path.
+        let result = model.generate(
+            audio: audioArray,
+            maxTokens: 8192,
+            temperature: 0.0,
+            context: qwen3ASRTranscriptionFidelityContext,
+            language: nil,
+            chunkDuration: 1200.0,
+            minChunkDuration: 1.0
+        )
 
         logger.info("Qwen3 transcription complete")
         return result.text.trimmingCharacters(in: .whitespacesAndNewlines)

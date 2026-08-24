@@ -50,4 +50,10 @@ actor MockASRProvider: ASRProvider {
     func getTranscribeCalled() -> Bool { transcribeCalled }
     func getUnloadCalled() -> Bool { unloadCalled }
     func getLastTranscribedAudio() -> [Float]? { lastTranscribedAudio }
+
+    /// Actor-isolated setter so tests on the main actor can configure the
+    /// stubbed transcript without crossing actor isolation unsafely.
+    func setTranscribeResult(_ result: String) {
+        transcribeResult = result
+    }
 }
