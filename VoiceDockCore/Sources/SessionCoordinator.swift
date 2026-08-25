@@ -44,8 +44,24 @@ public final class SessionCoordinator: ObservableObject {
     private var lastAppliedCorrections: [AppliedCorrection] = []
 
     private var modelLoadTask: Task<Void, Never>?
-    private var initialState: State = .starting
-    private var correctionInitialized: Bool = false
+
+    // 0.3.1 lifecycle authority. One monotonic generation per coordinator.
+    // An async workflow captures the generation current at spawn; once that
+    // value is superseded (cleanup/retry), every authority checkpoint rejects
+    // it, so a retired continuation can neither mutate workflow state nor
+    // invoke transcript delivery — even when the underlying model computation
+    // itself is not cooperatively cancellable.
+    private var generation: Int = 0
+
+    /// Explicitly owned transcription/delivery workflow task. At most one is
+    /// authoritative at a time; cleanup() and retry() cancel it.
+    private var transcriptionTask: Task<Void, Never>?
+
+    /// Injectable delivery hook for deterministic stale-delivery tests.
+    /// Production uses the injected `transcriptDestination` unchanged; tests
+    /// may supply a recording destination through the existing initializer,
+    /// so this stays nil in production paths.
+    var deliverHook: ((String) -> Void)?
 
     // Dependency injection for testing
     public init(audioCapture: AudioCaptureProtocol? = nil,
@@ -59,21 +75,34 @@ public final class SessionCoordinator: ObservableObject {
         // Use Task.detached to ensure model loading runs independently of MainActor
         // Model loading is heavy (CPU/IO) and should not block the UI
         writeInitDiagnostic("SessionCoordinator_init_enter")
+        let capturedGeneration = generation
         modelLoadTask = Task.detached { [weak self] in
-            await self?.initialize()
+            await self?.initialize(generation: capturedGeneration)
         }
         writeInitDiagnostic("SessionCoordinator_init_exit_task_created")
     }
 
-    private func initialize() async {
+    /// Authority checkpoint: true only if `generation` is still the current
+    /// authoritative generation for this coordinator.
+    private func isAuthoritative(_ generation: Int) -> Bool {
+        return generation == self.generation
+    }
+
+    private func initialize(generation: Int) async {
         writeInitDiagnostic("initialize_enter")
         logger.info("Initializing coordinator...")
         writeInitDiagnostic("asrProvider_is_nil=\(asrProvider == nil ? "true" : "false")")
         do {
+            // 0.3.1: authority check before entering .loadingModel
+            guard isAuthoritative(generation) else {
+                writeInitDiagnostic("initialize_stale_before_loadingModel")
+                return
+            }
             if asrProvider != nil {
                 // Hop to MainActor for state update
                 writeInitDiagnostic("state_will_set_to_loadingModel")
                 await MainActor.run {
+                    guard self.isAuthoritative(generation) else { return }
                     self.state = .loadingModel
                 }
                 writeInitDiagnostic("state_did_set_to_loadingModel")
@@ -120,7 +149,8 @@ public final class SessionCoordinator: ObservableObject {
 
             // Hop to MainActor for state updates
             writeInitDiagnostic("state_will_set_to_ready")
-            await MainActor.run {
+            await MainActor.run { [weak self] in
+                guard let self, self.isAuthoritative(generation) else { return }
                 self.state = .ready
                 self.ready = true
             }
@@ -129,8 +159,10 @@ public final class SessionCoordinator: ObservableObject {
         } catch {
             let message = "Failed to initialize: \(error.localizedDescription)"
             writeInitDiagnostic("initialize_error:\(message)")
-            // Hop to MainActor for state update
-            await MainActor.run {
+            // 0.3.1: a retired initialization finishing with an error is not a
+            // new failure of the live generation — publish nothing.
+            await MainActor.run { [weak self] in
+                guard let self, self.isAuthoritative(generation) else { return }
                 self.state = .failed(message)
             }
             logger.error("\(message, privacy: .public)")
@@ -160,7 +192,8 @@ public final class SessionCoordinator: ObservableObject {
                     // Exponential backoff: 2s, 4s, 8s...
                     let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
                     logger.info("Retrying in \(delay / 1_000_000_000) seconds...")
-                    try? await Task.sleep(nanoseconds: delay)
+                    // Cancellation-aware sleep inside an owned workflow.
+                    try await Task.sleep(nanoseconds: delay)
                 }
             }
         }
@@ -170,13 +203,17 @@ public final class SessionCoordinator: ObservableObject {
         throw lastError ?? VoiceDockError.modelLoadFailed(underlying: nil)
     }
 
-    /// Try to start recording. Returns true if recording started, false if rejected (not ready or failed).
+    /// Try to start recording. Returns true if recording started, false if rejected (not ready).
+    ///
+    /// 0.3.1: only `.ready` accepts a new recording. `.idle` means the
+    /// workflow has been torn down (cleanup/quit); it must not mean
+    /// ready-to-record while provider teardown semantics are unresolved.
     /// - Returns: Bool indicating whether recording was accepted
     @discardableResult
     public func startRecording() -> Bool {
         logger.info("startRecording called, state=\(String(describing: self.state))")
         writeRuntimeDiagnostic("COORDINATOR_START_ENTER")
-        guard state == .ready || state == .idle else {
+        guard state == .ready else {
             logger.warning("Not in ready state; ignoring")
             writeRuntimeDiagnostic("COORDINATOR_START_IGNORED")
             return false
@@ -211,20 +248,30 @@ public final class SessionCoordinator: ObservableObject {
         writeRuntimeDiagnostic("AUDIO_STOP_ENTER")
         let samples = audioCapture?.stop() ?? []
         writeRuntimeDiagnostic("CAPTURED_SAMPLE_COUNT=\(samples.count)")
+        // 0.3.1: bind the captured samples immutably to this one workflow.
+        // Every retry attempt below sees exactly this snapshot; no later
+        // recording or coordinator mutation can alter it.
         audioBuffer = samples
         writeRuntimeDiagnostic("AUDIO_STOP_EXIT")
         writeRuntimeDiagnostic("COORDINATOR_STOP_AUDIO_RETURNED")
         writeRuntimeDiagnostic("TRANSCRIBE_SCHEDULED")
-        Task { [weak self] in
-            await self?.transcribe()
+        let capturedGeneration = generation
+        transcriptionTask?.cancel()
+        transcriptionTask = Task { [weak self] in
+            await self?.transcribe(audio: samples, generation: capturedGeneration)
         }
         writeRuntimeDiagnostic("COORDINATOR_STOP_EXIT")
     }
 
-    private func transcribe() async {
-        logger.info("Transcribing, \(self.audioBuffer.count) samples")
+    private func transcribe(audio: [Float], generation: Int) async {
+        // 0.3.1: authority check before entering .transcribing
+        guard isAuthoritative(generation) else {
+            logger.info("Stale transcription workflow retired before transcribing")
+            return
+        }
+        logger.info("Transcribing, \(audio.count) samples")
         state = .transcribing
-        guard !audioBuffer.isEmpty else {
+        guard !audio.isEmpty else {
             logger.info("Empty recording; returning to ready")
             state = .ready
             return
@@ -232,14 +279,24 @@ public final class SessionCoordinator: ObservableObject {
 
         // P2-4 Fix: Retry transcription on transient errors
         do {
-            let rawResult = try await transcribeWithRetry()
+            let rawResult = try await transcribeWithRetry(audio: audio)
 
             // Apply transcript correction
             let correctionResult = await applyCorrection(rawTranscript: rawResult)
 
-            await deliver(rawTranscript: correctionResult.rawTranscript, correctedTranscript: correctionResult.correctedTranscript)
+            await deliver(rawTranscript: correctionResult.rawTranscript, correctedTranscript: correctionResult.correctedTranscript, generation: generation)
+        } catch is CancellationError {
+            // Owned workflow was cancelled by cleanup/supersession. The
+            // generation guard has already revoked its authority; retire
+            // silently without publishing failure.
+            logger.info("Transcription workflow cancelled; retiring silently")
         } catch {
             let message = "Transcription failed: \(error.localizedDescription)"
+            // 0.3.1: a retired workflow's error is not a live failure.
+            guard isAuthoritative(generation) else {
+                logger.info("Stale transcription workflow failed after retirement; not publishing failure")
+                return
+            }
             state = .failed(message)
             logger.error("\(message, privacy: .public)")
         }
@@ -286,7 +343,9 @@ public final class SessionCoordinator: ObservableObject {
     }
 
     // P2-4 Fix: Retry logic for transcription with exponential backoff
-    private func transcribeWithRetry() async throws -> String {
+    // Every attempt operates on the same immutable `audio` snapshot bound at
+    // stopRecording() — never on mutable shared coordinator storage.
+    private func transcribeWithRetry(audio: [Float]) async throws -> String {
         let maxRetries = 2
         var lastError: Error?
         let transcribeStart = Date()
@@ -294,17 +353,20 @@ public final class SessionCoordinator: ObservableObject {
         for attempt in 1...maxRetries {
             do {
                 let resultStart = Date()
-                let result = try await asrProvider?.transcribe(audio: audioBuffer) ?? ""
+                let result = try await asrProvider?.transcribe(audio: audio) ?? ""
                 let transcribeDuration = Date().timeIntervalSince(resultStart)
                 logger.info("Transcription completed in \(String(format: "%.3f", transcribeDuration))s")
                 return result
+            } catch is CancellationError {
+                throw CancellationError()
             } catch {
                 lastError = error
                 logger.warning("Transcription attempt \(attempt) failed: \(error.localizedDescription)")
 
                 if attempt < maxRetries {
                     let delay = UInt64(pow(2.0, Double(attempt))) * 1_000_000_000
-                    try? await Task.sleep(nanoseconds: delay)
+                    // Cancellation-aware sleep inside an owned workflow.
+                    try await Task.sleep(nanoseconds: delay)
                 }
             }
         }
@@ -314,7 +376,13 @@ public final class SessionCoordinator: ObservableObject {
         throw lastError ?? VoiceDockError.transcriptionFailed(underlying: nil)
     }
 
-    private func deliver(rawTranscript: String, correctedTranscript: String) async {
+    private func deliver(rawTranscript: String, correctedTranscript: String, generation: Int) async {
+        // 0.3.1: authority check immediately before entering .delivering and
+        // before any external side effect (clipboard / Cmd-V / Return).
+        guard isAuthoritative(generation) else {
+            logger.info("Stale delivery retired before delivering")
+            return
+        }
         state = .delivering
         let deliverStart = Date()
 
@@ -326,6 +394,13 @@ public final class SessionCoordinator: ObservableObject {
         let textToDeliver = correctedTranscript
 
         if !textToDeliver.isEmpty {
+            // 0.3.1: final authority gate around the external side effect.
+            // Nothing outside this block posts keystrokes, so a retired
+            // generation can never inject stale text into a newly focused app.
+            guard isAuthoritative(generation) else {
+                logger.info("Stale delivery retired before invoking destination")
+                return
+            }
             // Load user preferences and determine delivery policy
             let preferences = TranscriptDeliveryPreferences.load()
             let appProvider = NSWorkspaceFrontmostAppProvider()
@@ -337,15 +412,29 @@ public final class SessionCoordinator: ObservableObject {
 
             // Execute delivery based on decision
             let resultMessage = transcriptDestination?.deliver(text: textToDeliver, decision: decision) ?? "Delivery failed"
+            deliverHook?(textToDeliver)
             let deliverDuration = Date().timeIntervalSince(deliverStart)
             logger.info("deliver: \(resultMessage) (\(String(format: "%.3f", deliverDuration))s)")
 
+            // 0.3.1: publication of the delivered transcript is itself an
+            // authoritative write.
+            guard isAuthoritative(generation) else {
+                logger.info("Stale delivery retired before publishing transcript")
+                return
+            }
             currentTranscript = textToDeliver
         } else {
             logger.warning("No transcript text to deliver")
         }
         // Brief delay so the UI shows the delivering state
+        // Cancellation-aware: a cancelled workflow exits here instead of
+        // falling through to the final state write below.
         try? await Task.sleep(nanoseconds: 200_000_000)
+        // 0.3.1: only the authoritative generation may restore .ready.
+        guard isAuthoritative(generation) else {
+            logger.info("Stale delivery tail retired; not restoring ready")
+            return
+        }
         state = .ready
     }
 
@@ -379,7 +468,17 @@ public final class SessionCoordinator: ObservableObject {
         return preferences.mode == .personalCorrection
     }
 
+    /// 0.3.1: cleanup first revokes the authority of every outstanding
+    /// workflow generation, then cancels owned tasks, then performs the same
+    /// narrow resource teardown as before. Provider unload remains
+    /// fire-and-forget under existing semantics (completion observability is
+    /// a later slice); what changes is that no retired continuation can
+    /// mutate state or invoke delivery after this returns.
     public func cleanup() {
+        generation &+= 1
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
+        modelLoadTask?.cancel()
         audioCapture?.cancel()
         Task {
             await asrProvider?.unload()
@@ -395,12 +494,16 @@ public final class SessionCoordinator: ObservableObject {
 
     public func retry() async {
         await cleanupAndReset()
+        let capturedGeneration = generation
         modelLoadTask = Task { [weak self] in
-            await self?.initialize()
+            await self?.initialize(generation: capturedGeneration)
         }
     }
 
     private func cleanupAndReset() async {
+        generation &+= 1
+        transcriptionTask?.cancel()
+        transcriptionTask = nil
         if let task = modelLoadTask {
             task.cancel()
         }
