@@ -1,6 +1,6 @@
 # VoiceDock Handoff
 
-**Last Updated**: 2026-07-27 — VoiceDock 0.2 RC1 source-sealing pass
+**Last Updated**: 2026-08-24 — VoiceDock 0.2 RC1 RELEASE SEALED
 
 ## Live Status
 
@@ -16,9 +16,13 @@ source of truth for live project state.**
 - Canonical repository:
   `/Users/sagawithme/Documents/Github/portfolio-projects/VoiceDock-Stable-Identity-Accessibility-Fix`
 - Automated engineering gates: complete at seal time.
-- Final owner acceptance: **PENDING** — requires final artifact build and
-  owner physical proof (Quality/Fast models, Accessibility-gated paste,
-  paste/Return behavior).
+- Final owner acceptance: **PASS** — owner verified the installed artifact
+  built from `001135d33119e98a849a55a7d595dc7336eb613b` (Quality/Fast models,
+  Accessibility-gated paste, paste/Return behavior, language fidelity).
+- Release tag: `v0.2.0-rc1` → `001135d33119e98a849a55a7d595dc7336eb613b`.
+- Known non-blocking observation: "VoiceDock" may transcribe as "voice dog"
+  (Quality) or "VoiceDockk" (Fast) — ASR terminology debt, not fixed in
+  0.2 RC1.
 
 ## Historical Context (do not treat as current claims)
 

@@ -1,13 +1,20 @@
 # VoiceDock Current Execution State
 
-**Last Updated**: 2026-07-27 — VoiceDock 0.2 RC1 source-sealing pass
+**Last Updated**: 2026-08-24 — VoiceDock 0.2 RC1 RELEASE SEALED
 
 ## Status
 
 ```text
-AUTOMATED ENGINEERING GATES COMPLETE
-FINAL OWNER ACCEPTANCE PENDING
+VOICEDOCK 0.2 RC1 OWNER ACCEPTED — RELEASE SEALED
+Release tag: v0.2.0-rc1 (annotated)
+Artifact source commit: 001135d33119e98a849a55a7d595dc7336eb613b
+Final provenance: BUILT ↔ INSTALLED = PROVEN MATCH
+Owner acceptance: PASS
 ```
+
+Known non-blocking observation (recorded as ASR terminology debt, not fixed in
+0.2 RC1): "VoiceDock" may transcribe as "voice dog" on Quality and as
+"VoiceDockk" on Fast. Language fidelity and workflow are unaffected.
 
 (This document is the single operational source of truth for live project
 status. `.loop/HANDOFF.md` points here and does not maintain an independent
@@ -20,8 +27,14 @@ status.)
 - **Canonical source status**: clean release-sealing branch (`fix/stable-identity-accessibility`)
 - **Baseline HEAD at seal start**: `61eea56ffbdd1a82331c4219cbb1ee2b319c02ec`
 - The sealing commit itself is not recorded here until it exists.
-- **Owner acceptance**: PENDING
-- **Next milestone**: final artifact build → owner Quality/Fast/Accessibility/paste proof
+- **Artifact source commit (tagged `v0.2.0-rc1`)**:
+  `001135d33119e98a849a55a7d595dc7336eb613b`
+- **Owner acceptance**: PASS (owner physically verified the installed artifact
+  built from the artifact source commit: Ready state, Quality/Fast model
+  switching via Apply & Restart, Accessibility-gated paste, automatic paste,
+  no unintended Return, English/Mandarin/mixed language fidelity)
+- **Next milestone**: post-release (ASR terminology debt is known and
+  non-blocking; see Status above)
 
 The checkout at `/Users/sagawithme/Documents/Github/portfolio-projects/VoiceDock`
 is legacy/superseded for VoiceDock 0.2. Do not merge, cherry-pick, rebase, or
@@ -95,13 +108,16 @@ Current automated-gate results are produced by running the gates; see the
 release-sealing evidence in this repository's git history for the seal-pass
 record.
 
-## Owner Acceptance (PENDING)
+## Owner Acceptance (COMPLETE — PASS)
 
-Final owner acceptance for 0.2 RC1 still requires:
+Final owner acceptance was performed on the installed artifact built from the
+tagged artifact source commit `001135d33119e98a849a55a7d595dc7336eb613b`:
 
-1. Final artifact build from the sealed source HEAD
+1. Final artifact build from the sealed source HEAD — done
 2. Owner physical proof: Quality model, Fast model, Accessibility-gated paste,
-   paste/Return behavior
-3. Explicit owner sign-off
+   paste/Return behavior, language fidelity — done
+3. Explicit owner sign-off — given
 
-Do not mark final acceptance complete until all three are recorded.
+Release tag: `v0.2.0-rc1` → target `001135d33119e98a849a55a7d595dc7336eb613b`.
+Known non-blocking ASR terminology observation ("voice dog" / "VoiceDockk")
+is recorded above and is explicitly not fixed in 0.2 RC1.
