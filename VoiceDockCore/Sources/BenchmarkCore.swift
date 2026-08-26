@@ -74,6 +74,16 @@ public enum BenchmarkPaths {
             .appendingPathComponent("\(modelID).json", isDirectory: false)
             .path
     }
+
+    /// Optional JSONL output path for per-result streaming.
+    /// Controlled by VOICEDOCK_BENCHMARK_JSONL_OUTPUT environment variable.
+    /// If set, each BenchmarkResult is written as one JSON line during the run.
+    public static func jsonlOutputPath(for modelID: String) throws -> String? {
+        if let jsonlEnv = ProcessInfo.processInfo.environment["VOICEDOCK_BENCHMARK_JSONL_OUTPUT"] {
+            return NSString(string: jsonlEnv).expandingTildeInPath
+        }
+        return nil
+    }
 }
 
 // MARK: - Benchmark Result Types
@@ -93,9 +103,18 @@ public struct BenchmarkResult: Codable {
     public let peakMemory: Int64?
     public let transcript: String
     public let normalizedCharacterErrorRate: Double?
+    /// Word Error Rate - only for pure English cases (expectedScriptRuns == ["en"])
+    /// Per 0.3.4a §7: nil for mixed/Chinese cases
+    public let wordErrorRate: Double?
     public let keywordRecall: Double?
     public let criticalTokenRecall: Double?
     public let negationPreserved: Bool?
+    /// Expected script-run sequence from manifest (e.g. ["zh","en","zh"])
+    public let expectedScriptRuns: [String]
+    /// Observed script-run sequence from transcript
+    public let observedScriptRuns: [String]
+    /// Language fidelity: true iff observed exactly matches expected
+    public let languageFidelity: Bool
     public let timestamp: String
 
     public init(
@@ -113,9 +132,13 @@ public struct BenchmarkResult: Codable {
         peakMemory: Int64?,
         transcript: String,
         normalizedCharacterErrorRate: Double?,
+        wordErrorRate: Double?,
         keywordRecall: Double?,
         criticalTokenRecall: Double?,
         negationPreserved: Bool?,
+        expectedScriptRuns: [String],
+        observedScriptRuns: [String],
+        languageFidelity: Bool,
         timestamp: String
     ) {
         self.modelIdentifier = modelIdentifier
@@ -132,9 +155,13 @@ public struct BenchmarkResult: Codable {
         self.peakMemory = peakMemory
         self.transcript = transcript
         self.normalizedCharacterErrorRate = normalizedCharacterErrorRate
+        self.wordErrorRate = wordErrorRate
         self.keywordRecall = keywordRecall
         self.criticalTokenRecall = criticalTokenRecall
         self.negationPreserved = negationPreserved
+        self.expectedScriptRuns = expectedScriptRuns
+        self.observedScriptRuns = observedScriptRuns
+        self.languageFidelity = languageFidelity
         self.timestamp = timestamp
     }
 }
@@ -206,16 +233,149 @@ public struct BenchmarkManifest: Codable {
     }
 }
 
+/// One evaluation case.
+///
+/// 0.3.4a: the corpus-V0 schema (`case_id` / `reference_transcript` /
+/// `audio_file` / `expected_script_runs` / `critical_tokens` /
+/// `negation_present` / `numeric_present` / `category`) is decoded alongside
+/// the legacy smoke-manifest schema (`id` / `reference` / `keywords` /
+/// `criticalTokens` / `name` / `language`). Both shapes decode into this one
+/// type, so the existing smoke manifest keeps working unchanged.
 public struct Fixture: Codable {
+    /// Stable case identifier. Decoded from `case_id`, falling back to `id`.
     public let id: String
+    /// Human-readable name. Defaults to `id` when absent.
     public let name: String
+    /// Legacy free-form language tag ("en"/"zh"/"mixed"). Defaults to "".
     public let language: String
+    /// Reference transcript. Decoded from `reference_transcript`, falling back
+    /// to `reference`.
     public let reference: String
+    /// Legacy soft keyword list (substring recall). Defaults to [].
     public let keywords: [String]
+    /// Tokens whose exact preservation is scored. Decoded from
+    /// `critical_tokens`, falling back to `criticalTokens`. Defaults to [].
     public let criticalTokens: [String]
+    /// Relative WAV filename inside the fixtures directory. Defaults to
+    /// "<id>.wav" so the legacy smoke manifest resolves as before.
+    public let audioFile: String
+    /// Expected script-run sequence (e.g. ["zh","en","zh"]). Empty means the
+    /// case does not participate in script-run fidelity scoring.
+    public let expectedScriptRuns: [String]
+    /// True when the reference contains a negation that must survive.
+    public let negationPresent: Bool
+    /// True when the reference contains numerics that must survive.
+    public let numericPresent: Bool
+    /// Coarse corpus category. Defaults to "".
+    public let category: String
+
+    /// True only for cases whose expected script-run sequence is exactly
+    /// `["en"]`. WER is reported for these cases and nowhere else (0.3.4a §7).
+    public var isPureEnglish: Bool {
+        expectedScriptRuns == ["en"]
+    }
+
+    public init(
+        id: String,
+        name: String = "",
+        language: String = "",
+        reference: String,
+        keywords: [String] = [],
+        criticalTokens: [String] = [],
+        audioFile: String? = nil,
+        expectedScriptRuns: [String] = [],
+        negationPresent: Bool = false,
+        numericPresent: Bool = false,
+        category: String = ""
+    ) {
+        self.id = id
+        self.name = name.isEmpty ? id : name
+        self.language = language
+        self.reference = reference
+        self.keywords = keywords
+        self.criticalTokens = criticalTokens
+        self.audioFile = audioFile ?? "\(id).wav"
+        self.expectedScriptRuns = expectedScriptRuns
+        self.negationPresent = negationPresent
+        self.numericPresent = numericPresent
+        self.category = category
+    }
 
     enum CodingKeys: String, CodingKey {
-        case id, name, language, reference, keywords, criticalTokens
+        // corpus-V0 keys
+        case caseID = "case_id"
+        case referenceTranscript = "reference_transcript"
+        case audioFileKey = "audio_file"
+        case expectedScriptRunsKey = "expected_script_runs"
+        case criticalTokensSnake = "critical_tokens"
+        case negationPresentKey = "negation_present"
+        case numericPresentKey = "numeric_present"
+        case category
+        // legacy smoke-manifest keys
+        case id, name, language, reference, keywords
+        case criticalTokensCamel = "criticalTokens"
+    }
+
+    public init(from decoder: Decoder) throws {
+        let c = try decoder.container(keyedBy: CodingKeys.self)
+
+        // Identifier: case_id (V0) or id (legacy). One must be present.
+        if let caseID = try c.decodeIfPresent(String.self, forKey: .caseID) {
+            self.id = caseID
+        } else if let legacyID = try c.decodeIfPresent(String.self, forKey: .id) {
+            self.id = legacyID
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.caseID, DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "Fixture requires either \"case_id\" or \"id\""
+            ))
+        }
+
+        // Reference: reference_transcript (V0) or reference (legacy).
+        if let ref = try c.decodeIfPresent(String.self, forKey: .referenceTranscript) {
+            self.reference = ref
+        } else if let legacyRef = try c.decodeIfPresent(String.self, forKey: .reference) {
+            self.reference = legacyRef
+        } else {
+            throw DecodingError.keyNotFound(CodingKeys.referenceTranscript, DecodingError.Context(
+                codingPath: decoder.codingPath,
+                debugDescription: "Fixture requires either \"reference_transcript\" or \"reference\""
+            ))
+        }
+
+        let decodedName = try c.decodeIfPresent(String.self, forKey: .name) ?? ""
+        self.name = decodedName.isEmpty ? self.id : decodedName
+        self.language = try c.decodeIfPresent(String.self, forKey: .language) ?? ""
+        self.keywords = try c.decodeIfPresent([String].self, forKey: .keywords) ?? []
+        self.criticalTokens =
+            try c.decodeIfPresent([String].self, forKey: .criticalTokensSnake)
+            ?? c.decodeIfPresent([String].self, forKey: .criticalTokensCamel)
+            ?? []
+        self.audioFile =
+            try c.decodeIfPresent(String.self, forKey: .audioFileKey)
+            ?? "\(self.id).wav"
+        self.expectedScriptRuns =
+            try c.decodeIfPresent([String].self, forKey: .expectedScriptRunsKey) ?? []
+        self.negationPresent =
+            try c.decodeIfPresent(Bool.self, forKey: .negationPresentKey) ?? false
+        self.numericPresent =
+            try c.decodeIfPresent(Bool.self, forKey: .numericPresentKey) ?? false
+        self.category = try c.decodeIfPresent(String.self, forKey: .category) ?? ""
+    }
+
+    /// Encodes the corpus-V0 shape (round-trips through `init(from:)`).
+    public func encode(to encoder: Encoder) throws {
+        var c = encoder.container(keyedBy: CodingKeys.self)
+        try c.encode(id, forKey: .caseID)
+        try c.encode(category, forKey: .category)
+        try c.encode(reference, forKey: .referenceTranscript)
+        try c.encode(audioFile, forKey: .audioFileKey)
+        try c.encode(expectedScriptRuns, forKey: .expectedScriptRunsKey)
+        try c.encode(criticalTokens, forKey: .criticalTokensSnake)
+        try c.encode(negationPresent, forKey: .negationPresentKey)
+        try c.encode(numericPresent, forKey: .numericPresentKey)
+        if !keywords.isEmpty { try c.encode(keywords, forKey: .keywords) }
+        if !language.isEmpty { try c.encode(language, forKey: .language) }
     }
 }
 
@@ -277,6 +437,105 @@ public func calculateCharacterErrorRate(_ reference: String, _ hypothesis: Strin
 
     let distance = matrix[rows-1][cols-1]
     return refChars.isEmpty ? 0 : Double(distance) / Double(refChars.count)
+}
+
+/// Normalize text for WER calculation per 0.3.4a §7:
+/// - Lowercase
+/// - Remove punctuation (keep apostrophes as word-internal)
+/// - Collapse multiple whitespace to single space
+/// - Trim
+private func normalizeForWER(_ text: String) -> [String] {
+    var result = text.lowercased()
+    // Keep apostrophes within words, remove other punctuation
+    let punctuationToRemove = CharacterSet.punctuationCharacters.subtracting(CharacterSet(charactersIn: "'"))
+    result = result.unicodeScalars.map { punctuationToRemove.contains($0) ? " " : String($0) }.joined()
+    // Collapse whitespace
+    result = result.replacingOccurrences(of: #"\s+"#, with: " ", options: .regularExpression)
+    result = result.trimmingCharacters(in: .whitespacesAndNewlines)
+    return result.isEmpty ? [] : result.split(separator: " ").map(String.init)
+}
+
+/// Calculate Word Error Rate (WER) using word-level Levenshtein distance.
+/// Per 0.3.4a §7: WER applies ONLY to pure-English cases (expectedScriptRuns == ["en"]).
+/// Returns nil for non-pure-English cases.
+public func calculateWordErrorRate(_ reference: String, _ hypothesis: String, isPureEnglish: Bool) -> Double? {
+    guard isPureEnglish else { return nil }
+
+    let refWords = normalizeForWER(reference)
+    let hypWords = normalizeForWER(hypothesis)
+
+    if refWords.isEmpty && hypWords.isEmpty { return 0 }
+    if refWords.isEmpty { return 1.0 }
+
+    let rows = refWords.count + 1
+    let cols = hypWords.count + 1
+
+    var matrix = Array(repeating: Array(repeating: 0, count: cols), count: rows)
+
+    for i in 0..<rows { matrix[i][0] = i }
+    for j in 0..<cols { matrix[0][j] = j }
+
+    for i in 1..<rows {
+        for j in 1..<cols {
+            let cost = (refWords[i-1] == hypWords[j-1]) ? 0 : 1
+            matrix[i][j] = min(
+                matrix[i-1][j] + 1,      // deletion
+                matrix[i][j-1] + 1,      // insertion
+                matrix[i-1][j-1] + cost  // substitution
+            )
+        }
+    }
+
+    let distance = matrix[rows-1][cols-1]
+    return Double(distance) / Double(refWords.count)
+}
+
+/// Script classification per 0.3.4a §8:
+/// - Han characters (CJK Unified Ideographs) => "zh"
+/// - Latin alphabetic characters => "en"
+/// - Numbers, punctuation, whitespace => neutral (ignored)
+/// Collapse adjacent identical classes.
+public func extractScriptRuns(_ text: String) -> [String] {
+    var runs: [String] = []
+
+    for scalar in text.unicodeScalars {
+        let script: String?
+        if scalar.properties.isAlphabetic {
+            // Check if Latin script
+            if (0x0041...0x007A).contains(scalar.value) || // A-Z, a-z
+               (0x00C0...0x024F).contains(scalar.value) || // Latin-1 Supplement, Latin Extended-A/B
+               (0x1E00...0x1EFF).contains(scalar.value) {   // Latin Extended Additional
+                script = "en"
+            } else if (0x4E00...0x9FFF).contains(scalar.value) || // CJK Unified Ideographs
+                      (0x3400...0x4DBF).contains(scalar.value) || // CJK Extension A
+                      (0x20000...0x2A6DF).contains(scalar.value) || // CJK Extension B
+                      (0x2A700...0x2B73F).contains(scalar.value) || // CJK Extension C
+                      (0x2B740...0x2B81F).contains(scalar.value) || // CJK Extension D
+                      (0x2B820...0x2CEAF).contains(scalar.value) || // CJK Extension E
+                      (0x2CEB0...0x2EBEF).contains(scalar.value) || // CJK Extension F
+                      (0x3000...0x303F).contains(scalar.value) || // CJK Symbols and Punctuation (treat as zh context)
+                      (0xFF00...0xFFEF).contains(scalar.value) {   // Halfwidth and Fullwidth Forms
+                script = "zh"
+            } else {
+                script = nil // Other alphabets -> neutral
+            }
+        } else {
+            script = nil // Numbers, punctuation, whitespace -> neutral
+        }
+
+        if let script = script {
+            if runs.last != script {
+                runs.append(script)
+            }
+        }
+    }
+
+    return runs
+}
+
+/// Calculate language fidelity: true iff observed script runs exactly match expected.
+public func calculateLanguageFidelity(expected: [String], observed: [String]) -> Bool {
+    return expected == observed
 }
 
 public func calculateKeywordRecall(reference: String, hypothesis: String, keywords: [String]) -> Double {
@@ -501,6 +760,20 @@ public struct BenchmarkCore {
         var results: [BenchmarkResult] = []
         let memoryBefore = getProcessMemory()
 
+        // Open JSONL output if requested
+        let jsonlPath = try BenchmarkPaths.jsonlOutputPath(for: modelID)
+        var jsonlHandle: FileHandle?
+        if let jsonlPath = jsonlPath {
+            let jsonlURL = URL(fileURLWithPath: jsonlPath)
+            try FileManager.default.createDirectory(at: jsonlURL.deletingLastPathComponent(), withIntermediateDirectories: true)
+            if !FileManager.default.fileExists(atPath: jsonlPath) {
+                FileManager.default.createFile(atPath: jsonlPath, contents: nil)
+            }
+            jsonlHandle = try FileHandle(forWritingTo: jsonlURL)
+            try jsonlHandle?.seekToEnd()
+            print("📝 JSONL streaming enabled: \(jsonlPath)")
+        }
+
         // Load model
         print("\n📥 Loading model...")
         let loadStart = Date()
@@ -527,8 +800,8 @@ public struct BenchmarkCore {
         for fixture in manifest.fixtures {
             print("\nFixture: \(fixture.name)")
 
-            // Check for WAV file
-            let wavPath = fixturesDir.appendingPathComponent("\(fixture.id).wav")
+            // Check for WAV file (resolution honors the manifest's audio_file field)
+            let wavPath = fixturesDir.appendingPathComponent(fixture.audioFile)
             if !FileManager.default.fileExists(atPath: wavPath.path) {
                 print("⚠️  WAV file not found: \(wavPath.path)")
                 print("   Skipping - owner needs to record this fixture")
@@ -574,12 +847,19 @@ public struct BenchmarkCore {
             let audioDuration = Double(audioSamples.count) / 16_000
             let realTimeFactor = inferenceTime / audioDuration
             let cer = calculateCharacterErrorRate(fixture.reference, transcript)
+            let wer = calculateWordErrorRate(fixture.reference, transcript, isPureEnglish: fixture.isPureEnglish)
             let keywordRecall = calculateKeywordRecall(reference: fixture.reference, hypothesis: transcript, keywords: fixture.keywords)
             let criticalTokenRecall = calculateCriticalTokenRecall(reference: fixture.reference, hypothesis: transcript, criticalTokens: fixture.criticalTokens)
             let negationPreserved = checkNegationPreservation(reference: fixture.reference, hypothesis: transcript)
+            let observedScriptRuns = extractScriptRuns(transcript)
+            let languageFidelity = calculateLanguageFidelity(expected: fixture.expectedScriptRuns, observed: observedScriptRuns)
 
             print("   CER: \(String(format: "%.2f", cer * 100))%, Keyword Recall: \(String(format: "%.2f", keywordRecall * 100))%")
             print("   Critical Token Recall: \(String(format: "%.2f", criticalTokenRecall * 100))%, Negation Preserved: \(negationPreserved)")
+            if let wer = wer {
+                print("   WER: \(String(format: "%.2f", wer * 100))%")
+            }
+            print("   Expected Script Runs: \(fixture.expectedScriptRuns), Observed: \(observedScriptRuns), Fidelity: \(languageFidelity)")
 
             let result = BenchmarkResult(
                 modelIdentifier: modelID,
@@ -596,13 +876,29 @@ public struct BenchmarkCore {
                 peakMemory: nil,
                 transcript: transcript,
                 normalizedCharacterErrorRate: cer,
+                wordErrorRate: wer,
                 keywordRecall: keywordRecall,
                 criticalTokenRecall: criticalTokenRecall,
                 negationPreserved: negationPreserved,
+                expectedScriptRuns: fixture.expectedScriptRuns,
+                observedScriptRuns: observedScriptRuns,
+                languageFidelity: languageFidelity,
                 timestamp: ISO8601DateFormatter().string(from: Date())
             )
             results.append(result)
+
+            // Write JSONL line if enabled
+            if let jsonlHandle = jsonlHandle {
+                let jsonlEncoder = JSONEncoder()
+                jsonlEncoder.outputFormatting = [.sortedKeys]
+                let jsonlData = try jsonlEncoder.encode(result)
+                try jsonlHandle.write(contentsOf: jsonlData)
+                try jsonlHandle.write(contentsOf: "\n".data(using: .utf8)!)
+            }
         }
+
+        // Close JSONL handle
+        try jsonlHandle?.close()
 
         let totalRunTime = Date().timeIntervalSince(runStart)
 

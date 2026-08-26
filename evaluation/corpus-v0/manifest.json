@@ -1,0 +1,137 @@
+{
+  "version": "0.3.4a",
+  "description": "VoiceDock raw-ASR evaluation corpus V0 — 12 fixed cases. Audio is owner-recorded and NEVER committed; record into the fixtures directory passed via --fixtures (default: ~/Library/Application Support/VoiceDock/Evaluation/corpus-v0).",
+  "fixtures": [
+    {
+      "case_id": "V0-01",
+      "category": "pure-en",
+      "reference_transcript": "I am testing VoiceDock speech recognition in English.",
+      "audio_file": "V0-01.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": ["VoiceDock"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-02",
+      "category": "pure-en",
+      "reference_transcript": "Reinforcement learning requires careful optimization.",
+      "audio_file": "V0-02.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": ["reinforcement learning", "optimization"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-03",
+      "category": "pure-zh",
+      "reference_transcript": "我今天正在测试中文语音识别，希望系统保持我说话时使用的原始语言。",
+      "audio_file": "V0-03.wav",
+      "expected_script_runs": ["zh"],
+      "critical_tokens": [],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-04",
+      "category": "pure-zh",
+      "reference_transcript": "请不要翻译我的话，保持原样输出。",
+      "audio_file": "V0-04.wav",
+      "expected_script_runs": ["zh"],
+      "critical_tokens": [],
+      "negation_present": true,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-05",
+      "category": "mixed-zh-en",
+      "reference_transcript": "我现在测试 VoiceDock and replay buffer.",
+      "audio_file": "V0-05.wav",
+      "expected_script_runs": ["zh", "en"],
+      "critical_tokens": ["VoiceDock", "replay buffer"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-06",
+      "category": "mixed-en-zh",
+      "reference_transcript": "Today I am testing VoiceDock 的中文语音识别。",
+      "audio_file": "V0-06.wav",
+      "expected_script_runs": ["en", "zh"],
+      "critical_tokens": ["VoiceDock"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-07",
+      "category": "mixed-zh-en-zh",
+      "reference_transcript": "这个 actor critic 算法在模拟中表现很好。",
+      "audio_file": "V0-07.wav",
+      "expected_script_runs": ["zh", "en", "zh"],
+      "critical_tokens": ["actor critic"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-08",
+      "category": "mixed-en-zh-en",
+      "reference_transcript": "PPO is a popular 强化学习 algorithm.",
+      "audio_file": "V0-08.wav",
+      "expected_script_runs": ["en", "zh", "en"],
+      "critical_tokens": ["PPO"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-09",
+      "category": "pure-en",
+      "reference_transcript": "VoiceDock uses Qwen3 ASR for speech recognition.",
+      "audio_file": "V0-09.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": ["VoiceDock", "Qwen3"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-10",
+      "category": "technical-en",
+      "reference_transcript": "PPO, replay buffer, actor critic, and simulation are common reinforcement learning terms.",
+      "audio_file": "V0-10.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": ["PPO", "replay buffer", "actor critic", "simulation"],
+      "negation_present": false,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-11",
+      "category": "negation-en",
+      "reference_transcript": "I do not want the model to translate my Chinese into English.",
+      "audio_file": "V0-11.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": [],
+      "negation_present": true,
+      "numeric_present": false
+    },
+    {
+      "case_id": "V0-12",
+      "category": "numeric-en",
+      "reference_transcript": "The temperature is negative zero point five and the seed is forty two.",
+      "audio_file": "V0-12.wav",
+      "expected_script_runs": ["en"],
+      "critical_tokens": [],
+      "negation_present": false,
+      "numeric_present": true
+    }
+  ],
+  "scoring": {
+    "normalizedTextAccuracy": 0,
+    "technicalKeywordRecall": 0,
+    "negationNumberLogicalPreservation": 0,
+    "manualSemanticPreservation": 0,
+    "inferenceSpeedRTF": 0,
+    "loadWarmupPerformance": 0,
+    "memoryEfficiency": 0,
+    "total": 0
+  },
+  "hardFailures": []
+}
