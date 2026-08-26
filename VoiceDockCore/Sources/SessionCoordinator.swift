@@ -50,6 +50,13 @@ public final class SessionCoordinator: ObservableObject {
 
     private var modelLoadTask: Task<Void, Never>?
 
+    // 0.3.3 recovery ownership. The 0.3.1 `generation` remains the sole
+    // authority for state writes and external side effects; this metadata
+    // only identifies WHICH lifecycle task owns WHICH generation so a
+    // retired initialization can be drained without ever touching a newer
+    // recovery generation's task (legacy R2/R4 evidence).
+    private var modelLoadTaskGeneration: Int = 0
+
     // 0.3.1 lifecycle authority. One monotonic generation per coordinator.
     // An async workflow captures the generation current at spawn; once that
     // value is superseded (cleanup/retry), every authority checkpoint rejects
@@ -66,6 +73,14 @@ public final class SessionCoordinator: ObservableObject {
     // cycle; completion is awaited before `.idle` is published, and repeat
     // cleanup calls join the in-flight unload instead of starting a second.
     private var providerUnloadTask: Task<Void, Never>?
+
+    // 0.3.3 recovery window flag. True from the synchronous entry of retry()
+    // until the new lifecycle task is spawned. While a recovery drains the
+    // previous lifecycle task or an in-flight canonical teardown, the
+    // teardown completion may transiently publish `.idle`; this flag keeps
+    // PTT admission closed across that window so recording stays
+    // ready-only-and-not-recovering for the entire recovery.
+    private var isRecovering = false
 
     /// Cleanup-cycle identity. Incremented ONLY when a brand-new unload
     /// begins — never when a duplicate cleanup() call joins an in-flight
@@ -97,6 +112,8 @@ public final class SessionCoordinator: ObservableObject {
         modelLoadTask = Task.detached { [weak self] in
             await self?.initialize(generation: capturedGeneration)
         }
+        // 0.3.3: the initial lifecycle task owns `capturedGeneration`.
+        modelLoadTaskGeneration = capturedGeneration
         writeInitDiagnostic("SessionCoordinator_init_exit_task_created")
     }
 
@@ -195,6 +212,11 @@ public final class SessionCoordinator: ObservableObject {
         let modelLoadStart = Date()
 
         for attempt in 1...maxRetries {
+            // 0.3.3 (legacy R7 backoff): a retired initialization generation
+            // must stop burning retry-backoff time once superseded. Task
+            // cancellation is the retirement signal; generation authority
+            // remains the correctness boundary for any non-cancellable work.
+            try Task.checkCancellation()
             do {
                 logger.info("Loading ASR model (attempt \(attempt)/\(maxRetries))...")
                 let loadStart = Date()
@@ -231,7 +253,10 @@ public final class SessionCoordinator: ObservableObject {
     public func startRecording() -> Bool {
         logger.info("startRecording called, state=\(String(describing: self.state))")
         writeRuntimeDiagnostic("COORDINATOR_START_ENTER")
-        guard state == .ready else {
+        // 0.3.3 (R7): recording is rejected for the entire recovery window,
+        // including while recovery drains a prior lifecycle task or an
+        // in-flight teardown whose completion may transiently publish .idle.
+        guard state == .ready, !isRecovering else {
             logger.warning("Not in ready state; ignoring")
             writeRuntimeDiagnostic("COORDINATOR_START_IGNORED")
             return false
@@ -507,10 +532,14 @@ public final class SessionCoordinator: ObservableObject {
     /// cleanup authority is distinct from the product workflow generation.
     public func cleanup() {
         // Steps 1–2: revoke product-workflow authority and cancel owned tasks.
+        // 0.3.3: also retire the lifecycle task ownership record so a
+        // subsequent recovery never drains this retired task.
         generation &+= 1
         transcriptionTask?.cancel()
         transcriptionTask = nil
         modelLoadTask?.cancel()
+        modelLoadTask = nil
+        modelLoadTaskGeneration = generation
 
         // Step 3: stop audio capture synchronously (existing contract).
         audioCapture?.cancel()
@@ -520,8 +549,9 @@ public final class SessionCoordinator: ObservableObject {
             state = .cleaningUp
             cleanupCycle &+= 1
             let cycle = cleanupCycle
+            let capturedGeneration = generation
             providerUnloadTask = Task { [weak self] in
-                await self?.performProviderUnload(cycle: cycle)
+                await self?.performProviderUnload(cycle: cycle, generation: capturedGeneration)
             }
         } else {
             // Teardown already in flight from an earlier cleanup call:
@@ -535,7 +565,11 @@ public final class SessionCoordinator: ObservableObject {
     /// product-workflow generation bumps. Provider unload is not assumed
     /// cancellable — the task awaits it to natural completion so `.idle`
     /// always means teardown actually done.
-    private func performProviderUnload(cycle: Int) async {
+    ///
+    /// 0.3.3: the completion also suppresses `.idle` while a recovery (R7)
+    /// holds PTT admission closed — the recovery's own `.loadingModel` write
+    /// remains the published state across the drain window.
+    private func performProviderUnload(cycle: Int, generation: Int) async {
         await asrProvider?.unload()
         await MainActor.run { [weak self] in
             guard let self else { return }
@@ -543,6 +577,9 @@ public final class SessionCoordinator: ObservableObject {
             // Cleanup-completion authority: this cycle's teardown owns the
             // terminal write unless a newer cleanup cycle has begun.
             guard cycle == self.cleanupCycle else { return }
+            // 0.3.3: during an active recovery, the recovery owns the visible
+            // state (.loadingModel); do not transiently publish .idle.
+            guard !self.isRecovering else { return }
             self.state = .idle
         }
     }
@@ -562,26 +599,79 @@ public final class SessionCoordinator: ObservableObject {
         cleanup()
     }
 
+    /// 0.3.3 recovery (ported from legacy R1–R8 evidence, adapted to the
+    /// canonical 0.3.1/0.3.2 authority model):
+    ///
+    /// R7/START-ADMISSION: `.loadingModel` is published synchronously,
+    /// before the first await, so PTT admission is closed immediately and
+    /// `startRecording()` is rejected for the entire recovery window.
+    /// Canonical remains ready-only recording; `.idle` never admits.
+    ///
+    /// R4: concurrent retries coalesce. All retries that begin while
+    /// generation G is current share one recovery; only the first to reach
+    /// the spawn point opens G+1. Later arrivals see a superseded entry
+    /// generation and return without draining or superseding the newer task.
+    ///
+    /// R2: the prior lifecycle initialization task is cancelled AND awaited
+    /// before a new initialization generation begins, so an old initialize()
+    /// can never run concurrently with (or after) the recovery one.
+    ///
+    /// R8: if canonical 0.3.2 provider teardown (`providerUnloadTask`) is in
+    /// flight, recovery awaits its completion BEFORE loading — load never
+    /// overlaps unload. When no teardown exists, no forced unload is issued:
+    /// the provider's reload contract permits load-without-unload.
+    ///
+    /// R5/R6: the spawned initialization runs load → warmup → authoritative
+    /// `.ready`, or lands deterministically in `.failed` (from which another
+    /// retry can recover again).
     public func retry() async {
-        await cleanupAndReset()
-        let capturedGeneration = generation
-        modelLoadTask = Task { [weak self] in
-            await self?.initialize(generation: capturedGeneration)
-        }
-    }
+        // R7: pin the non-ready state synchronously, before any await.
+        isRecovering = true
+        state = .loadingModel
+        writeRuntimeDiagnostic("COORDINATOR_RETRY_ENTER")
+        let entryGeneration = generation
 
-    private func cleanupAndReset() async {
-        generation &+= 1
+        // R4: coalescing window — all concurrent retries observe the same
+        // entry generation on the main actor; exactly one performs the work.
+        guard isAuthoritative(entryGeneration) else {
+            writeRuntimeDiagnostic("COORDINATOR_RETRY_COALESCED generation=\(entryGeneration)")
+            return
+        }
+
+        // R2: retire the previous lifecycle task and drain it. The ownership
+        // check means we only ever drain the task of the generation being
+        // retired — a newer recovery's task is never touched.
+        if let task = modelLoadTask, modelLoadTaskGeneration <= entryGeneration {
+            task.cancel()
+            await task.value
+        }
+
+        // R8: never load while a canonical teardown is still in flight.
+        if let unloadTask = providerUnloadTask {
+            _ = await unloadTask.value
+        }
+
+        // No recording may survive into recovery.
+        audioCapture?.cancel()
+        audioBuffer.removeAll()
+
+        // R2/R3: open exactly ONE new authoritative generation owned by the
+        // spawned task. From this point the retired generation cannot publish
+        // .ready/.failed or any success side effect (0.3.1 authority gates).
         transcriptionTask?.cancel()
         transcriptionTask = nil
-        if let task = modelLoadTask {
-            task.cancel()
+        generation &+= 1
+        state = .loadingModel
+
+        let capturedGeneration = generation
+        writeRuntimeDiagnostic("COORDINATOR_RECOVERY_SPAWNED generation=\(capturedGeneration)")
+        modelLoadTask = Task.detached { [weak self] in
+            await self?.initialize(generation: capturedGeneration)
         }
-        if let task = providerUnloadTask {
-            // Observe any in-flight teardown before reinitializing, so retry
-            // never races a previous cleanup's unload.
-            _ = await task.value
-        }
+        modelLoadTaskGeneration = capturedGeneration
+        // Recovery window closes only after the new lifecycle task is
+        // registered; from here the generation gates own correctness.
+        isRecovering = false
     }
 
     private func writeRuntimeDiagnostic(_ message: String) {
