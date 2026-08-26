@@ -25,6 +25,11 @@ public final class SessionCoordinator: ObservableObject {
         case transcribing
         case delivering
         case failed(String)
+        /// Workflow authority has been revoked and provider teardown has
+        /// started but is not yet proven complete. Recording is rejected.
+        case cleaningUp
+        /// Cleanup has completed: workflow authority retired AND the provider
+        /// unload for that cleanup generation finished.
         case idle
     }
 
@@ -56,6 +61,19 @@ public final class SessionCoordinator: ObservableObject {
     /// Explicitly owned transcription/delivery workflow task. At most one is
     /// authoritative at a time; cleanup() and retry() cancel it.
     private var transcriptionTask: Task<Void, Never>?
+
+    // 0.3.2 observable teardown. One owned unload operation per cleanup
+    // cycle; completion is awaited before `.idle` is published, and repeat
+    // cleanup calls join the in-flight unload instead of starting a second.
+    private var providerUnloadTask: Task<Void, Never>?
+
+    /// Cleanup-cycle identity. Incremented ONLY when a brand-new unload
+    /// begins — never when a duplicate cleanup() call joins an in-flight
+    /// teardown — so a joined cleanup cannot invalidate the completion that
+    /// is supposed to publish `.idle`. Deliberately distinct from the
+    /// product-workflow `generation`: cleanup completion has its own
+    /// authority (0.3.2 §11).
+    private var cleanupCycle: Int = 0
 
     /// Injectable delivery hook for deterministic stale-delivery tests.
     /// Production uses the injected `transcriptDestination` unchanged; tests
@@ -205,9 +223,9 @@ public final class SessionCoordinator: ObservableObject {
 
     /// Try to start recording. Returns true if recording started, false if rejected (not ready).
     ///
-    /// 0.3.1: only `.ready` accepts a new recording. `.idle` means the
-    /// workflow has been torn down (cleanup/quit); it must not mean
-    /// ready-to-record while provider teardown semantics are unresolved.
+    /// 0.3.1/0.3.2: only `.ready` accepts a new recording. `.idle` means the
+    /// workflow has been torn down and provider unload has completed; it must
+    /// not mean ready-to-record. `.cleaningUp` means teardown is in flight.
     /// - Returns: Bool indicating whether recording was accepted
     @discardableResult
     public func startRecording() -> Bool {
@@ -468,22 +486,74 @@ public final class SessionCoordinator: ObservableObject {
         return preferences.mode == .personalCorrection
     }
 
-    /// 0.3.1: cleanup first revokes the authority of every outstanding
-    /// workflow generation, then cancels owned tasks, then performs the same
-    /// narrow resource teardown as before. Provider unload remains
-    /// fire-and-forget under existing semantics (completion observability is
-    /// a later slice); what changes is that no retired continuation can
-    /// mutate state or invoke delivery after this returns.
+    /// 0.3.2 cleanup semantics:
+    ///
+    /// 1. Retire the current workflow generation (0.3.1 authority rule).
+    /// 2. Cancel owned initialization/transcription tasks.
+    /// 3. Cancel audio capture.
+    /// 4. Enter `.cleaningUp` (authority revoked; teardown started but not
+    ///    proven complete).
+    /// 5. Begin exactly one provider unload (owned task).
+    /// 6. Only after that unload completes, publish `.idle`.
+    ///
+    /// Idempotence: a second cleanup while teardown is in flight joins the
+    /// existing operation — it does not create a second unload, regress the
+    /// state, or re-enable recording.
+    ///
+    /// The completion closure runs as part of the owned unload task and is
+    /// the only writer of the terminal `.idle`. Because the task captured
+    /// its own cleanup token at creation, later generation bumps (from a
+    /// future re-cleanup cycle) cannot invalidate this completion: the
+    /// cleanup authority is distinct from the product workflow generation.
     public func cleanup() {
+        // Steps 1–2: revoke product-workflow authority and cancel owned tasks.
         generation &+= 1
         transcriptionTask?.cancel()
         transcriptionTask = nil
         modelLoadTask?.cancel()
+
+        // Step 3: stop audio capture synchronously (existing contract).
         audioCapture?.cancel()
-        Task {
-            await asrProvider?.unload()
+
+        // Step 4+5: enter .cleaningUp and start exactly one unload.
+        if providerUnloadTask == nil {
+            state = .cleaningUp
+            cleanupCycle &+= 1
+            let cycle = cleanupCycle
+            providerUnloadTask = Task { [weak self] in
+                await self?.performProviderUnload(cycle: cycle)
+            }
+        } else {
+            // Teardown already in flight from an earlier cleanup call:
+            // observe it without creating duplicate work or regressing state.
+            logger.info("Cleanup already in progress; joining existing teardown")
         }
-        state = .idle
+    }
+
+    /// Owned teardown body. Runs exactly once per cleanup cycle. The cycle
+    /// token gives the cleanup completion its own authority, independent of
+    /// product-workflow generation bumps. Provider unload is not assumed
+    /// cancellable — the task awaits it to natural completion so `.idle`
+    /// always means teardown actually done.
+    private func performProviderUnload(cycle: Int) async {
+        await asrProvider?.unload()
+        await MainActor.run { [weak self] in
+            guard let self else { return }
+            self.providerUnloadTask = nil
+            // Cleanup-completion authority: this cycle's teardown owns the
+            // terminal write unless a newer cleanup cycle has begun.
+            guard cycle == self.cleanupCycle else { return }
+            self.state = .idle
+        }
+    }
+
+    /// 0.3.2 observability seam: completes once the provider teardown for
+    /// the most recent cleanup has finished (state == .idle). Safe to call
+    /// repeatedly and safe when no cleanup has run (returns immediately).
+    public func awaitCleanupCompletion() async {
+        if let task = providerUnloadTask {
+            _ = await task.value
+        }
     }
 
     public func quit() {
@@ -506,6 +576,11 @@ public final class SessionCoordinator: ObservableObject {
         transcriptionTask = nil
         if let task = modelLoadTask {
             task.cancel()
+        }
+        if let task = providerUnloadTask {
+            // Observe any in-flight teardown before reinitializing, so retry
+            // never races a previous cleanup's unload.
+            _ = await task.value
         }
     }
 

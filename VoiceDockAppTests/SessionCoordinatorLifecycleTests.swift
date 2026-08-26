@@ -15,6 +15,20 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
 
     // MARK: - Helpers
 
+    /// Bounded wait for a target lifecycle state.
+    private func waitForState(
+        _ coordinator: SessionCoordinator,
+        target: SessionCoordinator.State,
+        timeoutSeconds: Double = 3.0
+    ) async -> Bool {
+        let deadline = Date().addingTimeInterval(timeoutSeconds)
+        while Date() < deadline {
+            if coordinator.state == target { return true }
+            try? await Task.sleep(nanoseconds: 10_000_000)
+        }
+        return coordinator.state == target
+    }
+
     private func makeAudio() -> [Float] {
         (0..<16000).map { sin(Float($0) / 5.0) * 0.3 }
     }
@@ -78,15 +92,17 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
 
         // Cleanup while the transcription workflow is mid-flight.
         coordinator.cleanup()
-        XCTAssertEqual(coordinator.state, .idle)
+        // 0.3.2: cleanup enters observable teardown, not instant .idle.
+        XCTAssertEqual(coordinator.state, .cleaningUp)
 
         // Release the suspended workflow; it resumes into a stale generation.
         await mockASR.openTranscribeGate()
         try? await Task.sleep(nanoseconds: 400_000_000)
 
-        // Authority invariant: retired continuation may not mutate state,
-        // publish a transcript, or invoke delivery.
-        XCTAssertEqual(coordinator.state, .idle, "State must remain .idle after cleanup")
+        // Complete provider teardown so the cleanup cycle can reach .idle.
+        await mockASR.openUnloadGate()
+        let reachedIdle = await waitForState(coordinator, target: .idle)
+        XCTAssertTrue(reachedIdle, ".idle must follow actual unload completion")
         XCTAssertNil(coordinator.currentTranscript, "Stale generation must not publish transcript")
         XCTAssertEqual(deliveryCount, 0, "Stale generation must perform ZERO deliveries")
     }
@@ -114,10 +130,16 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
         XCTAssertEqual(coordinator.state, .transcribing)
 
         coordinator.cleanup()
-        XCTAssertEqual(coordinator.state, .idle)
+        // 0.3.2: observable teardown state.
+        XCTAssertEqual(coordinator.state, .cleaningUp)
 
         await mockASR.openTranscribeGate()
         try? await Task.sleep(nanoseconds: 500_000_000)
+
+        // Complete provider teardown; then the terminal state must be .idle.
+        await mockASR.openUnloadGate()
+        let reachedIdle = await waitForState(coordinator, target: .idle)
+        XCTAssertTrue(reachedIdle)
 
         // A retired workflow finishing with an error is NOT a new failure.
         XCTAssertEqual(coordinator.state, .idle, "Stale failure must not publish .failed")
@@ -152,10 +174,17 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
 
         // Cleanup, then release so the workflow proceeds as a stale generation.
         coordinator.cleanup()
-        XCTAssertEqual(coordinator.state, .idle)
+        // 0.3.2: observable teardown state.
+        XCTAssertEqual(coordinator.state, .cleaningUp)
 
         await mockASR.openTranscribeGate()
         try? await Task.sleep(nanoseconds: 400_000_000)
+
+        // Complete provider teardown; stale generation must still not deliver
+        // and the terminal state must be .idle (never a revert to .ready).
+        await mockASR.openUnloadGate()
+        let reachedIdle = await waitForState(coordinator, target: .idle)
+        XCTAssertTrue(reachedIdle)
 
         // The deliver-time authority gates must hold: no delivery, no revert to .ready.
         XCTAssertEqual(deliveryCount, 0, "Stale generation must not invoke delivery at deliver boundary")
@@ -214,11 +243,17 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
 
         // Supersede generation A via cleanup.
         coordinator.cleanup()
-        XCTAssertEqual(coordinator.state, .idle)
+        // 0.3.2: observable teardown state.
+        XCTAssertEqual(coordinator.state, .cleaningUp)
 
         // Release the suspended initialization.
         await mockASR.openLoadGate()
         try? await Task.sleep(nanoseconds: 400_000_000)
+
+        // Complete provider teardown; the cleanup completion owns final .idle.
+        await mockASR.openUnloadGate()
+        let reachedIdle = await waitForState(coordinator, target: .idle)
+        XCTAssertTrue(reachedIdle)
 
         // Generation A must establish no authoritative state.
         XCTAssertEqual(coordinator.state, .idle, "Stale initialization must not publish .ready/.failed")
@@ -237,8 +272,10 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
             return XCTFail("Coordinator did not reach .ready")
         }
 
-        // ready → cleanup → idle
+        // ready → cleanup → cleaningUp → idle
         coordinator.cleanup()
+        XCTAssertEqual(coordinator.state, .cleaningUp)
+        await coordinator.awaitCleanupCompletion()
         XCTAssertEqual(coordinator.state, .idle)
 
         // .idle must not accept a new recording.
@@ -291,9 +328,12 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
             coordinator.stopRecording()
             try? await Task.sleep(nanoseconds: 100_000_000)
             coordinator.cleanup()
-            XCTAssertEqual(coordinator.state, .idle, "Iteration \(i): state must be .idle after cleanup")
+            XCTAssertEqual(coordinator.state, .cleaningUp, "Iteration \(i): observable teardown state")
             await mockASR.openTranscribeGate()
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            await mockASR.openUnloadGate()
+            let reachedIdle = await waitForState(coordinator, target: .idle)
+            XCTAssertTrue(reachedIdle, "Iteration \(i): .idle must follow unload completion")
+            try? await Task.sleep(nanoseconds: 50_000_000)
             XCTAssertEqual(coordinator.state, .idle, "Iteration \(i): state must remain .idle")
             XCTAssertNil(coordinator.currentTranscript, "Iteration \(i): no stale transcript")
             XCTAssertEqual(deliveryCount, 0, "Iteration \(i): ZERO deliveries")
@@ -314,7 +354,9 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 100_000_000)
             coordinator.cleanup()
             await mockASR.openTranscribeGate()
-            try? await Task.sleep(nanoseconds: 400_000_000)
+            await mockASR.openUnloadGate()
+            let reachedIdleT2 = await waitForState(coordinator, target: .idle)
+            XCTAssertTrue(reachedIdleT2, "Iteration \(i): .idle must follow unload completion")
             XCTAssertEqual(coordinator.state, .idle, "Iteration \(i): stale failure must not publish .failed")
             if case .failed = coordinator.state {
                 return XCTFail("Iteration \(i): stale generation published .failed")
@@ -337,7 +379,9 @@ final class SessionCoordinatorLifecycleTests: XCTestCase {
             try? await Task.sleep(nanoseconds: 100_000_000)
             coordinator.cleanup()
             await mockASR.openTranscribeGate()
-            try? await Task.sleep(nanoseconds: 300_000_000)
+            await mockASR.openUnloadGate()
+            let reachedIdleT3 = await waitForState(coordinator, target: .idle)
+            XCTAssertTrue(reachedIdleT3, "Iteration \(i): .idle must follow unload completion")
             XCTAssertEqual(deliveryCount, 0, "Iteration \(i): stale generation must not deliver")
             XCTAssertEqual(coordinator.state, .idle, "Iteration \(i): state must not revert to .ready")
         }

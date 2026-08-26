@@ -138,6 +138,10 @@ struct MenuBarView: View {
                 Text("Delivering")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.green.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+            case .cleaningUp:
+                Text("Cleaning Up")
+                    .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                    .background(Color.gray.opacity(0.15)).cornerRadius(4).foregroundColor(.secondary)
             case .loadingModel:
                 Text("Loading Model")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
@@ -167,6 +171,7 @@ struct MenuBarView: View {
         case .listening: return "Listening"
         case .transcribing: return "Transcribing"
         case .delivering: return "Delivering"
+        case .cleaningUp: return "Cleaning Up"
         case .failed(let msg): return msg
         }
     }
@@ -178,6 +183,7 @@ struct MenuBarView: View {
         case .listening: return .blue
         case .transcribing: return .purple
         case .delivering: return .green
+        case .cleaningUp: return .secondary
         case .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return .yellow
         case .failed: return .red
         }

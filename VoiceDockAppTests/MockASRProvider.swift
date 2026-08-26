@@ -95,6 +95,45 @@ actor MockASRProvider: ASRProvider {
 
     func unload() async {
         unloadCalled = true
+        let callIndex = unloadCallCount
+        unloadCallCount += 1
+        // 0.3.2 teardown seams: hold the first N unload() calls at a gate so
+        // tests can observe the coordinator in .cleaningUp and prove
+        // idempotence while teardown is mid-flight. Actor-isolated.
+        if holdFirstNUnloads > 0 && callIndex < holdFirstNUnloads {
+            await waitForUnloadGate()
+        }
+    }
+
+    /// Number of times unload() was invoked (invocation count, not completion
+    /// count — proves duplicate cleanup does not start a second unload).
+    private(set) var unloadCallCount = 0
+
+    func getUnloadCallCount() -> Int { unloadCallCount }
+
+    /// Make the first N unload() calls suspend until openUnloadGate().
+    func holdUnload(calls n: Int) {
+        holdFirstNUnloads = n
+    }
+
+    private var holdFirstNUnloads: Int = 0
+    private var unloadGateOpened = false
+    private var unloadWaiters: [CheckedContinuation<Void, Never>] = []
+
+    private func waitForUnloadGate() async {
+        if unloadGateOpened { return }
+        await withCheckedContinuation { (continuation: CheckedContinuation<Void, Never>) in
+            self.unloadWaiters.append(continuation)
+        }
+    }
+
+    func openUnloadGate() {
+        unloadGateOpened = true
+        let waiters = unloadWaiters
+        unloadWaiters.removeAll()
+        for waiter in waiters {
+            waiter.resume()
+        }
     }
 
     // MARK: - Test helpers

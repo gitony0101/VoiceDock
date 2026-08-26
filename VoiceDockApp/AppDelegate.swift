@@ -293,6 +293,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
              .listening,
              .transcribing,
              .delivering,
+             .cleaningUp,
              .idle:
             // No finalization. `.idle` is reached via cleanup() on early
             // exit before load+warmup finished, or on any no-ASR / test
