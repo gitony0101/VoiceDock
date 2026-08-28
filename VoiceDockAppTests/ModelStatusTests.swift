@@ -145,8 +145,8 @@ struct ModelStatusTests {
 
         // Standard defaults are unaffected unless pre-seeded (which they are not by this test)
         let standardLoad = ASRModelPreferences.load()
-        #expect(standardLoad.selectedModel == .qwen3_1_7B_4bit
-                || standardLoad.selectedModel == .qwen3_0_6B_8bit)
+        #expect(standardLoad.selectedModel == .qwen3_0_6B_8bit
+                || standardLoad.selectedModel == .qwen3_1_7B_4bit)
         // Production guarantees: modelStatus uses isolated suite for writes
         #expect(modelStatus.selectedModel == .qwen3_0_6B_8bit)
     }
@@ -188,7 +188,7 @@ struct ModelStatusTests {
         // Reset ONLY the isolated suite
         await ModelStatus.reset(to: defaults)
 
-        #expect(ASRModelPreferences.load(from: defaults).selectedModel == .qwen3_1_7B_4bit)
+        #expect(ASRModelPreferences.load(from: defaults).selectedModel == .qwen3_0_6B_8bit)
 
         // Production is intact
         let productionAfter = ASRModelPreferences.load()

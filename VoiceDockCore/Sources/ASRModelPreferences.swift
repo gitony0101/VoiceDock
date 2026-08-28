@@ -17,7 +17,7 @@ private let logger = Logger(subsystem: "com.voicedock.core", category: "ASRModel
 /// Selection precedence:
 /// 1. Valid nonempty `VOICEDOCK_ASR_MODEL` environment override (for testing)
 /// 2. Saved user model preference
-/// 3. Quality default (qwen3-1.7b-4bit)
+/// 3. Fast default (qwen3-0.6b-8bit)
 ///
 /// When an environment override is active, the UI must clearly indicate that
 /// the model picker will apply only after a normal restart without the override.
@@ -36,7 +36,7 @@ public struct ASRModelPreferences: Equatable, Sendable {
     /// Whether the user has been shown the model selection UI (for onboarding)
     public var hasSeenModelSelection: Bool
 
-    public init(selectedModel: ASRModelSelection = .qwen3_1_7B_4bit, hasSeenModelSelection: Bool = false) {
+    public init(selectedModel: ASRModelSelection = .qwen3_0_6B_8bit, hasSeenModelSelection: Bool = false) {
         self.selectedModel = selectedModel
         self.hasSeenModelSelection = hasSeenModelSelection
     }
@@ -48,12 +48,12 @@ public struct ASRModelPreferences: Equatable, Sendable {
         let modelRaw = defaults.string(forKey: selectedModelKey)
         let hasSeen = defaults.object(forKey: hasSeenModelSelectionKey) as? Bool ?? false
 
-        // Parse saved model, default to Quality if missing or invalid
+        // Parse saved model, default to Fast if missing or invalid
         let model: ASRModelSelection
         if let raw = modelRaw, let selection = ASRModelSelection(rawValue: raw) {
             model = selection
         } else {
-            model = .qwen3_1_7B_4bit  // Quality default
+            model = .qwen3_0_6B_8bit  // Fast default
         }
 
         logger.debug("Loaded ASR model preferences: selectedModel=\(model.rawValue) suite=\(String(describing: defaults))")
@@ -105,7 +105,7 @@ public struct ASRModelPreferences: Equatable, Sendable {
     /// Precedence:
     /// 1. Environment override (VOICEDOCK_ASR_MODEL)
     /// 2. Saved user preference (read through the shared store when provided)
-    /// 3. Quality default
+    /// 3. Fast default
     ///
     /// - Parameters:
     ///   - store: Optional shared preference store. When provided, the saved

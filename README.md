@@ -81,8 +81,8 @@ VoiceDockCore/                   Reusable business logic
 
 | Role | Model | Selection |
 |---|---|---|
-| Quality (default) | `qwen3-1.7b-4bit` | No env var, or explicit |
-| Fast | `qwen3-0.6b-8bit` | UI menu or `VOICEDOCK_ASR_MODEL=qwen3-0.6b-8bit` |
+| Fast (default) | `qwen3-0.6b-8bit` | No env var, or explicit |
+| Quality (optional) | `qwen3-1.7b-4bit` | UI menu or `VOICEDOCK_ASR_MODEL=qwen3-1.7b-4bit` |
 
 Exactly one provider is active at a time. The selection is persisted; changing
 it takes effect through **Apply & Restart**, which uses the packaged restart
@@ -110,7 +110,7 @@ suppression for terminal applications (`TerminalApplicationClassifier`).
 |---|---|---|
 | `mlx-audio-swift` | revision `3f6b055` | MLX audio and ASR integration |
 | `mlx-swift` | `0.31.4` | MLX runtime |
-| Qwen3-ASR | `qwen3-1.7b-4bit` (Quality, default) / `qwen3-0.6b-8bit` (Fast) | Local speech recognition |
+| Qwen3-ASR | `qwen3-0.6b-8bit` (Fast, default) / `qwen3-1.7b-4bit` (Quality, optional) | Local speech recognition |
 
 ## Build Instructions
 

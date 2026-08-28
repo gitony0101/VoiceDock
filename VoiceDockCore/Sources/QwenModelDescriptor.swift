@@ -26,7 +26,7 @@ public struct QwenModelDescriptor: Equatable, Sendable {
         case qwen3 = "Qwen3-ASR"
     }
 
-    /// Qwen3-ASR-0.6B-8bit model descriptor (Fast)
+    /// Qwen3-ASR-0.6B-8bit model descriptor (Fast, default)
     public static let qwen3_0_6B_8bit = QwenModelDescriptor(
         repoID: "mlx-community/Qwen3-ASR-0.6B-8bit",
         displayName: "Qwen3 ASR 0.6B 8-bit",
@@ -45,7 +45,7 @@ public struct QwenModelDescriptor: Equatable, Sendable {
         ]
     )
 
-    /// Qwen3-ASR-1.7B-4bit model descriptor (Quality/default)
+    /// Qwen3-ASR-1.7B-4bit model descriptor (Quality, optional)
     public static let qwen3_1_7B_4bit = QwenModelDescriptor(
         repoID: "mlx-community/Qwen3-ASR-1.7B-4bit",
         displayName: "Qwen3 ASR 1.7B 4-bit",

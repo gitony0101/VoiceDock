@@ -25,7 +25,7 @@ struct AppDelegateLifecycleTests {
 
         // Verify default model selection
         let selection = ASRModelSelection.current()
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
     }
 
     @MainActor
@@ -33,11 +33,11 @@ struct AppDelegateLifecycleTests {
     func testRetiredModelFallback() async {
         // Verify retired Nemotron falls back to default
         let nemotronFallback = ASRModelSelection.fromEnvironmentValue("nemotron-0.6b-8bit")
-        #expect(nemotronFallback == .qwen3_1_7B_4bit)
+        #expect(nemotronFallback == .qwen3_0_6B_8bit)
 
         // Verify retired 6-bit falls back to default
         let sixBitFallback = ASRModelSelection.fromEnvironmentValue("qwen3-0.6b-6bit")
-        #expect(sixBitFallback == .qwen3_1_7B_4bit)
+        #expect(sixBitFallback == .qwen3_0_6B_8bit)
     }
 
     @MainActor

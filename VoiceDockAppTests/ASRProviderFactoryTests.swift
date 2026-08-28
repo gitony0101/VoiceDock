@@ -14,13 +14,13 @@ struct ASRProviderFactoryTests {
 
     // MARK: - Default Behavior
 
-    @Test("No environment variable selects Qwen3 1.7B 4-bit (default)")
-    func testNoEnvVarSelectsQwen17B4bit() {
+    @Test("No environment variable selects Qwen3 0.6B 8-bit (default)")
+    func testNoEnvVarSelectsQwen06B8bit() {
         let originalValue = ProcessInfo.processInfo.environment[ASRModelEnvVarName]
         unsetenv(ASRModelEnvVarName)
 
         let selection = ASRModelSelection.current()
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
 
         if let originalValue = originalValue {
             setenv(ASRModelEnvVarName, originalValue, 1)
@@ -29,13 +29,13 @@ struct ASRProviderFactoryTests {
         }
     }
 
-    @Test("Empty environment value selects Qwen3 1.7B 4-bit (default)")
+    @Test("Empty environment value selects Qwen3 0.6B 8-bit (default)")
     func testEmptyEnvValueSelectsDefault() {
         let originalValue = ProcessInfo.processInfo.environment[ASRModelEnvVarName]
         setenv(ASRModelEnvVarName, "", 1)
 
         let selection = ASRModelSelection.fromEnvironmentValue("")
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
 
         if let originalValue = originalValue {
             setenv(ASRModelEnvVarName, originalValue, 1)
@@ -84,7 +84,7 @@ struct ASRProviderFactoryTests {
 
     // MARK: - Retired Model Fallback Behavior
 
-    @Test("Retired Nemotron value falls back to Qwen3 1.7B 4-bit with warning")
+    @Test("Retired Nemotron value falls back to Qwen3 0.6B 8-bit with warning")
     func testRetiredNemotronValueFallsBackToDefault() {
         var warningReason: ASRModelSelection.FallbackReason?
         var warningMessage: String?
@@ -94,13 +94,13 @@ struct ASRProviderFactoryTests {
             warningMessage = msg
         }
 
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
         #expect(warningReason == .retired)
         #expect(warningMessage?.contains("Retired ASR model") == true)
         #expect(warningMessage?.contains("nemotron-0.6b-8bit") == true)
     }
 
-    @Test("Retired Qwen 0.6B 6-bit value falls back to Qwen3 1.7B 4-bit with warning")
+    @Test("Retired Qwen 0.6B 6-bit value falls back to Qwen3 0.6B 8-bit with warning")
     func testRetiredQwen6bitValueFallsBackToDefault() {
         var warningReason: ASRModelSelection.FallbackReason?
         var warningMessage: String?
@@ -110,7 +110,7 @@ struct ASRProviderFactoryTests {
             warningMessage = msg
         }
 
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
         #expect(warningReason == .retired)
         #expect(warningMessage?.contains("Retired ASR model") == true)
         #expect(warningMessage?.contains("qwen3-0.6b-6bit") == true)
@@ -118,7 +118,7 @@ struct ASRProviderFactoryTests {
 
     // MARK: - Invalid Value Fallback
 
-    @Test("Unknown environment value falls back to Qwen3 1.7B 4-bit with warning")
+    @Test("Unknown environment value falls back to Qwen3 0.6B 8-bit with warning")
     func testUnknownEnvValueFallsBackToDefault() {
         var warningReason: ASRModelSelection.FallbackReason?
         var warningMessage: String?
@@ -128,7 +128,7 @@ struct ASRProviderFactoryTests {
             warningMessage = msg
         }
 
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
         #expect(warningReason == .unknown)
         #expect(warningMessage?.contains("Unknown ASR model value") == true)
     }
@@ -165,6 +165,6 @@ struct ASRProviderFactoryTests {
     @Test("fromEnvironmentValue handles nil by returning default")
     func testFromEnvironmentValueHandlesNil() {
         let selection = ASRModelSelection.fromEnvironmentValue(nil)
-        #expect(selection == .qwen3_1_7B_4bit)
+        #expect(selection == .qwen3_0_6B_8bit)
     }
 }

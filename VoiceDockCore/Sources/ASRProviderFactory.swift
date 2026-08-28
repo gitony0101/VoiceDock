@@ -15,9 +15,9 @@ public let ASRModelEnvVarName = "VOICEDOCK_ASR_MODEL"
 
 /// Valid values for VOICEDOCK_ASR_MODEL environment variable
 public enum ASRModelSelection: String, CaseIterable, Sendable {
-    /// Default Qwen3 1.7B 4-bit model (Quality/default)
+    /// Qwen3 1.7B 4-bit model (Quality, optional)
     case qwen3_1_7B_4bit = "qwen3-1.7b-4bit"
-    /// Qwen3 0.6B 8-bit model (Fast)
+    /// Qwen3 0.6B 8-bit model (Fast, default)
     case qwen3_0_6B_8bit = "qwen3-0.6b-8bit"
 
     /// Display name for UI (e.g., "Quality — Qwen3 1.7B 4-bit")
@@ -50,11 +50,11 @@ public enum ASRModelSelection: String, CaseIterable, Sendable {
     /// - Parameters:
     ///   - value: Raw environment variable string
     ///   - warningRecorder: Optional closure to record warnings for testing. Called with (fallbackReason, message).
-    /// - Returns: Model selection enum; defaults to `.qwen3_1_7B_4bit` for absent, empty, or invalid values
+    /// - Returns: Model selection enum; defaults to `.qwen3_0_6B_8bit` for absent, empty, or invalid values
     public static func fromEnvironmentValue(_ value: String?, warningRecorder: ((FallbackReason, String) -> Void)? = nil) -> ASRModelSelection {
         guard let value = value, !value.isEmpty else {
-            logger.info("No environment variable set or empty, using default: \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)")
-            return .qwen3_1_7B_4bit
+            logger.info("No environment variable set or empty, using default: \(ASRModelSelection.qwen3_0_6B_8bit.rawValue)")
+            return .qwen3_0_6B_8bit
         }
 
         if let selection = ASRModelSelection(rawValue: value) {
@@ -64,24 +64,24 @@ public enum ASRModelSelection: String, CaseIterable, Sendable {
 
         // Handle retired model identifiers with warnings
         if value == "nemotron-0.6b-8bit" {
-            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_0_6B_8bit.rawValue)"
             logger.warning("\(msg, privacy: .public)")
             warningRecorder?(.retired, msg)
-            return .qwen3_1_7B_4bit
+            return .qwen3_0_6B_8bit
         }
 
         if value == "qwen3-0.6b-6bit" {
-            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+            let msg = "Retired ASR model: '\(value)' is no longer supported, falling back to \(ASRModelSelection.qwen3_0_6B_8bit.rawValue)"
             logger.warning("\(msg, privacy: .public)")
             warningRecorder?(.retired, msg)
-            return .qwen3_1_7B_4bit
+            return .qwen3_0_6B_8bit
         }
 
-        // Unknown or malformed value - fall back to Qwen3 1.7B 4-bit (default)
-        let msg = "Unknown ASR model value: '\(value)', falling back to \(ASRModelSelection.qwen3_1_7B_4bit.rawValue)"
+        // Unknown or malformed value - fall back to Qwen3 0.6B 8-bit (default)
+        let msg = "Unknown ASR model value: '\(value)', falling back to \(ASRModelSelection.qwen3_0_6B_8bit.rawValue)"
         logger.warning("\(msg, privacy: .public)")
         warningRecorder?(.unknown, msg)
-        return .qwen3_1_7B_4bit
+        return .qwen3_0_6B_8bit
     }
 
     /// Read directly from environment
@@ -158,7 +158,7 @@ public enum ASRProviderFactory {
     /// - Note: Uses precedence:
     ///   1. VOICEDOCK_ASR_MODEL environment variable
     ///   2. Saved user preference (ASRModelPreferences) read through `store`
-    ///   3. Quality default (qwen3-1.7b-4bit)
+    ///   3. Fast default (qwen3-0.6b-8bit)
     public static func createProvider(
         from store: ASRPreferenceStore? = nil,
         launchRecorder: ModelLaunchRecorder? = nil
