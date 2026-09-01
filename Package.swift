@@ -15,7 +15,8 @@ let package = Package(
     ],
     dependencies: [
         .package(url: "https://github.com/Blaizzy/mlx-audio-swift.git", revision: "3f6b0553188a921f635df54b5e20442001037336"),
-        .package(url: "https://github.com/ml-explore/mlx-swift.git", exact: "0.31.4")
+        .package(url: "https://github.com/ml-explore/mlx-swift.git", exact: "0.31.4"),
+        .package(url: "https://github.com/huggingface/swift-huggingface.git", exact: "0.9.0")
     ],
     targets: [
         .target(
@@ -23,7 +24,8 @@ let package = Package(
             dependencies: [
                 .product(name: "MLXAudioSTT", package: "mlx-audio-swift"),
                 .product(name: "MLXAudioCore", package: "mlx-audio-swift"),
-                .product(name: "MLX", package: "mlx-swift")
+                .product(name: "MLX", package: "mlx-swift"),
+                .product(name: "HuggingFace", package: "swift-huggingface")
             ],
             path: "VoiceDockCore/Sources"),
         .testTarget(

@@ -130,7 +130,52 @@ public actor ModelStorage {
             }
         }
 
+        // Validate indexed-model shard completeness: if an index file lists
+        // shards, every distinct referenced shard must exist, be readable, and
+        // be non-empty. This catches a partially-downloaded sharded model.
+        if !(await validateIndexedShards(at: url, descriptor: descriptor)) {
+            return false
+        }
+
         logger.info("Model directory validation passed: \(url.path)")
+        return true
+    }
+
+    /// Validate that every shard referenced by a safetensors index actually
+    /// exists, is a readable regular file, and is non-empty. A model without
+    /// an index (or without indexed shards) passes trivially: the earlier
+    /// "at least one non-empty .safetensors" check already covers it.
+    func validateIndexedShards(at url: URL, descriptor: QwenModelDescriptor) async -> Bool {
+        for indexedFile in descriptor.indexedFiles {
+            let indexedURL = url.appendingPathComponent(indexedFile)
+            guard FileManager.default.fileExists(atPath: indexedURL.path) else {
+                // No index file present — non-indexed model, nothing to verify.
+                continue
+            }
+
+            // Parse the Hugging Face safetensors index structure and collect
+            // the distinct shard filenames referenced by weight_map values.
+            guard let data = try? Data(contentsOf: indexedURL),
+                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let weightMap = object["weight_map"] as? [String: String] else {
+                logger.warning("Indexed file \(indexedFile) is not a valid safetensors index")
+                return false
+            }
+
+            let shardNames = Set(weightMap.values)
+            for shard in shardNames {
+                let shardURL = url.appendingPathComponent(shard)
+                var isDirectory: ObjCBool = false
+                guard FileManager.default.fileExists(atPath: shardURL.path, isDirectory: &isDirectory),
+                      !isDirectory.boolValue,
+                      FileManager.default.isReadableFile(atPath: shardURL.path),
+                      let attrs = try? FileManager.default.attributesOfItem(atPath: shardURL.path),
+                      let size = attrs[.size] as? Int64, size > 0 else {
+                    logger.warning("Indexed shard missing or empty: \(shard)")
+                    return false
+                }
+            }
+        }
         return true
     }
 
