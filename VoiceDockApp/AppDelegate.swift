@@ -24,6 +24,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let preferenceStore: ASRPreferenceStore
     private let launchRecorder: ModelLaunchRecorder
     private let modelStatus: ModelStatus
+    private let acquisition: ModelAcquisitionController
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
     private var menuClickCount = 0
@@ -50,6 +51,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferenceStore: self.preferenceStore,
             recorder: self.launchRecorder
         )
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus)
         super.init()
     }
 
@@ -67,7 +69,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferenceStore: preferenceStore,
             recorder: launchRecorder
         )
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus)
         super.init()
+    }
+
+    /// Build the UI-facing acquisition controller over the hardened
+    /// `ModelInstaller`/`ModelStorage` backend. Downloading a model never
+    /// changes the selected/active model (`ModelStatus`), so this shares only
+    /// the unchanged selection source.
+    private static func makeAcquisition(modelStatus: ModelStatus) -> ModelAcquisitionController {
+        let storage = ModelStorage()
+        return ModelAcquisitionController(
+            installer: ModelInstaller(storage: storage),
+            storage: storage,
+            modelStatus: modelStatus
+        )
     }
 
     // Explicit termination state machine
@@ -361,7 +377,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wirePopover(to coordinator: SessionCoordinator) {
         writeUIDiagnostic("wirePopover_start")
 
-        let rootView = MenuBarView(coordinator: coordinator, permissions: permissions, modelStatus: modelStatus)
+        let rootView = MenuBarView(coordinator: coordinator, permissions: permissions, modelStatus: modelStatus, acquisition: acquisition)
         let controller = NSHostingController(rootView: rootView)
 
         writeUIDiagnostic("content_view_controller_created=true")

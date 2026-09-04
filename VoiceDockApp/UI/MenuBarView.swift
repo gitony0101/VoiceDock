@@ -13,6 +13,7 @@ struct MenuBarView: View {
     @ObservedObject var coordinator: SessionCoordinator
     @ObservedObject var permissions: PermissionManager
     @ObservedObject var modelStatus: ModelStatus
+    @ObservedObject var acquisition: ModelAcquisitionController
     @State private var showFullTranscript = false
     @State private var showDiagnostics = false
     @State private var automaticPaste: Bool
@@ -21,10 +22,11 @@ struct MenuBarView: View {
     @State private var restartInProgress = false
     @State private var restartProgressText: String = ""
 
-    init(coordinator: SessionCoordinator, permissions: PermissionManager, modelStatus: ModelStatus) {
+    init(coordinator: SessionCoordinator, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
         self.coordinator = coordinator
         self.permissions = permissions
         self.modelStatus = modelStatus
+        self.acquisition = acquisition
         let deliveryPrefs = TranscriptDeliveryPreferences.load()
         _automaticPaste = State(initialValue: deliveryPrefs.automaticPaste)
         _sendReturnAfterPaste = State(initialValue: deliveryPrefs.sendReturnAfterPaste)
@@ -56,6 +58,11 @@ struct MenuBarView: View {
 
             Divider()
 
+            // Fixed model download / install state
+            acquisitionSection
+
+            Divider()
+
             // Fixed correction control
             correctionSection
 
@@ -77,6 +84,7 @@ struct MenuBarView: View {
         .background(Color(.windowBackgroundColor))
         .onAppear {
             permissions.refresh(reason: .popoverWillOpen)
+            Task { await acquisition.refreshInstalled() }
         }
         // Cross-report coordinator load failures into ModelStatus so a Fast
         // load failure surfaces as a visible error AND keeps the Fast
@@ -424,6 +432,111 @@ struct MenuBarView: View {
         modelStatus.selectedModel.displayName
     }
 
+    // MARK: - Model Downloads (acquisition, driven by ModelAcquisitionController)
+    //
+    // Install/download state lives in `acquisition` (authoritative storage
+    // validation) and is deliberately separate from selection/active state in
+    // `modelStatus`. Downloading a model never changes the selection.
+    private var acquisitionSection: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Model Downloads")
+                .font(.caption.bold())
+                .foregroundColor(.secondary)
+
+            ForEach(ModelAcquisitionController.presentationOrder, id: \.self) { model in
+                acquisitionRow(for: model)
+            }
+        }
+        .padding(.vertical, 4)
+    }
+
+    @ViewBuilder
+    private func acquisitionRow(for model: ASRModelSelection) -> some View {
+        let state = acquisition.state(for: model)
+        HStack(alignment: .center, spacing: 8) {
+            VStack(alignment: .leading, spacing: 3) {
+                HStack(spacing: 6) {
+                    Text(model.displayName)
+                        .font(.body)
+                    if ModelAcquisitionController.isRecommended[model] == true {
+                        Text("Recommended")
+                            .font(.caption2)
+                            .foregroundColor(.green)
+                    } else {
+                        Text("Optional")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                }
+                acquisitionStatus(state)
+            }
+            Spacer()
+            acquisitionAction(state, model: model)
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func acquisitionStatus(_ state: ModelAcquisitionState) -> some View {
+        switch state {
+        case .checking:
+            Text("Checking…")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        case .installed:
+            Label("Installed", systemImage: "checkmark.circle.fill")
+                .font(.caption2)
+                .foregroundColor(.green)
+        case .idle:
+            Text("Not installed")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+        case .downloading(let progress):
+            ProgressView(value: progress)
+                .progressViewStyle(.linear)
+                .frame(maxWidth: 180)
+        case .failed(let message):
+            Text(message ?? "Download failed. Try again.")
+                .font(.caption2)
+                .foregroundColor(.red)
+        }
+    }
+
+    @ViewBuilder
+    private func acquisitionAction(_ state: ModelAcquisitionState, model: ASRModelSelection) -> some View {
+        switch state {
+        case .checking:
+            ProgressView()
+                .controlSize(.small)
+        case .installed:
+            EmptyView()
+        case .idle:
+            Button("Download") {
+                acquisition.download(model)
+            }
+            .buttonStyle(.bordered)
+            .disabled(acquisitionDisabled)
+        case .downloading:
+            Button("Cancel") {
+                acquisition.cancel()
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRecordOrTranscribeActive || restartInProgress)
+        case .failed:
+            Button("Retry") {
+                acquisition.retry(model)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(acquisitionDisabled)
+        }
+    }
+
+    /// Download/retry is disabled while any other acquisition op is active,
+    /// or while the speech pipeline / restart is busy (single owned task).
+    private var acquisitionDisabled: Bool {
+        (acquisition.activeOperation != nil) || isRecordOrTranscribeActive || restartInProgress
+    }
+
     // MARK: - Intelligent Correction
     private var correctionSection: some View {
         VStack(alignment: .leading, spacing: 6) {
@@ -662,5 +775,11 @@ struct MenuBarView: View {
         selectedModel: .qwen3_0_6B_8bit,
         recorder: ModelLaunchRecorder.shared
     )
-    return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus)
+    let storage = ModelStorage()
+    let acquisition = ModelAcquisitionController(
+        installer: ModelInstaller(storage: storage),
+        storage: storage,
+        modelStatus: modelStatus
+    )
+    return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus, acquisition: acquisition)
 }
