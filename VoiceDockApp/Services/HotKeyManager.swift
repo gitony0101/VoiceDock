@@ -9,6 +9,7 @@ import AppKit
 import Carbon
 import Foundation
 import os.log
+import VoiceDockCore
 
 fileprivate let logger = Logger(subsystem: "com.voicedock.app", category: "HotKeyManager")
 
@@ -60,6 +61,16 @@ final class HotKeyManager {
 
     var backendName: String { isCarbonBackend ? "Carbon" : "NSEvent" }
     var registrationStatus: String { isCarbonBackend ? carbonStatus : nsEventStatus }
+
+    /// Semantic truth: is the push-to-talk hotkey actually registered right now?
+    ///
+    /// Derived (via `HotKeyRegistrationState`) from the current status, not
+    /// from Accessibility. Accessibility being trusted does not imply the
+    /// hotkey registered, and vice versa. Read-only; registration remains
+    /// owned by this manager's `register()`/`unregister()`.
+    var isRegistered: Bool {
+        HotKeyRegistrationState(status: registrationStatus).isRegistered
+    }
     var lastKeyEvent: String { state.isDown() ? "pressed" : "released" }
     var pressCount: Int { _pressCount }
     var releaseCount: Int { _releaseCount }
