@@ -25,6 +25,16 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let launchRecorder: ModelLaunchRecorder
     private let modelStatus: ModelStatus
     private let acquisition: ModelAcquisitionController
+    /// Shared authoritative model storage, constructed once and reused by both
+    /// the acquisition controller (install/validation) and the first-run
+    /// runtime controller (setup-required gating), so both share one view of
+    /// the on-disk models.
+    private let storage: ModelStorage
+    /// First-run speech-runtime boundary: gates provider load on authoritative
+    /// model validity and starts the runtime exactly once on first-run
+    /// download. Constructed lazily in `fullInitialize` because `makeCoordinator`
+    /// (its factory) mutates `modelStatus.captureActive`.
+    private var firstRun: FirstRunRuntimeController?
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
     private var menuClickCount = 0
@@ -51,7 +61,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferenceStore: self.preferenceStore,
             recorder: self.launchRecorder
         )
-        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus)
+        self.storage = ModelStorage()
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: self.storage)
         super.init()
     }
 
@@ -69,7 +80,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             preferenceStore: preferenceStore,
             recorder: launchRecorder
         )
-        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus)
+        self.storage = ModelStorage()
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: self.storage)
         super.init()
     }
 
@@ -77,8 +89,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// `ModelInstaller`/`ModelStorage` backend. Downloading a model never
     /// changes the selected/active model (`ModelStatus`), so this shares only
     /// the unchanged selection source.
-    private static func makeAcquisition(modelStatus: ModelStatus) -> ModelAcquisitionController {
-        let storage = ModelStorage()
+    private static func makeAcquisition(
+        modelStatus: ModelStatus,
+        storage: ModelStorage
+    ) -> ModelAcquisitionController {
         return ModelAcquisitionController(
             installer: ModelInstaller(storage: storage),
             storage: storage,
@@ -213,63 +227,112 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
-        // 2) Coordinator + hotkey wiring
-        writeUIDiagnostic("makeCoordinator_start")
-        if let newCoordinator = makeCoordinator() {
-            writeUIDiagnostic("makeCoordinator_success")
-            self.coordinator = newCoordinator
-            writeUIDiagnostic("coordinator_assigned")
-            wirePopover(to: newCoordinator)
-            writeUIDiagnostic("wirePopover_done")
-            installHotKey(against: newCoordinator)
-            writeUIDiagnostic("installHotKey_done")
-            logger.info("Coordinator wired; status=\(String(describing: newCoordinator.state))")
-            writeUIDiagnostic("coordinator_wiring_complete")
+        // 2a) Wire the popover immediately so the menu bar remains usable for
+        // model download / permission setup even before the speech runtime
+        // exists (fresh install with a missing model). The popover's content
+        // is refreshed with the real coordinator in `wireRuntimeIfStarted`
+        // once the required model is valid and the runtime has started.
+        writeUIDiagnostic("wirePopover_initial_start")
+        wirePopover(coordinator: nil)
+        writeUIDiagnostic("wirePopover_initial_done")
 
-            // 3) Microphone permission
-            checkMicrophonePermission()
+        // 2) First-run speech-runtime boundary: only construct + load a
+        // provider once the selected/required model is authoritatively valid.
+        // A missing model on a fresh Mac is a normal setup prerequisite, not a
+        // runtime failure — the coordinator is never constructed, so no load is
+        // attempted and no `.failed` is published solely for a missing model.
+        writeUIDiagnostic("firstRun_setup_start")
+        prepareFirstRun()
+        writeUIDiagnostic("firstRun_setup_done")
 
-            // 4) Accessibility permission
-            refreshPermissions(reason: .applicationLaunch)
+        // 2b) Microphone permission
+        checkMicrophonePermission()
 
-            // 5) Refresh model availability asynchronously (non-blocking)
-            Task { @MainActor in
-                await self.modelStatus.refreshAvailability()
+        // 2c) Accessibility permission
+        refreshPermissions(reason: .applicationLaunch)
+
+        // Refresh model availability asynchronously (non-blocking).
+        Task { @MainActor in
+            await self.modelStatus.refreshAvailability()
+        }
+
+        // 2d) Record the executable hash (best-effort, off the launch path).
+        // The per-launch terminal diagnostic record is finalized exactly
+        // once via the Combine sink on coordinator.state installed below:
+        //   .ready            → finalizeAndFlush(.complete)
+        //   .failed(message)  → finalizeAndFlush(.loadFailed/.warmupFailed)
+        // and a guaranteed `applicationWillTerminate` flush covers the
+        // case where the app terminates before a terminal state is
+        // reached (`finalizeAndFlush(.incomplete)`). Replaced the prior
+        // fixed six-second deferred flush: a success arriving after that
+        // timer could be lost, and a failure before it was swept.
+        launchRecorder.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
+
+        // Run self-test if requested
+        if selfTestMode {
+            writeUIDiagnostic("Scheduling self-test in 1 second...")
+            try? await Task.sleep(nanoseconds: 1_000_000_000)
+            await runPopoverSelfTest()
+        }
+    }
+
+    /// Construct the orchestrating `FirstRunRuntimeController`, gate the
+    /// coordinator on authoritative model validity, wire the popover and
+    /// hotkey when the runtime starts, and subscribe to first-run download
+    /// completion so a newly-installed required model starts the runtime
+    /// without a manual relaunch.
+    private func prepareFirstRun() {
+        let controller = FirstRunRuntimeController(
+            storage: storage,
+            selectedModelProvider: { [weak self] in
+                self?.modelStatus.selectedModel ?? .qwen3_0_6B_8bit
+            },
+            coordinatorProvider: { [weak self] in
+                self?.makeCoordinator()
             }
+        )
+        self.firstRun = controller
 
-            // 6) Record the executable hash (best-effort, off the launch path).
-            // The per-launch terminal diagnostic record is finalized exactly
-            // once via the Combine sink on coordinator.state installed below:
-            //   .ready            → finalizeAndFlush(.complete)
-            //   .failed(message)  → finalizeAndFlush(.loadFailed/.warmupFailed)
-            // and a guaranteed `applicationWillTerminate` flush covers the
-            // case where the app terminates before a terminal state is
-            // reached (`finalizeAndFlush(.incomplete)`). Replaced the prior
-            // fixed six-second deferred flush: a success arriving after that
-            // timer could be lost, and a failure before it was swept.
-            launchRecorder.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
+        // When a first-run download authoritatively installs the required
+        // model, start the runtime exactly once. The controller re-validates
+        // against storage and enforces exactly-once start authority.
+        self.acquisition.onInstalled = { [weak self] model in
+            self?.firstRun?.handleInstalled(model)
+        }
 
-            // 6b) Exactly-once terminal finalizer driven by the coordinator's
-            // published state. The provider already records load and warmup
-            // outcomes into the same shared recorder; this sink translates a
-            // terminal coordinator state into one `finalizeAndFlush(_:)`.
-            // Because the recorder's `hasFlushed` guard is exactly-once, the
-            // guaranteed terminate-time flush is a no-op if a terminal flush
-            // already fired (and vice-versa).
-            lifecycleFinalizerCancellable = newCoordinator.$state.sink { [weak self] state in
-                guard let self = self else { return }
-                self.handleCoordinatorStateForLaunchDiagnostics(state)
-            }
+        Task { @MainActor [weak self] in
+            await controller.checkRequiredModel()
+            _ = controller.startIfRequiredModelValid()
+            self?.wireRuntimeIfStarted(controller: controller)
+        }
+    }
 
-            // 7) Run self-test if requested
-            if selfTestMode {
-                writeUIDiagnostic("Scheduling self-test in 1 second...")
-                try? await Task.sleep(nanoseconds: 1_000_000_000)
-                await runPopoverSelfTest()
-            }
-        } else {
-            writeUIDiagnostic("ERROR: coordinator_creation_failed")
-            logger.error("Failed to create coordinator")
+    /// Wire popover + hotkey + launch diagnostics once the runtime has been
+    /// started by the first-run controller (or on any later start). Idempotent
+    /// for the coordinator actually constructed.
+    private func wireRuntimeIfStarted(controller: FirstRunRuntimeController) {
+        guard let newCoordinator = controller.coordinator, self.coordinator !== newCoordinator else {
+            return
+        }
+        self.coordinator = newCoordinator
+        writeUIDiagnostic("coordinator_assigned")
+        wirePopover(coordinator: newCoordinator)
+        writeUIDiagnostic("wirePopover_done")
+        installHotKey(against: newCoordinator)
+        writeUIDiagnostic("installHotKey_done")
+        logger.info("Coordinator wired; status=\(String(describing: newCoordinator.state))")
+        writeUIDiagnostic("coordinator_wiring_complete")
+
+        // Exactly-once terminal finalizer driven by the coordinator's
+        // published state. The provider already records load and warmup
+        // outcomes into the same shared recorder; this sink translates a
+        // terminal coordinator state into one `finalizeAndFlush(_:)`.
+        // Because the recorder's `hasFlushed` guard is exactly-once, the
+        // guaranteed terminate-time flush is a no-op if a terminal flush
+        // already fired (and vice-versa).
+        lifecycleFinalizerCancellable = newCoordinator.$state.sink { [weak self] state in
+            guard let self = self else { return }
+            self.handleCoordinatorStateForLaunchDiagnostics(state)
         }
     }
 
@@ -374,8 +437,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Menu bar item installed with action")
     }
 
-    private func wirePopover(to coordinator: SessionCoordinator) {
-        writeUIDiagnostic("wirePopover_start")
+    private func wirePopover(coordinator: SessionCoordinator?) {
+        writeUIDiagnostic("wirePopover_start coordinator=\(coordinator == nil ? "nil" : "present")")
 
         let rootView = MenuBarView(coordinator: coordinator, permissions: permissions, modelStatus: modelStatus, acquisition: acquisition)
         let controller = NSHostingController(rootView: rootView)

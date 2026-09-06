@@ -5,12 +5,31 @@
 
 import SwiftUI
 import VoiceDockCore
+import Combine
 import os.log
 
 private let logger = Logger(subsystem: "com.voicedock.app", category: "MenuBarView")
 
+/// Forwards the speech coordinator's `objectWillChange` so a SwiftUI view can
+/// observe a coordinator that is *optionally* nil (fresh install / model
+/// missing produces no coordinator yet). `@ObservedObject` cannot wrap an
+/// optional directly, so this box bridges the gap: it republishes when the
+/// box's coordinator reference changes AND whenever the inner coordinator
+/// publishes a state change.
+final class CoordinatorBox: ObservableObject {
+    @Published fileprivate(set) var coordinator: SessionCoordinator?
+    private var cancellable: AnyCancellable?
+
+    init(coordinator: SessionCoordinator?) {
+        self.coordinator = coordinator
+        self.cancellable = coordinator?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+    }
+}
+
 struct MenuBarView: View {
-    @ObservedObject var coordinator: SessionCoordinator
+    @ObservedObject var coordinatorBox: CoordinatorBox
     @ObservedObject var permissions: PermissionManager
     @ObservedObject var modelStatus: ModelStatus
     @ObservedObject var acquisition: ModelAcquisitionController
@@ -22,8 +41,11 @@ struct MenuBarView: View {
     @State private var restartInProgress = false
     @State private var restartProgressText: String = ""
 
-    init(coordinator: SessionCoordinator, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
-        self.coordinator = coordinator
+    /// The speech coordinator, or nil while the required model is missing.
+    private var coordinator: SessionCoordinator? { coordinatorBox.coordinator }
+
+    init(coordinator: SessionCoordinator?, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
+        self.coordinatorBox = CoordinatorBox(coordinator: coordinator)
         self.permissions = permissions
         self.modelStatus = modelStatus
         self.acquisition = acquisition
@@ -89,8 +111,8 @@ struct MenuBarView: View {
         // Cross-report coordinator load failures into ModelStatus so a Fast
         // load failure surfaces as a visible error AND keeps the Fast
         // selection — no silent Quality fallback in the UI.
-        .onChange(of: coordinator.state) { newState in
-            if case .failed(let message) = newState {
+        .onChange(of: coordinator?.state) { newState in
+            if let newState, case .failed(let message) = newState {
                 if message.lowercased().contains("load") || message.lowercased().contains("model") {
                     modelStatus.recordLoadError(message)
                 }
@@ -119,7 +141,11 @@ struct MenuBarView: View {
 
     private var statusBadge: some View {
         Group {
-            switch coordinator.state {
+            switch coordinator?.state {
+            case .none:
+                // No coordinator yet: the required model is missing/invalid (the
+                // runtime has not started), OR a setup prerequisite is unmet.
+                setupBadge
             case .ready, .idle:
                 if !permissions.microphoneStatus.isGranted {
                     Text("Microphone Required")
@@ -158,7 +184,9 @@ struct MenuBarView: View {
                 Text("Error")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.red.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-            default:
+            case .starting,
+                 .waitingForMicrophonePermission,
+                 .waitingForAccessibilityPermission:
                 Text(stateText)
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.gray.opacity(0.15)).cornerRadius(4).foregroundColor(.secondary)
@@ -166,8 +194,25 @@ struct MenuBarView: View {
         }
     }
 
+    /// Badge shown while no coordinator exists yet (fresh install / model
+    /// missing). If the required model is missing, surface "Model Required";
+    /// otherwise treat it as still starting.
+    private var setupBadge: some View {
+        if modelMissingForSelection {
+            Text("Model Required")
+                .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+        } else {
+            Text("Starting…")
+                .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.orange.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+        }
+    }
+
     private var stateText: String {
-        switch coordinator.state {
+        switch coordinator?.state {
+        case .none:
+            return modelMissingForSelection ? "Model Required" : "Starting"
         case .idle, .ready:
             if !permissions.microphoneStatus.isGranted { return "Microphone Required" }
             if !permissions.accessibilityStatus { return "Accessibility Required" }
@@ -185,7 +230,8 @@ struct MenuBarView: View {
     }
 
     private var stateColor: Color {
-        switch coordinator.state {
+        switch coordinator?.state {
+        case .none: return modelMissingForSelection ? .yellow : .orange
         case .idle, .ready: return .green
         case .starting, .loadingModel: return .orange
         case .listening: return .blue
@@ -200,7 +246,7 @@ struct MenuBarView: View {
     // MARK: - Transcript (bounded, collapsible)
     private var transcriptSection: some View {
         Group {
-            if let transcript = coordinator.currentTranscript, !transcript.isEmpty {
+            if let transcript = coordinator?.currentTranscript, !transcript.isEmpty {
                 VStack(alignment: .leading, spacing: 4) {
                     HStack {
                         Text("Last Transcript")
@@ -230,7 +276,7 @@ struct MenuBarView: View {
                         .buttonStyle(.borderless)
                     }
 
-                    if let raw = coordinator.getLastRawTranscript(),
+                    if let raw = coordinator?.getLastRawTranscript(),
                        !raw.isEmpty, raw != transcript {
                         HStack {
                             Spacer()
@@ -375,14 +421,30 @@ struct MenuBarView: View {
                     .tint(.gray)
                     .disabled(true)
                 } else if modelStatus.selectedModel == modelStatus.activeModel {
-                    Button(action: {}) {
-                        Label("Current Model Active", systemImage: "checkmark.circle.fill")
-                            .font(.body)
-                            .frame(maxWidth: .infinity)
+                    // 0.4.4b: "Current Model Active" is only TRUE when the
+                    // runtime has actually reached `.ready`. A failed (or still
+                    // loading) runtime, or a coordinator that never started
+                    // (model missing at launch), must not claim the model is
+                    // actively serving — that state is actively misleading.
+                    if isRuntimeActive {
+                        Button(action: {}) {
+                            Label("Current Model Active", systemImage: "checkmark.circle.fill")
+                                .font(.body)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.gray)
+                        .disabled(true)
+                    } else {
+                        Button(action: {}) {
+                            Label("Runtime Not Ready", systemImage: "exclamationmark.circle.fill")
+                                .font(.body)
+                                .frame(maxWidth: .infinity)
+                        }
+                        .buttonStyle(.bordered)
+                        .tint(.orange)
+                        .disabled(true)
                     }
-                    .buttonStyle(.bordered)
-                    .tint(.gray)
-                    .disabled(true)
                 } else {
                     Button(action: performRestart) {
                         Label("Apply & Restart", systemImage: "arrow.clockwise")
@@ -400,10 +462,16 @@ struct MenuBarView: View {
     }
 
     private var isRecordOrTranscribeActive: Bool {
-        switch coordinator.state {
+        switch coordinator?.state {
         case .listening, .transcribing, .loadingModel: return true
         default: return false
         }
+    }
+
+    /// True only when the runtime has actually reached `.ready`. Used to keep
+    /// "Current Model Active" truthful (0.4.4b): a failed runtime is NOT active.
+    private var isRuntimeActive: Bool {
+        coordinator?.state == .ready
     }
 
     private var modelMissingForSelection: Bool {
@@ -556,7 +624,7 @@ struct MenuBarView: View {
                 .font(.caption)
                 .foregroundColor(.secondary)
 
-            let applied = coordinator.getLastAppliedCorrections()
+            let applied = coordinator?.getLastAppliedCorrections() ?? []
             if !applied.isEmpty {
                 HStack {
                     Image(systemName: "checkmark.circle.fill").foregroundColor(.green)
@@ -642,13 +710,13 @@ struct MenuBarView: View {
 
     // MARK: - Actions
     private func copyTranscript() {
-        guard let t = coordinator.currentTranscript, !t.isEmpty else { return }
+        guard let t = coordinator?.currentTranscript, !t.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(t, forType: .string)
     }
 
     private func copyRawTranscript() {
-        guard let raw = coordinator.getLastRawTranscript(), !raw.isEmpty else { return }
+        guard let raw = coordinator?.getLastRawTranscript(), !raw.isEmpty else { return }
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(raw, forType: .string)
     }

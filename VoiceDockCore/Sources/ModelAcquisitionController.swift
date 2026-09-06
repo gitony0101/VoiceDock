@@ -89,6 +89,16 @@ public final class ModelAcquisitionController: ObservableObject {
     /// mutate state.
     private var generation: UInt64 = 0
 
+    /// Authoritative install completion notice. Invoked exactly once per
+    /// successful, non-stale, non-cancelled install — only after
+    /// `storage.isModelValid` confirms the model is installed, and only under
+    /// the still-current generation. A cancelled/failed/stale operation never
+    /// fires this. This is the single signal a composition layer (e.g.
+    /// `FirstRunRuntimeController`) uses to start/recover the speech runtime
+    /// after a first-run download. The controller owns its own lifecycle; this
+    /// type never reaches into SessionCoordinator.
+    public var onInstalled: (@MainActor (ASRModelSelection) -> Void)?
+
     public init(
         installer: ModelInstaller,
         storage: ModelStorage,
@@ -226,6 +236,11 @@ public final class ModelAcquisitionController: ObservableObject {
             states[model] = valid ? .installed : .failed(message: "Download failed. Try again.")
             if !valid {
                 logger.error("Install reported success but validation failed for \(descriptor.repoID, privacy: .public)")
+            } else {
+                // Authoritative install completion, exactly once, under the
+                // still-current generation. This is the only recovery signal
+                // emitted by acquisition.
+                onInstalled?(model)
             }
             activeOperation = nil
             downloadTask = nil

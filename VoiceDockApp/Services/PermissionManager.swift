@@ -135,12 +135,42 @@ final class PermissionManager: ObservableObject {
     /// Request microphone permission (used on macOS 14+)
     /// Note: AVCaptureDevice.requestAccess is deprecated in macOS 14, but ASAuthorization
     /// alternative is not yet publicly available.
+    ///
+    /// 0.4.4b idempotence: a request is issued only while the status is still
+    /// `.notDetermined`. Once a determination exists (granted or denied), the
+    /// OS prompt must never be re-triggered by a repeated call — the method
+    /// merely re-publishes the current status. This prevents the app from
+    /// repeatedly nagging the OS prompt on every popover open / activation.
     func requestMicrophone() async -> PermissionStatus {
+        // No prompt when a determination already exists: publish, don't re-ask.
+        guard self.microphoneStatus == .notDetermined else {
+            logger.info("Microphone already determined (\(String(describing: self.microphoneStatus))); not re-prompting")
+            refresh(reason: .microphoneRequestCompletion)
+            return self.microphoneStatus
+        }
         // No replacement API exists yet - using deprecated API
         let granted = await provider.requestMicrophoneAccess()
         logger.info("Microphone request result: \(granted)")
         refresh(reason: .microphoneRequestCompletion)
         return microphoneStatus
+    }
+
+    /// The privacy-pane URL for microphone recovery in System Settings. A pure
+    /// URL builder: it opens nothing and mutates no TCC state. The UI invokes
+    /// `openMicrophoneSettings()` to present it.
+    func microphoneSettingsURL() -> URL? {
+        URL(string: "x-apple.systempreferences:com.apple.preference.security?Privacy_Microphone")
+    }
+
+    /// Open the microphone privacy pane. This never mutates TCC state and never
+    /// uses `tccutil` — it only presents the correct pane so the user can grant
+    /// (or re-grant) microphone access themselves.
+    func openMicrophoneSettings() {
+        guard let url = microphoneSettingsURL() else {
+            logger.error("Failed to form microphone privacy pane URL")
+            return
+        }
+        NSWorkspace.shared.open(url)
     }
 
     /// Request microphone permission using legacy AVCaptureDevice API (macOS 13 and earlier)

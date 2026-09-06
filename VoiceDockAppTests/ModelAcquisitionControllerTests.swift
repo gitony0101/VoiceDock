@@ -529,6 +529,82 @@ final class ModelAcquisitionControllerTests: XCTestCase {
         )
     }
 
+    // MARK: - T13 onInstalled: authoritative install completion signal (0.4.4b)
+
+    func testOnInstalledFiresExactlyOnceOnSuccess() async throws {
+        let downloader = makeDownloader(mode: .succeed)
+        let controller = makeController(downloader: downloader)
+        var fired: [ASRModelSelection] = []
+        controller.onInstalled = { fired.append($0) }
+
+        controller.download(quality)
+        await waitUntil { controller.state(for: self.quality) == .installed }
+
+        XCTAssertEqual(fired, [quality], "authoritative success must fire exactly one onInstalled notice")
+    }
+
+    func testOnInstalledDoesNotFireOnFailure() async throws {
+        let downloader = makeDownloader(mode: .fail)
+        let controller = makeController(downloader: downloader)
+        var fired: [ASRModelSelection] = []
+        controller.onInstalled = { fired.append($0) }
+
+        controller.download(quality)
+        await waitUntil {
+            if case .failed = controller.state(for: self.quality) { return true }
+            return false
+        }
+
+        XCTAssertEqual(fired, [], "failed download must not fire an install completion notice")
+    }
+
+    func testOnInstalledDoesNotFireOnCancellation() async throws {
+        let gate = AsyncGate()
+        let downloader = makeDownloader(mode: .succeed, gatesByDirectory: [quality.modelDescriptor.canonicalDirectoryName: gate])
+        let controller = makeController(downloader: downloader)
+        var fired: [ASRModelSelection] = []
+        controller.onInstalled = { fired.append($0) }
+
+        controller.download(quality)
+        await waitUntil { gate.hasWaiter() }
+        controller.cancel()
+        await waitUntil { controller.activeOperation == nil }
+
+        XCTAssertEqual(fired, [], "cancelled download must not fire an install completion notice")
+    }
+
+    func testOnInstalledDoesNotFireFromStaleCompletion() async throws {
+        // Two distinct models: A (Fast) starts, then B (Quality) supersedes it.
+        // A's completion is stale and must not fire onInstalled.
+        let gateA = AsyncGate()
+        let gateB = AsyncGate()
+        let downloader = makeDownloader(mode: .succeed, gatesByDirectory: [
+            fast.modelDescriptor.canonicalDirectoryName: gateA,
+            quality.modelDescriptor.canonicalDirectoryName: gateB
+        ])
+        let controller = makeController(downloader: downloader)
+        var fired: [ASRModelSelection] = []
+        controller.onInstalled = { fired.append($0) }
+
+        controller.download(fast)   // A (stale)
+        await waitUntil { gateA.hasWaiter() }
+        controller.download(quality) // B (current); cancels A
+        await waitUntil { gateB.hasWaiter() }
+
+        // Release A first (stale completion), assert it does not fire.
+        gateA.open()
+        try? await Task.sleep(nanoseconds: 50_000_000)
+        XCTAssertFalse(fired.contains(fast), "stale A completion must not fire onInstalled")
+
+        // Release B: the authoritative install fires exactly once for Quality.
+        gateB.open()
+        await waitUntil {
+            if case .installed = controller.state(for: self.quality) { return true }
+            return false
+        }
+        XCTAssertEqual(fired, [quality], "only the authoritative B install fires onInstalled")
+    }
+
     // MARK: - Stress: cancel → retry × 30
 
     func testStressCancelThenRetryThirtyTimes() async throws {
