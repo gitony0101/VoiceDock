@@ -82,6 +82,89 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         super.init()
     }
 
+    /// Test-only initializer for composition behavior tests.
+    /// Allows injecting isolated ModelStorage and a counting coordinator factory
+    /// so tests can assert exactly-once construction without real provider load.
+    /// The factory runs on MainActor; its closure must be side-effect-free
+    /// and deterministic. Production code must never call this initializer.
+    init(
+        preferenceStore: ASRPreferenceStore,
+        launchRecorder: ModelLaunchRecorder,
+        storage: ModelStorage,
+        coordinatorFactory: @escaping @MainActor () -> SessionCoordinator?
+    ) {
+        self.preferenceStore = preferenceStore
+        self.launchRecorder = launchRecorder
+        self.modelStatus = ModelStatus(
+            preferenceStore: preferenceStore,
+            recorder: launchRecorder
+        )
+        self.storage = storage
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: storage)
+        super.init()
+        self.testCoordinatorFactory = coordinatorFactory
+    }
+
+    /// Test-only hook to override makeCoordinator. Only set by the test initializer above.
+    private var testCoordinatorFactory: (@MainActor () -> SessionCoordinator?)?
+
+    /// Test-only flag to force production initialization even when VOICEDOCK_TEST_MODE=1.
+    /// Used by AppDelegateCompositionTests which run in the test bundle process
+    /// (which inherits the test host's environment).
+    internal var forceProductionInitialization = false
+
+    /// Test-only accessor for the coordinator (used by composition tests).
+    /// Production code must not depend on this.
+    internal var testCoordinator: SessionCoordinator? {
+        return coordinator
+    }
+
+    /// Test-only accessor for the acquisition controller (used by composition tests).
+    /// Production code must not depend on this.
+    internal var testAcquisition: ModelAcquisitionController {
+        return acquisition
+    }
+
+    /// Internal makeCoordinator used by startRuntimeIfNeeded.
+    /// Production path calls the real factory; test path uses injected factory.
+    private func makeCoordinator() -> SessionCoordinator? {
+        if let testFactory = testCoordinatorFactory {
+            return testFactory()
+        }
+        // Production path (unchanged)
+        writeUIDiagnostic("creating_audioCapture")
+        let audioCapture = AudioCapture()
+        writeUIDiagnostic("creating_asrProvider")
+        let factoryResult = ASRProviderFactory.createProviderWithMetadata(from: preferenceStore)
+        let asrProvider = factoryResult.provider
+
+        let resolvedModelDirectory: String
+        if let storage = asyncModelStorageDirectory(for: factoryResult.descriptor) {
+            resolvedModelDirectory = storage
+        } else {
+            resolvedModelDirectory = "unknown"
+        }
+
+        writeUIDiagnostic("creating_transcriptDestination")
+        let transcriptDestination = TranscriptDestination()
+        writeUIDiagnostic("creating_coordinator")
+        let coord = SessionCoordinator(
+            audioCapture: audioCapture,
+            asrProvider: asrProvider,
+            transcriptDestination: transcriptDestination
+        )
+        writeUIDiagnostic("coordinator_created")
+        modelStatus.captureActive(factoryResult)
+
+        launchRecorder.recordFactoryResult(
+            selection: factoryResult.selection,
+            descriptorRepoID: factoryResult.descriptor.repoID,
+            resolvedModelDirectory: resolvedModelDirectory,
+            activeAfterCapture: modelStatus.activeModel
+        )
+        return coord
+    }
+
     /// Build the UI-facing acquisition controller over the hardened
     /// `ModelInstaller`/`ModelStorage` backend. Downloading a model never
     /// changes the selected/active model (`ModelStatus`), so this shares only
@@ -217,7 +300,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // its own coordinators with injected mocks; the host exists only to
         // host XCTest and the minimal app shell. Production launches never
         // set VOICEDOCK_TEST_MODE and are unaffected.
-        if VoiceDockRuntimeComposition.current.isTestHost {
+        // Tests that explicitly set forceProductionInitialization bypass this guard.
+        if VoiceDockRuntimeComposition.current.isTestHost && !forceProductionInitialization {
             writeUIDiagnostic("fullInitialize_skipped_test_host")
             logger.info("Test host detected; skipping production coordinator/provider initialization")
             // Still wire the popover with nil coordinator for test host UI
@@ -625,54 +709,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         logger.info("Accessibility trusted; ensuring hotkey is registered")
         hotKeyManager?.unregister()
         installHotKey(against: coordinator)
-    }
-
-    private func makeCoordinator() -> SessionCoordinator? {
-        writeUIDiagnostic("creating_audioCapture")
-        let audioCapture = AudioCapture()
-        writeUIDiagnostic("creating_asrProvider")
-        // Active model comes from the descriptor of the provider actually
-        // created, read through the shared preference store so the factory
-        // and ModelStatus share one durable view of the selection.
-        let factoryResult = ASRProviderFactory.createProviderWithMetadata(from: preferenceStore)
-        let asrProvider = factoryResult.provider
-
-        // Pre-compute the canonical model directory for the diagnostic record.
-        // ModelStorage.modelDirectory(for:) is a deterministic pure function
-        // of the descriptor, so this matches the directory the provider will
-        // load from.
-        let resolvedModelDirectory: String
-        if let storage = asyncModelStorageDirectory(for: factoryResult.descriptor) {
-            resolvedModelDirectory = storage
-        } else {
-            resolvedModelDirectory = "unknown"
-        }
-
-        writeUIDiagnostic("creating_transcriptDestination")
-        let transcriptDestination = TranscriptDestination()
-        writeUIDiagnostic("creating_coordinator")
-        let coord = SessionCoordinator(
-            audioCapture: audioCapture,
-            asrProvider: asrProvider,
-            transcriptDestination: transcriptDestination
-        )
-        writeUIDiagnostic("coordinator_created")
-        // Reflect the real active model into ModelStatus after provider creation.
-        // This is the single write path for activeModel; no later init path
-        // may overwrite it with Quality.
-        modelStatus.captureActive(factoryResult)
-
-        // Record the factory result + resolved directory + activeModel after
-        // capture into the per-launch diagnostic. The provider load and
-        // warmup fields are filled later by Qwen3ASRProvider through the
-        // same recorder.
-        launchRecorder.recordFactoryResult(
-            selection: factoryResult.selection,
-            descriptorRepoID: factoryResult.descriptor.repoID,
-            resolvedModelDirectory: resolvedModelDirectory,
-            activeAfterCapture: modelStatus.activeModel
-        )
-        return coord
     }
 
     /// Resolve the canonical model directory for a descriptor on a background

@@ -40,6 +40,7 @@ let package = Package(
                 "TestHostStartupIsolationTests.swift",
                 "HotKeyManagerTests.swift",
                 "PermissionManagerTests.swift",
+                "AppDelegateCompositionTests.swift",
                 "TestSupport/AppDelegateTestSupport.swift"
             ]),
         // Standalone benchmark executable
