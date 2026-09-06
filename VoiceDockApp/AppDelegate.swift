@@ -18,7 +18,6 @@ private let uiDiagnosticsPath = "/tmp/voicedock-ui-diagnostics.log"
 final class AppDelegate: NSObject, NSApplicationDelegate {
     private var statusItem: NSStatusItem?
     private var popover: NSPopover?
-    private var coordinator: SessionCoordinator?
     private var hotKeyManager: HotKeyManager?
     private let permissions = PermissionManager()
     private let preferenceStore: ASRPreferenceStore
@@ -26,23 +25,21 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private let modelStatus: ModelStatus
     private let acquisition: ModelAcquisitionController
     /// Shared authoritative model storage, constructed once and reused by both
-    /// the acquisition controller (install/validation) and the first-run
-    /// runtime controller (setup-required gating), so both share one view of
-    /// the on-disk models.
+    /// the acquisition controller (install/validation) and the composition root
+    /// (setup-required gating), so both share one view of the on-disk models.
     private let storage: ModelStorage
-    /// First-run speech-runtime boundary: gates provider load on authoritative
-    /// model validity and starts the runtime exactly once on first-run
-    /// download. Constructed lazily in `fullInitialize` because `makeCoordinator`
-    /// (its factory) mutates `modelStatus.captureActive`.
-    private var firstRun: FirstRunRuntimeController?
+    private var coordinator: SessionCoordinator?
     private var hasRequestedMicrophone = false
     private var hasPressed = false  // Track whether press was accepted
     private var menuClickCount = 0
+    private var menuClickTimestamp: Date?
     private var activationObserver: NSObjectProtocol?
     private(set) var activationObserverInstallCount = 0
     /// Combine subscription on `coordinator.state` used to drive the
     /// exactly-once terminal diagnostic finalizer. Held for lifetime.
     private var lifecycleFinalizerCancellable: AnyCancellable?
+    /// Single stable CoordinatorBox for the popover's lifetime.
+    private var coordinatorBox: CoordinatorBox?
 
     /// Default initializer invoked by `@NSApplicationDelegateAdaptor(AppDelegate.self)`
     /// at host app launch. Obtains the preference store and per-launch recorder
@@ -107,7 +104,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         case replied
     }
     private var terminationState: TerminationState = .idle
-    private var menuClickTimestamp: Date?
 
     // Expose hotKeyManager for diagnostics
     var hotKeyManagerForDiagnostics: HotKeyManager? {
@@ -224,32 +220,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         if VoiceDockRuntimeComposition.current.isTestHost {
             writeUIDiagnostic("fullInitialize_skipped_test_host")
             logger.info("Test host detected; skipping production coordinator/provider initialization")
+            // Still wire the popover with nil coordinator for test host UI
+            wirePopover(coordinator: nil)
             return
         }
 
-        // 2a) Wire the popover immediately so the menu bar remains usable for
-        // model download / permission setup even before the speech runtime
-        // exists (fresh install with a missing model). The popover's content
-        // is refreshed with the real coordinator in `wireRuntimeIfStarted`
-        // once the required model is valid and the runtime has started.
+        // Wire the popover ONCE with a stable CoordinatorBox.
+        // The box starts with nil coordinator and gets updated when runtime starts.
         writeUIDiagnostic("wirePopover_initial_start")
         wirePopover(coordinator: nil)
         writeUIDiagnostic("wirePopover_initial_done")
-
-        // 2) First-run speech-runtime boundary: only construct + load a
-        // provider once the selected/required model is authoritatively valid.
-        // A missing model on a fresh Mac is a normal setup prerequisite, not a
-        // runtime failure — the coordinator is never constructed, so no load is
-        // attempted and no `.failed` is published solely for a missing model.
-        writeUIDiagnostic("firstRun_setup_start")
-        prepareFirstRun()
-        writeUIDiagnostic("firstRun_setup_done")
 
         // 2b) Microphone permission
         checkMicrophonePermission()
 
         // 2c) Accessibility permission
         refreshPermissions(reason: .applicationLaunch)
+
+        // Wire acquisition completion handler
+        self.acquisition.onInstalled = { [weak self] model in
+            self?.handleModelInstalled(model)
+        }
 
         // Refresh model availability asynchronously (non-blocking).
         Task { @MainActor in
@@ -258,15 +249,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // 2d) Record the executable hash (best-effort, off the launch path).
         // The per-launch terminal diagnostic record is finalized exactly
-        // once via the Combine sink on coordinator.state installed below:
+        // once via the Combine sink on coordinator.state installed when
+        // the real coordinator is constructed:
         //   .ready            → finalizeAndFlush(.complete)
         //   .failed(message)  → finalizeAndFlush(.loadFailed/.warmupFailed)
         // and a guaranteed `applicationWillTerminate` flush covers the
         // case where the app terminates before a terminal state is
-        // reached (`finalizeAndFlush(.incomplete)`). Replaced the prior
-        // fixed six-second deferred flush: a success arriving after that
-        // timer could be lost, and a failure before it was swept.
+        // reached (`finalizeAndFlush(.incomplete)`).
         launchRecorder.recordExecutableHash(ModelLaunchRecorder.computeExecutableHash())
+
+        // Initial check: is the selected model valid?
+        await checkAndStartRuntime()
 
         // Run self-test if requested
         if selfTestMode {
@@ -276,48 +269,49 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         }
     }
 
-    /// Construct the orchestrating `FirstRunRuntimeController`, gate the
-    /// coordinator on authoritative model validity, wire the popover and
-    /// hotkey when the runtime starts, and subscribe to first-run download
-    /// completion so a newly-installed required model starts the runtime
-    /// without a manual relaunch.
-    private func prepareFirstRun() {
-        let controller = FirstRunRuntimeController(
-            storage: storage,
-            selectedModelProvider: { [weak self] in
-                self?.modelStatus.selectedModel ?? .qwen3_0_6B_8bit
-            },
-            coordinatorProvider: { [weak self] in
-                self?.makeCoordinator()
-            }
-        )
-        self.firstRun = controller
+    /// Check the selected model's validity and start the runtime if valid.
+    /// Called at launch and after authoritative install completion.
+    /// Runs on MainActor; the coordinator == nil guard + MainActor serialization
+    /// is the start-admission authority (no separate `started` flag needed).
+    private func checkAndStartRuntime() async {
+        // Snapshot the current selection before the async validity check.
+        let snapshot = modelStatus.selectedModel
 
-        // When a first-run download authoritatively installs the required
-        // model, start the runtime exactly once. The controller re-validates
-        // against storage and enforces exactly-once start authority.
-        self.acquisition.onInstalled = { [weak self] model in
-            self?.firstRun?.handleInstalled(model)
+        // Authoritative validity check.
+        let valid = await storage.isModelValid(snapshot.modelDescriptor)
+
+        // After the await, RECHECK that selection hasn't changed.
+        // An async validity result for an obsolete selection must not create a runtime.
+        guard modelStatus.selectedModel == snapshot else {
+            writeUIDiagnostic("checkAndStartRuntime: selection changed during validity check; aborting")
+            return
         }
 
-        Task { @MainActor [weak self] in
-            await controller.checkRequiredModel()
-            _ = controller.startIfRequiredModelValid()
-            self?.wireRuntimeIfStarted(controller: controller)
+        // If valid and coordinator is still nil, start the runtime exactly once.
+        // MainActor serialization + coordinator != nil is the dedup authority.
+        if valid && coordinator == nil {
+            await startRuntimeIfNeeded()
+        } else if !valid {
+            writeUIDiagnostic("checkAndStartRuntime: model invalid (missing/invalid) - coordinator remains nil")
         }
     }
 
-    /// Wire popover + hotkey + launch diagnostics once the runtime has been
-    /// started by the first-run controller (or on any later start). Idempotent
-    /// for the coordinator actually constructed.
-    private func wireRuntimeIfStarted(controller: FirstRunRuntimeController) {
-        guard let newCoordinator = controller.coordinator, self.coordinator !== newCoordinator else {
+    /// Start the speech runtime when prerequisites are met.
+    /// Precondition: called on MainActor, coordinator == nil, model valid.
+    private func startRuntimeIfNeeded() async {
+        guard coordinator == nil else { return }
+
+        writeUIDiagnostic("startRuntimeIfNeeded: constructing coordinator")
+        guard let newCoordinator = makeCoordinator() else {
+            writeUIDiagnostic("startRuntimeIfNeeded: makeCoordinator returned nil")
             return
         }
         self.coordinator = newCoordinator
+
+        // Update the stable CoordinatorBox with the new coordinator
+        coordinatorBox?.update(coordinator: newCoordinator)
+
         writeUIDiagnostic("coordinator_assigned")
-        wirePopover(coordinator: newCoordinator)
-        writeUIDiagnostic("wirePopover_done")
         installHotKey(against: newCoordinator)
         writeUIDiagnostic("installHotKey_done")
         logger.info("Coordinator wired; status=\(String(describing: newCoordinator.state))")
@@ -333,6 +327,41 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         lifecycleFinalizerCancellable = newCoordinator.$state.sink { [weak self] state in
             guard let self = self else { return }
             self.handleCoordinatorStateForLaunchDiagnostics(state)
+        }
+    }
+
+    /// Handle authoritative install completion from ModelAcquisitionController.
+    /// Fires only for successful, validated, non-cancelled, non-stale installs.
+    private func handleModelInstalled(_ model: ASRModelSelection) {
+        // A. Only the currently selected model matters.
+        guard model == modelStatus.selectedModel else {
+            writeUIDiagnostic("handleModelInstalled: installed model \(model.rawValue) != selected \(modelStatus.selectedModel.rawValue); ignoring")
+            return
+        }
+
+        // B-C. Snapshot selection and revalidate authoritatively.
+        let snapshot = modelStatus.selectedModel
+        Task { @MainActor [weak self] in
+            guard let self = self else { return }
+
+            let valid = await self.storage.isModelValid(snapshot.modelDescriptor)
+
+            // D. After await, RECHECK selection still matches.
+            guard self.modelStatus.selectedModel == snapshot else {
+                self.writeUIDiagnostic("handleModelInstalled: selection changed during revalidation; aborting")
+                return
+            }
+
+            // E. If valid and coordinator is nil, start the runtime.
+            if valid && self.coordinator == nil {
+                await self.startRuntimeIfNeeded()
+            }
+            // F. If coordinator already exists, DO NOTHING.
+            // An existing .failed coordinator belongs to the genuine runtime-failure domain.
+            // Do not reinterpret it as model-acquisition recovery.
+            else if self.coordinator != nil {
+                self.writeUIDiagnostic("handleModelInstalled: coordinator already exists (state=\(String(describing: self.coordinator?.state))); no action")
+            }
         }
     }
 
@@ -440,24 +469,34 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     private func wirePopover(coordinator: SessionCoordinator?) {
         writeUIDiagnostic("wirePopover_start coordinator=\(coordinator == nil ? "nil" : "present")")
 
-        let rootView = MenuBarView(coordinator: coordinator, permissions: permissions, modelStatus: modelStatus, acquisition: acquisition)
-        let controller = NSHostingController(rootView: rootView)
+        // Create the stable CoordinatorBox on first call.
+        // Subsequent calls just update the coordinator reference.
+        if coordinatorBox == nil {
+            coordinatorBox = CoordinatorBox(coordinator: coordinator)
+            let rootView = MenuBarView(coordinatorBox: coordinatorBox!, permissions: permissions, modelStatus: modelStatus, acquisition: acquisition)
+            let controller = NSHostingController(rootView: rootView)
 
-        writeUIDiagnostic("content_view_controller_created=true")
+            writeUIDiagnostic("content_view_controller_created=true")
 
-        let popover = NSPopover()
-        popover.behavior = .transient
-        popover.animates = false
-        popover.contentSize = NSSize(width: 360, height: 460)
-        popover.contentViewController = controller
+            let popover = NSPopover()
+            popover.behavior = .transient
+            popover.animates = false
+            popover.contentSize = NSSize(width: 360, height: 460)
+            popover.contentViewController = controller
 
-        writeUIDiagnostic("popover_created=true")
-        writeUIDiagnostic("popover_content_size=\(popover.contentSize.width)x\(popover.contentSize.height)")
-        writeUIDiagnostic("popover_behavior=\(popover.behavior)")
-        writeUIDiagnostic("popover_animates=\(popover.animates)")
+            writeUIDiagnostic("popover_created=true")
+            writeUIDiagnostic("popover_content_size=\(popover.contentSize.width)x\(popover.contentSize.height)")
+            writeUIDiagnostic("popover_behavior=\(popover.behavior)")
+            writeUIDiagnostic("popover_animates=\(popover.animates)")
 
-        self.popover = popover
-        writeUIDiagnostic("popover_assigned_to_self")
+            self.popover = popover
+            writeUIDiagnostic("popover_assigned_to_self")
+        } else {
+            // Update the existing CoordinatorBox - this triggers SwiftUI refresh
+            // without recreating the popover or its view hierarchy.
+            coordinatorBox?.update(coordinator: coordinator)
+            writeUIDiagnostic("coordinatorBox_updated coordinator=\(coordinator == nil ? "nil" : "present")")
+        }
     }
 
     private func runPopoverSelfTest() async {

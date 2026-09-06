@@ -55,7 +55,6 @@
 		89FDB3818AC73C6930D90A7B /* SessionCoordinator.swift in Sources */ = {isa = PBXBuildFile; fileRef = B922319398ABD24039CEA6CD /* SessionCoordinator.swift */; };
 		91FB584797CC58F63A0D4C37 /* PermissionManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 82E1EE837BA79FDD99A3ECCE /* PermissionManager.swift */; };
 		9493284A7C6CE295807F2C98 /* TranscriptDeliveryDecision.swift in Sources */ = {isa = PBXBuildFile; fileRef = 206DABF240C7547BC8891DED /* TranscriptDeliveryDecision.swift */; };
-		96142A0AF408941D956201E2 /* FirstRunRuntimeController.swift in Sources */ = {isa = PBXBuildFile; fileRef = EECBF192289681660A85B585 /* FirstRunRuntimeController.swift */; };
 		9750212933EBC421EAFBA871 /* TranscriptCorrectionEngineTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6AACB02C4316FB4BEB536160 /* TranscriptCorrectionEngineTests.swift */; };
 		9A36BD7788A9A985911E5332 /* ModelAcquisitionController.swift in Sources */ = {isa = PBXBuildFile; fileRef = F2880279D93DA9295072F55E /* ModelAcquisitionController.swift */; };
 		9B0D15F297656209C7D4C863 /* MockAudioCapture.swift in Sources */ = {isa = PBXBuildFile; fileRef = FB5209C7AACF3589E68CA77B /* MockAudioCapture.swift */; };
@@ -263,7 +262,6 @@
 		EA296CF94C4AD6B3B830154A /* QwenModelStorageTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = QwenModelStorageTests.swift; sourceTree = "<group>"; };
 		ECC0832798C21D9E0215E95B /* MockASRProvider.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MockASRProvider.swift; sourceTree = "<group>"; };
 		EDDCB956C3E2DDB229226689 /* TerminalApplicationClassifierTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApplicationClassifierTests.swift; sourceTree = "<group>"; };
-		EECBF192289681660A85B585 /* FirstRunRuntimeController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = FirstRunRuntimeController.swift; sourceTree = "<group>"; };
 		F2880279D93DA9295072F55E /* ModelAcquisitionController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelAcquisitionController.swift; sourceTree = "<group>"; };
 		F4BE0B032508ACF4DAACE896 /* TestHostStartupIsolationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TestHostStartupIsolationTests.swift; sourceTree = "<group>"; };
 		FA372F47C0C3E86CEFD1DA0F /* Security.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = Security.framework; path = System/Library/Frameworks/Security.framework; sourceTree = SDKROOT; };
@@ -465,7 +463,6 @@
 				8CFF7444B1DC3889D4253634 /* AudioCapture.swift */,
 				C873189C015609821373C9D5 /* AudioNormalizer.swift */,
 				DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */,
-				EECBF192289681660A85B585 /* FirstRunRuntimeController.swift */,
 				515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */,
 				E0A7BCC1427A09B67A615370 /* HotKeyRegistrationObservable.swift */,
 				76FAA9042DFF5484077B57F0 /* HotKeyRegistrationState.swift */,
@@ -678,7 +675,6 @@
 				5C90619818D3722C37FC5E2D /* AudioCapture.swift in Sources */,
 				B8AD46E2FFB1F55A99AD2A3D /* AudioNormalizer.swift in Sources */,
 				10818E511B54B1E7E9028C1B /* BenchmarkCore.swift in Sources */,
-				96142A0AF408941D956201E2 /* FirstRunRuntimeController.swift in Sources */,
 				10D74FF434A078BDB1844F2C /* FrontmostApplicationProviding.swift in Sources */,
 				BA2FB3E5E2D0D77A41C6CBDD /* HotKeyRegistrationObservable.swift in Sources */,
 				F32B9488CE727BD780E85975 /* HotKeyRegistrationState.swift in Sources */,

@@ -26,6 +26,18 @@ final class CoordinatorBox: ObservableObject {
             self?.objectWillChange.send()
         }
     }
+
+    /// Update the coordinator reference, cancelling the previous subscription
+    /// and establishing a new one. This allows the popover to observe a
+    /// nil → coordinator transition without recreating the view hierarchy.
+    func update(coordinator: SessionCoordinator?) {
+        guard self.coordinator !== coordinator else { return }
+        cancellable?.cancel()
+        self.coordinator = coordinator
+        self.cancellable = coordinator?.objectWillChange.sink { [weak self] _ in
+            self?.objectWillChange.send()
+        }
+    }
 }
 
 struct MenuBarView: View {
@@ -44,8 +56,8 @@ struct MenuBarView: View {
     /// The speech coordinator, or nil while the required model is missing.
     private var coordinator: SessionCoordinator? { coordinatorBox.coordinator }
 
-    init(coordinator: SessionCoordinator?, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
-        self.coordinatorBox = CoordinatorBox(coordinator: coordinator)
+    init(coordinatorBox: CoordinatorBox, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
+        self.coordinatorBox = coordinatorBox
         self.permissions = permissions
         self.modelStatus = modelStatus
         self.acquisition = acquisition
@@ -849,5 +861,5 @@ struct MenuBarView: View {
         storage: storage,
         modelStatus: modelStatus
     )
-    return MenuBarView(coordinator: coord, permissions: perm, modelStatus: modelStatus, acquisition: acquisition)
+    return MenuBarView(coordinatorBox: CoordinatorBox(coordinator: coord), permissions: perm, modelStatus: modelStatus, acquisition: acquisition)
 }

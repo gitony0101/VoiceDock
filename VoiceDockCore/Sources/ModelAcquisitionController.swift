@@ -93,10 +93,10 @@ public final class ModelAcquisitionController: ObservableObject {
     /// successful, non-stale, non-cancelled install — only after
     /// `storage.isModelValid` confirms the model is installed, and only under
     /// the still-current generation. A cancelled/failed/stale operation never
-    /// fires this. This is the single signal a composition layer (e.g.
-    /// `FirstRunRuntimeController`) uses to start/recover the speech runtime
-    /// after a first-run download. The controller owns its own lifecycle; this
-    /// type never reaches into SessionCoordinator.
+    /// fires this. This is the single signal a composition layer uses to
+    /// start/recover the speech runtime after a first-run download. The
+    /// controller owns its own lifecycle; this type never reaches into
+    /// SessionCoordinator.
     public var onInstalled: (@MainActor (ASRModelSelection) -> Void)?
 
     public init(
