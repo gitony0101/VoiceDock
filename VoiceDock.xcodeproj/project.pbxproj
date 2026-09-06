@@ -72,6 +72,8 @@
 		B2B6D4403D8595A404237185 /* MockASRProvider.swift in Sources */ = {isa = PBXBuildFile; fileRef = ECC0832798C21D9E0215E95B /* MockASRProvider.swift */; };
 		B4C67F6E93DA67F090B6FACE /* FixtureRecorder.swift in Sources */ = {isa = PBXBuildFile; fileRef = 97D1A2FA7FBE6AC456C67C5D /* FixtureRecorder.swift */; };
 		B8AD46E2FFB1F55A99AD2A3D /* AudioNormalizer.swift in Sources */ = {isa = PBXBuildFile; fileRef = C873189C015609821373C9D5 /* AudioNormalizer.swift */; };
+		BA2FB3E5E2D0D77A41C6CBDD /* HotKeyRegistrationObservable.swift in Sources */ = {isa = PBXBuildFile; fileRef = E0A7BCC1427A09B67A615370 /* HotKeyRegistrationObservable.swift */; };
+		BA6677E0D6110A21B7925E6B /* HotKeyRegistrationObservabilityTests.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6C2FC69DB8967F75751AD592 /* HotKeyRegistrationObservabilityTests.swift */; };
 		BADE469AB1418A26365668CB /* VoiceDockApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 6CBB783A9369E5DA542F9B77 /* VoiceDockApp.swift */; };
 		BB5F8859F949C4342B409C6C /* Security.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = FA372F47C0C3E86CEFD1DA0F /* Security.framework */; };
 		C2DFCF81CD0B183A65349F3B /* Carbon.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 757ED32AC260012784134505 /* Carbon.framework */; };
@@ -206,6 +208,7 @@
 		5D5DA4ED61BDE0A8ADD411B7 /* AppDelegate.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AppDelegate.swift; sourceTree = "<group>"; };
 		67CA238572F42F2927B0A5DA /* SessionCoordinatorCorrectionTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SessionCoordinatorCorrectionTests.swift; sourceTree = "<group>"; };
 		6AACB02C4316FB4BEB536160 /* TranscriptCorrectionEngineTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionEngineTests.swift; sourceTree = "<group>"; };
+		6C2FC69DB8967F75751AD592 /* HotKeyRegistrationObservabilityTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyRegistrationObservabilityTests.swift; sourceTree = "<group>"; };
 		6CBB783A9369E5DA542F9B77 /* VoiceDockApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VoiceDockApp.swift; sourceTree = "<group>"; };
 		6E9A6D10B7BBF4C82E818735 /* BenchmarkEvaluationTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkEvaluationTests.swift; sourceTree = "<group>"; };
 		6EF1CC795F41E1578DE7F0E1 /* TranscriptDeliveryPolicyTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptDeliveryPolicyTests.swift; sourceTree = "<group>"; };
@@ -250,6 +253,7 @@
 		DC2FE7E4662CB15D96725995 /* VoiceDockASRBench */ = {isa = PBXFileReference; includeInIndex = 0; path = VoiceDockASRBench; sourceTree = BUILT_PRODUCTS_DIR; };
 		DCC769B4AAD7276D7828E898 /* TranscriptCorrectionEngine.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TranscriptCorrectionEngine.swift; sourceTree = "<group>"; };
 		DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = BenchmarkCore.swift; sourceTree = "<group>"; };
+		E0A7BCC1427A09B67A615370 /* HotKeyRegistrationObservable.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = HotKeyRegistrationObservable.swift; sourceTree = "<group>"; };
 		E10580C5CD4F445FB814179C /* TerminalApplicationClassifier.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TerminalApplicationClassifier.swift; sourceTree = "<group>"; };
 		E431B10B7AA9C472270F2F74 /* Qwen3ASRProviderTests.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Qwen3ASRProviderTests.swift; sourceTree = "<group>"; };
 		E48D57B481D32DA8EB6F90AC /* ModelStorage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ModelStorage.swift; sourceTree = "<group>"; };
@@ -358,6 +362,7 @@
 				A80D87008EBB2703AD734F90 /* AudioNormalizerTests.swift */,
 				6E9A6D10B7BBF4C82E818735 /* BenchmarkEvaluationTests.swift */,
 				C1D809539088E9B9AE534EC4 /* HotKeyManagerTests.swift */,
+				6C2FC69DB8967F75751AD592 /* HotKeyRegistrationObservabilityTests.swift */,
 				93479EE2AC5A9B294B6077F0 /* HotKeyRegistrationStateTests.swift */,
 				ECC0832798C21D9E0215E95B /* MockASRProvider.swift */,
 				FB5209C7AACF3589E68CA77B /* MockAudioCapture.swift */,
@@ -459,6 +464,7 @@
 				C873189C015609821373C9D5 /* AudioNormalizer.swift */,
 				DFFE15F4191F35C22B74C4AA /* BenchmarkCore.swift */,
 				515A936B2833B887F4DCB255 /* FrontmostApplicationProviding.swift */,
+				E0A7BCC1427A09B67A615370 /* HotKeyRegistrationObservable.swift */,
 				76FAA9042DFF5484077B57F0 /* HotKeyRegistrationState.swift */,
 				D517477EB39C5A8E25056875 /* MLXAudioSTTProvider.swift */,
 				F2880279D93DA9295072F55E /* ModelAcquisitionController.swift */,
@@ -670,6 +676,7 @@
 				B8AD46E2FFB1F55A99AD2A3D /* AudioNormalizer.swift in Sources */,
 				10818E511B54B1E7E9028C1B /* BenchmarkCore.swift in Sources */,
 				10D74FF434A078BDB1844F2C /* FrontmostApplicationProviding.swift in Sources */,
+				BA2FB3E5E2D0D77A41C6CBDD /* HotKeyRegistrationObservable.swift in Sources */,
 				F32B9488CE727BD780E85975 /* HotKeyRegistrationState.swift in Sources */,
 				EE66812E3A82F8AB36E48AF4 /* MLXAudioSTTProvider.swift in Sources */,
 				9A36BD7788A9A985911E5332 /* ModelAcquisitionController.swift in Sources */,
@@ -721,6 +728,7 @@
 				7F8766174CAFAA490C1CBF67 /* BenchmarkEvaluationTests.swift in Sources */,
 				1B4813B42C8919437941152A /* FakeModelLaunchRecorder.swift in Sources */,
 				5CD1E1B2DCE93C36BF838B2A /* HotKeyManagerTests.swift in Sources */,
+				BA6677E0D6110A21B7925E6B /* HotKeyRegistrationObservabilityTests.swift in Sources */,
 				24ABF5AF742810D329F024A3 /* HotKeyRegistrationStateTests.swift in Sources */,
 				B2B6D4403D8595A404237185 /* MockASRProvider.swift in Sources */,
 				9B0D15F297656209C7D4C863 /* MockAudioCapture.swift in Sources */,

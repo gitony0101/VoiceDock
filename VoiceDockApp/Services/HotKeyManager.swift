@@ -7,6 +7,7 @@
 
 import AppKit
 import Carbon
+import Combine
 import Foundation
 import os.log
 import VoiceDockCore
@@ -39,6 +40,11 @@ final class HotKeyCallbackStorage: @unchecked Sendable {
 
 /// Detects Control+Option+Space using Carbon RegisterEventHotKey (primary)
 /// with NSEvent local+global monitors as fallback.
+///
+/// Registration behavior is owned here. The *observable* semantic registration
+/// truth is owned by the `registration` holder (`HotKeyRegistrationObservable`)
+/// that this manager feeds through exactly one funnel, `commitStatus`. UI that
+/// needs to react to registration changes observes `registration` directly.
 @MainActor
 final class HotKeyManager {
     // MARK: - Carbon HotKey
@@ -62,15 +68,23 @@ final class HotKeyManager {
     var backendName: String { isCarbonBackend ? "Carbon" : "NSEvent" }
     var registrationStatus: String { isCarbonBackend ? carbonStatus : nsEventStatus }
 
-    /// Semantic truth: is the push-to-talk hotkey actually registered right now?
-    ///
-    /// Derived (via `HotKeyRegistrationState`) from the current status, not
-    /// from Accessibility. Accessibility being trusted does not imply the
-    /// hotkey registered, and vice versa. Read-only; registration remains
-    /// owned by this manager's `register()`/`unregister()`.
-    var isRegistered: Bool {
-        HotKeyRegistrationState(status: registrationStatus).isRegistered
+    /// The observable semantic registration truth. `HotKeyManager` owns this
+    /// holder and feeds it through the single `commitStatus` funnel. UI observes
+    /// `registration` (an `ObservableObject`) to re-render on real transitions
+    /// without polling, reopening the popover, or inferring from Accessibility.
+    let registration = HotKeyRegistrationObservable()
+
+    /// Passthrough to the observable holder's semantic state.
+    var registrationState: HotKeyRegistrationState {
+        registration.state
     }
+
+    /// Convenience boolean mirror of `registrationState` for observers that
+    /// only need "is it registered right now?".
+    var isRegistered: Bool {
+        registrationState.isRegistered
+    }
+
     var lastKeyEvent: String { state.isDown() ? "pressed" : "released" }
     var pressCount: Int { _pressCount }
     var releaseCount: Int { _releaseCount }
@@ -81,6 +95,27 @@ final class HotKeyManager {
 
     var accessibilityTrusted: Bool {
         AXIsProcessTrusted()
+    }
+
+    /// Single funnel for every registration-state change. Records the diagnostic
+    /// status string on the active backend and republishes the derived semantic
+    /// truth on the owned holder (which deduplicates), so the semantic truth and
+    /// the diagnostic string cannot drift. Called from every success, failure,
+    /// and teardown site for both Carbon and NSEvent.
+    private func commitStatus(_ newStatus: String) {
+        commitStatus(newStatus, backend: isCarbonBackend)
+    }
+
+    /// Explicit-backend variant used from `init`, where `isCarbonBackend` is not
+    /// yet final when the Carbon status is recorded. Routing is otherwise
+    /// identical to `commitStatus(_:)`.
+    private func commitStatus(_ newStatus: String, backend: Bool) {
+        if backend {
+            carbonStatus = newStatus
+        } else {
+            nsEventStatus = newStatus
+        }
+        registration.update(to: HotKeyRegistrationState(status: newStatus))
     }
 
     // MARK: - C-compatible Carbon callback (must be @convention(c) - no captures)
@@ -131,17 +166,17 @@ final class HotKeyManager {
             if status == noErr {
                 carbonSucceeded = true
                 carbonHotKeyRef = hotKeyRef
-                carbonStatus = "success"
+                commitStatus("success", backend: true)
                 logger.info("Carbon hotkey registered: Control+Option+Space")
             } else {
-                carbonStatus = "RegisterEventHotKey failed: \(status)"
+                commitStatus("RegisterEventHotKey failed: \(status)", backend: true)
                 // P1-2 Fix: Diagnose Carbon error codes
                 diagnoseCarbonFailure(status, stage: "RegisterEventHotKey")
                 RemoveEventHandler(handlerRef)
                 carbonEventHandlerRef = nil
             }
         } else {
-            carbonStatus = "InstallEventHandler failed: \(status)"
+            commitStatus("InstallEventHandler failed: \(status)", backend: true)
             diagnoseCarbonFailure(status, stage: "InstallEventHandler")
         }
 
@@ -218,11 +253,11 @@ final class HotKeyManager {
             logger.error("  This is a non-standard Carbon error code")
         }
 
-        // Update status for diagnostics
+        // Update status for diagnostics (Carbon path only)
         if stage == "RegisterEventHotKey" {
-            carbonStatus = "failed: \(status)"
+            commitStatus("failed: \(status)", backend: true)
         } else {
-            carbonStatus = "failed: \(status) (\(stage))"
+            commitStatus("failed: \(status) (\(stage))", backend: true)
         }
     }
 
@@ -284,7 +319,7 @@ final class HotKeyManager {
         if allMonitors.contains(where: { $0 == nil }) {
             logger.error("One or more NSEvent monitors failed to register")
             unregisterNSEventMonitors()
-            nsEventStatus = "monitor registration failed"
+            commitStatus("monitor registration failed")
             return false
         }
 
@@ -295,7 +330,7 @@ final class HotKeyManager {
         self.localKeyUpMonitor = localKeyUp
         self.localFlagsMonitor = localFlags
 
-        nsEventStatus = "success"
+        commitStatus("success")
         logger.info("NSEvent monitors registered (global + local)")
         return true
     }
@@ -378,11 +413,11 @@ final class HotKeyManager {
                 RemoveEventHandler(handlerRef)
                 carbonEventHandlerRef = nil
             }
-            carbonStatus = "unregistered"
+            commitStatus("unregistered")
             logger.info("Carbon hotkey unregistered")
         } else {
             unregisterNSEventMonitors()
-            nsEventStatus = "unregistered"
+            commitStatus("unregistered")
             logger.info("NSEvent monitors unregistered")
         }
         state.setDown(false)
