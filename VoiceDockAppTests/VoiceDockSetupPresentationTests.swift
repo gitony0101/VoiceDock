@@ -432,4 +432,115 @@ struct VoiceDockSetupPresentationTests {
         #expect(r.header == .runtimeError)
         #expect(r.header.displayName == "Runtime Error")
     }
+
+    // MARK: - Setup-operational state semantics (OP1–OP10)
+    //
+    // The active speech states (`.ready`, `.listening`, `.transcribing`,
+    // `.delivering`) are "operational for setup": with a valid selected model
+    // they keep the speech-runtime leg and the speech-model row COMPLETE, so a
+    // persistent Setup UI never regresses mid-speech. Admission/teardown/failure
+    // states do not.
+
+    @Test("OP1 valid + .ready → speechRuntimeReady true, speech row complete")
+    func op1_validReady() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .ready,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.speechModel == .complete)
+    }
+
+    @Test("OP2 valid + .listening → true, complete, overall ready with mic/AX/hotkey")
+    func op2_validListening() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .listening,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.speechModel == .complete)
+        #expect(r.isReady == true)
+    }
+
+    @Test("OP3 valid + .transcribing → true, complete")
+    func op3_validTranscribing() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .transcribing,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.speechModel == .complete)
+    }
+
+    @Test("OP4 valid + .delivering → true, complete")
+    func op4_validDelivering() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .delivering,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.speechModel == .complete)
+    }
+
+    @Test("OP5 valid + .loadingModel → false, incomplete")
+    func op5_validLoadingModel() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .loadingModel,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.speechModel.isComplete == false)
+    }
+
+    @Test("OP6 valid + .starting → false, incomplete")
+    func op6_validStarting() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .starting,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.speechModel.isComplete == false)
+    }
+
+    @Test("OP7 valid + .failed → false, runtime error / incomplete")
+    func op7_validFailed() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .failed("synthetic"),
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.speechModel.isComplete == false)
+        #expect(r.header == .runtimeError)
+    }
+
+    @Test("OP8 valid + .idle → false, incomplete")
+    func op8_validIdle() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .idle,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.speechModel.isComplete == false)
+    }
+
+    @Test("OP9 valid + .cleaningUp → false, incomplete")
+    func op9_validCleaningUp() {
+        let r = make(
+            selectedModelValid: true, acquisition: .installed, coordinatorState: .cleaningUp,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.speechModel.isComplete == false)
+    }
+
+    @Test("OP10 invalid + .listening → false, incomplete (activity cannot manufacture validity)")
+    func op10_invalidListening() {
+        let r = make(
+            selectedModelValid: false, acquisition: .idle, coordinatorState: .listening,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.isReady == false)
+        #expect(r.speechModel.isComplete == false)
+    }
 }

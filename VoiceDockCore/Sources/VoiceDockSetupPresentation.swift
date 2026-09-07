@@ -147,11 +147,19 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
         hotkeyRegistration: HotKeyRegistrationState
     ) {
         // Speech runtime readiness is the established invariant:
-        //   selectedModelValid AND coordinator.state == .ready
-        // NOT merely "a model is selected/active". The currently selected model
-        // is the required model: Fast on a clean install, or Quality when the
-        // persisted selection is Quality, until selection changes.
-        let speechRuntimeReady = selectedModelValid && (coordinatorState == .ready)
+        //   selectedModelValid AND coordinator.state is operational for setup
+        //
+        // "Operational for setup" means the runtime has genuinely left admission
+        // and is listening, transcribing, or delivering — not merely that a model
+        // is selected/active. The currently selected model is the required model:
+        // Fast on a clean install, or Quality when the persisted selection is
+        // Quality, until selection changes.
+        //
+        // A persistent Setup UI must NOT regress to "Setup Required" while the
+        // user is actively speaking; admission states (starting / waiting /
+        // loading / cleaning / idle) and `.failed` stay non-operational.
+        let speechRuntimeReady =
+            selectedModelValid && Self.isOperationalForSetup(coordinatorState)
 
         self.readiness = VoiceDockReadiness(
             speechRuntimeReady: speechRuntimeReady,
@@ -189,6 +197,28 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
 
     // MARK: - Speech model row (M1–M8)
 
+    /// Whether a given coordinator state means the speech runtime is
+    /// operationally live for setup completeness. The active speech states
+    /// (`.ready`, `.listening`, `.transcribing`, `.delivering`) qualify; every
+    /// admission / teardown / failure state does not.
+    ///
+    /// This is the single semantic used for both the speech-runtime leg and the
+    /// speech-model row, so the two can never drift apart.
+    private static func isOperationalForSetup(_ state: SessionCoordinator.State) -> Bool {
+        switch state {
+        case .ready, .listening, .transcribing, .delivering:
+            return true
+        case .starting,
+             .waitingForMicrophonePermission,
+             .waitingForAccessibilityPermission,
+             .loadingModel,
+             .failed,
+             .cleaningUp,
+             .idle:
+            return false
+        }
+    }
+
     private static func presentSpeechModel(
         selectedModel: ASRModelSelection,
         selectedModelValid: Bool,
@@ -198,15 +228,17 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
         // When the selected model is validly installed, acquisition state is
         // secondary; the runtime / coordinator state decides completeness.
         if selectedModelValid {
-            if coordinatorState == .ready {
-                // M6: installed + ready → complete.
+            if Self.isOperationalForSetup(coordinatorState) {
+                // M6: installed + operational (ready/listening/transcribing/
+                // delivering) → complete.
                 return .complete
             }
             if case .failed = coordinatorState {
                 // M5: installed + failed → runtime error, restart required.
                 return .incomplete(status: Self.modelName(selectedModel) + " runtime error", action: .none)
             }
-            // M4: installed + coordinator nil/loading → Loading.
+            // M4: installed + coordinator non-operational (starting/loading/
+            // waiting/cleaning/idle) → Loading.
             return .incomplete(status: "Loading " + Self.modelName(selectedModel), action: .none)
         }
 
