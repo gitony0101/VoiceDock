@@ -238,6 +238,66 @@ struct VoiceDockSetupPresentationTests {
         #expect(r.isReady == false)
     }
 
+    // MARK: - Model-validity / acquisition independence (V1–V4)
+
+    // `selectedModelValid` is authoritative and independent of
+    // `ModelAcquisitionState`. Acquisition state is a UI/install-lifecycle
+    // concern; it must never manufacture validity nor redefine an already-valid
+    // runtime.
+
+    @Test("V1 valid model + checking acquisition still runtime-ready")
+    func testV1_validModelCheckingAcquisitionStillRuntimeReady() {
+        let r = make(
+            selectedModel: .qwen3_0_6B_8bit, selectedModelValid: true,
+            acquisition: .checking, coordinatorState: .ready,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        // Validity is the authoritative truth; `.checking` is incidental.
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.isReady == true)
+    }
+
+    @Test("V2 valid model + idle acquisition still runtime-ready")
+    func testV2_validModelIdleAcquisitionStillRuntimeReady() {
+        let r = make(
+            selectedModel: .qwen3_0_6B_8bit, selectedModelValid: true,
+            acquisition: .idle, coordinatorState: .ready,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.isReady == true)
+    }
+
+    @Test("V3 invalid model + installed acquisition cannot become ready")
+    func testV3_invalidModelInstalledAcquisitionCannotBecomeReady() {
+        let r = make(
+            selectedModel: .qwen3_0_6B_8bit, selectedModelValid: false,
+            acquisition: .installed, coordinatorState: .ready,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        // Acquisition `.installed` must NOT manufacture validity: the model is
+        // still invalid, so the speech runtime is not ready.
+        #expect(r.readiness.speechRuntimeReady == false)
+        #expect(r.isReady == false)
+        // The speech-model row stays incomplete, failing safely toward
+        // authoritative validity (not the misleading acquisition state).
+        #expect(r.speechModel.isComplete == false)
+    }
+
+    @Test("V4 valid + ready runtime ignores acquisition failure for readiness")
+    func testV4_validReadyRuntimeIgnoresAcquisitionFailureForReadiness() {
+        let r = make(
+            selectedModel: .qwen3_0_6B_8bit, selectedModelValid: true,
+            acquisition: .failed(message: "synthetic acquisition failure"),
+            coordinatorState: .ready,
+            microphone: .granted, accessibilityTrusted: true, hotkeyRegistration: .registered
+        )
+        // An acquisition failure must NOT redefine an already-valid,
+        // already-ready runtime.
+        #expect(r.readiness.speechRuntimeReady == true)
+        #expect(r.isReady == true)
+    }
+
     // MARK: - Microphone row (MIC1–MIC3)
 
     @Test("MIC1 notDetermined → allowMicrophone")
