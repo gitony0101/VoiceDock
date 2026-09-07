@@ -68,11 +68,10 @@ final class HotKeyManager {
     var backendName: String { isCarbonBackend ? "Carbon" : "NSEvent" }
     var registrationStatus: String { isCarbonBackend ? carbonStatus : nsEventStatus }
 
-    /// The observable semantic registration truth. `HotKeyManager` owns this
-    /// holder and feeds it through the single `commitStatus` funnel. UI observes
-    /// `registration` (an `ObservableObject`) to re-render on real transitions
-    /// without polling, reopening the popover, or inferring from Accessibility.
-    let registration = HotKeyRegistrationObservable()
+    /// The observable semantic registration truth. Injected by AppDelegate for stable
+    /// identity across the app lifetime. HotKeyManager feeds this observable through
+    /// its single `commitStatus` funnel. UI observes this holder directly.
+    let registration: HotKeyRegistrationObservable
 
     /// Passthrough to the observable holder's semantic state.
     var registrationState: HotKeyRegistrationState {
@@ -125,7 +124,12 @@ final class HotKeyManager {
         return manager.handleCarbonEvent(event)
     }
 
-    init(onStart: @escaping () -> Void, onStop: @escaping () -> Void) {
+    init(
+        registration: HotKeyRegistrationObservable = HotKeyRegistrationObservable(),
+        onStart: @escaping () -> Void,
+        onStop: @escaping () -> Void
+    ) {
+        self.registration = registration
         self.storage.onStart = onStart
         self.storage.onStop = onStop
         self.isCarbonBackend = false

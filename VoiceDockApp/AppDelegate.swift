@@ -41,6 +41,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Single stable CoordinatorBox for the popover's lifetime.
     private var coordinatorBox: CoordinatorBox?
 
+    /// Stable hotkey registration observable with app lifetime.
+    /// Created before HotKeyManager and injected into it, so MenuBarView
+    /// can observe the SAME instance from first render without waiting for
+    /// HotKeyManager to exist. HotKeyManager feeds this observable through
+    /// its single `commitStatus` funnel.
+    private let hotKeyRegistration = HotKeyRegistrationObservable()
+
     /// Default initializer invoked by `@NSApplicationDelegateAdaptor(AppDelegate.self)`
     /// at host app launch. Obtains the preference store and per-launch recorder
     /// from the runtime composition, so the Xcode TEST_HOST (launched with
@@ -553,7 +560,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // Subsequent calls just update the coordinator reference.
         if coordinatorBox == nil {
             coordinatorBox = CoordinatorBox(coordinator: coordinator)
-            let rootView = MenuBarView(coordinatorBox: coordinatorBox!, permissions: permissions, modelStatus: modelStatus, acquisition: acquisition)
+            let rootView = MenuBarView(
+                coordinatorBox: coordinatorBox!,
+                permissions: permissions,
+                modelStatus: modelStatus,
+                acquisition: acquisition,
+                hotKeyRegistration: hotKeyRegistration
+            )
             let controller = NSHostingController(rootView: rootView)
 
             writeUIDiagnostic("content_view_controller_created=true")
@@ -725,6 +738,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // HotKeyManager callbacks now weakly capture self and resolve coordinator at event time
         // Fix: Use explicit result contract - only set hasPressed if startRecording returns true
         let manager = HotKeyManager(
+            registration: hotKeyRegistration,
             onStart: { [weak self] in
                 Task { @MainActor in
                     guard let self = self else { return }

@@ -45,6 +45,7 @@ struct MenuBarView: View {
     @ObservedObject var permissions: PermissionManager
     @ObservedObject var modelStatus: ModelStatus
     @ObservedObject var acquisition: ModelAcquisitionController
+    @ObservedObject var hotKeyRegistration: HotKeyRegistrationObservable
     @State private var showFullTranscript = false
     @State private var showDiagnostics = false
     @State private var automaticPaste: Bool
@@ -52,15 +53,24 @@ struct MenuBarView: View {
     @State private var correctionEnabled: Bool
     @State private var restartInProgress = false
     @State private var restartProgressText: String = ""
+    /// Local UI-only expansion state for ready details. Not persisted.
+    @State private var userExpandedReadyDetails = false
 
     /// The speech coordinator, or nil while the required model is missing.
     private var coordinator: SessionCoordinator? { coordinatorBox.coordinator }
 
-    init(coordinatorBox: CoordinatorBox, permissions: PermissionManager, modelStatus: ModelStatus, acquisition: ModelAcquisitionController) {
+    init(
+        coordinatorBox: CoordinatorBox,
+        permissions: PermissionManager,
+        modelStatus: ModelStatus,
+        acquisition: ModelAcquisitionController,
+        hotKeyRegistration: HotKeyRegistrationObservable
+    ) {
         self.coordinatorBox = coordinatorBox
         self.permissions = permissions
         self.modelStatus = modelStatus
         self.acquisition = acquisition
+        self.hotKeyRegistration = hotKeyRegistration
         let deliveryPrefs = TranscriptDeliveryPreferences.load()
         _automaticPaste = State(initialValue: deliveryPrefs.automaticPaste)
         _sendReturnAfterPaste = State(initialValue: deliveryPrefs.sendReturnAfterPaste)
@@ -73,9 +83,17 @@ struct MenuBarView: View {
         let screenFrame = NSScreen.main?.visibleFrame ?? .zero
         let maxHeight = max(480, min(720, screenFrame.height - 60))
 
+        // Build the setup presentation from observed truths
+        let setupPresentation = makeSetupPresentation()
+
         VStack(alignment: .leading, spacing: 0) {
             // Fixed header
-            headerSection
+            headerSection(setupPresentation: setupPresentation)
+
+            Divider()
+
+            // Persistent Setup section (near top, after header)
+            setupSection(presentation: setupPresentation)
 
             Divider()
 
@@ -99,11 +117,6 @@ struct MenuBarView: View {
 
             // Fixed correction control
             correctionSection
-
-            Divider()
-
-            // Fixed permission row (compact unless denied, then expandable)
-            permissionSection
 
             Spacer(minLength: 8)
 
@@ -132,17 +145,48 @@ struct MenuBarView: View {
         }
     }
 
+    // MARK: - Setup Presentation Construction
+
+    /// Derives ONE VoiceDockSetupPresentation from existing observed truths.
+    /// This is the single source of setup truth for the UI.
+    private func makeSetupPresentation() -> VoiceDockSetupPresentation {
+        let selectedModel = modelStatus.selectedModel
+        let selectedModelValid = modelStatus.availabilityFor(selectedModel) == .installed
+        let selectedModelAcquisition = acquisition.state(for: selectedModel)
+        let coordinatorState = coordinator?.state ?? .starting
+        let microphone: VoiceDockMicrophoneState = {
+            switch permissions.microphoneStatus {
+            case .granted: return .granted
+            case .denied: return .denied
+            case .notDetermined: return .notDetermined
+            }
+        }()
+        let accessibilityTrusted = permissions.accessibilityStatus
+        let hotkeyRegistration = hotKeyRegistration.state
+
+        return VoiceDockSetupPresentation(
+            selectedModel: selectedModel,
+            selectedModelValid: selectedModelValid,
+            selectedModelAcquisition: selectedModelAcquisition,
+            coordinatorState: coordinatorState,
+            microphone: microphone,
+            accessibilityTrusted: accessibilityTrusted,
+            hotkeyRegistration: hotkeyRegistration
+        )
+    }
+
     // MARK: - Header
-    private var headerSection: some View {
+
+    private func headerSection(setupPresentation: VoiceDockSetupPresentation) -> some View {
         VStack(alignment: .leading, spacing: 4) {
             HStack(alignment: .firstTextBaseline) {
                 Image(systemName: "mic.fill")
                     .font(.title3)
-                    .foregroundColor(stateColor)
+                    .foregroundColor(stateColor(setupPresentation: setupPresentation))
                 Text("VoiceDock")
                     .font(.title3.bold())
                 Spacer()
-                statusBadge
+                statusBadge(setupPresentation: setupPresentation)
             }
             Text("Hold Control–Option–Space")
                 .font(.caption)
@@ -151,27 +195,11 @@ struct MenuBarView: View {
         .padding(.vertical, 6)
     }
 
-    private var statusBadge: some View {
-        Group {
-            switch coordinator?.state {
-            case .none:
-                // No coordinator yet: the required model is missing/invalid (the
-                // runtime has not started), OR a setup prerequisite is unmet.
-                setupBadge
-            case .ready, .idle:
-                if !permissions.microphoneStatus.isGranted {
-                    Text("Microphone Required")
-                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-                } else if !permissions.accessibilityStatus {
-                    Text("Accessibility Required")
-                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-                } else {
-                    Text("Ready")
-                        .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
-                        .background(Color.green.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-                }
+    @ViewBuilder
+    private func statusBadge(setupPresentation: VoiceDockSetupPresentation) -> some View {
+        // Transient runtime activity overrides visually
+        if let coordinator = coordinator {
+            switch coordinator.state {
             case .listening:
                 Text("Recording")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
@@ -196,35 +224,60 @@ struct MenuBarView: View {
                 Text("Error")
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.red.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-            case .starting,
-                 .waitingForMicrophonePermission,
-                 .waitingForAccessibilityPermission:
+            case .starting, .waitingForMicrophonePermission, .waitingForAccessibilityPermission:
                 Text(stateText)
                     .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                     .background(Color.gray.opacity(0.15)).cornerRadius(4).foregroundColor(.secondary)
+            case .ready, .idle:
+                // Fall through to setupPresentation
+                setupPresentationBadge(setupPresentation)
             }
+        } else {
+            // No coordinator - use setupPresentation
+            setupPresentationBadge(setupPresentation)
         }
     }
 
-    /// Badge shown while no coordinator exists yet (fresh install / model
-    /// missing). If the required model is missing, surface "Model Required";
-    /// otherwise treat it as still starting.
-    private var setupBadge: some View {
-        if modelMissingForSelection {
-            Text("Model Required")
+    @ViewBuilder
+    private func setupPresentationBadge(_ setupPresentation: VoiceDockSetupPresentation) -> some View {
+        switch setupPresentation.header {
+        case .ready:
+            Text("Ready")
+                .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
+                .background(Color.green.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+        case .setupRequired:
+            Text("Setup Required")
                 .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
                 .background(Color.yellow.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
-        } else {
-            Text("Starting…")
+        case .runtimeError:
+            Text("Runtime Error")
                 .font(.caption2).padding(.horizontal, 6).padding(.vertical, 2)
-                .background(Color.orange.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
+                .background(Color.red.opacity(0.2)).cornerRadius(4).foregroundColor(.primary)
         }
+    }
+
+    private func stateColor(setupPresentation: VoiceDockSetupPresentation) -> Color {
+        if let coordinator = coordinator {
+            switch coordinator.state {
+            case .idle, .ready: return .green
+            case .starting, .loadingModel: return .orange
+            case .listening: return .blue
+            case .transcribing: return .purple
+            case .delivering: return .green
+            case .cleaningUp: return .secondary
+            case .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return .yellow
+            case .failed: return .red
+            }
+        }
+        return setupPresentation.isReady ? .green : .yellow
     }
 
     private var stateText: String {
         switch coordinator?.state {
-        case .none:
-            return modelMissingForSelection ? "Model Required" : "Starting"
+        case .starting, .waitingForMicrophonePermission, .waitingForAccessibilityPermission:
+            let selected = modelStatus.selectedModel
+            let valid = modelStatus.availabilityFor(selected) == .installed
+            return valid ? "Starting" : "Model Required"
         case .idle, .ready:
             if !permissions.microphoneStatus.isGranted { return "Microphone Required" }
             if !permissions.accessibilityStatus { return "Accessibility Required" }
@@ -238,22 +291,156 @@ struct MenuBarView: View {
         case .delivering: return "Delivering"
         case .cleaningUp: return "Cleaning Up"
         case .failed(let msg): return msg
+        case .none:
+            return "Starting"
         }
     }
 
-    private var stateColor: Color {
-        switch coordinator?.state {
-        case .none: return modelMissingForSelection ? .yellow : .orange
-        case .idle, .ready: return .green
-        case .starting, .loadingModel: return .orange
-        case .listening: return .blue
-        case .transcribing: return .purple
-        case .delivering: return .green
-        case .cleaningUp: return .secondary
-        case .waitingForMicrophonePermission, .waitingForAccessibilityPermission: return .yellow
-        case .failed: return .red
+    // MARK: - Setup Section (Persistent, near top)
+
+    private func setupSection(presentation: VoiceDockSetupPresentation) -> some View {
+        let showDetails = !presentation.isReady || userExpandedReadyDetails
+
+        return VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Setup")
+                    .font(.caption.bold())
+                    .foregroundColor(.secondary)
+                Spacer()
+                if presentation.isReady {
+                    Button(action: { userExpandedReadyDetails.toggle() }) {
+                        Label(userExpandedReadyDetails ? "Collapse" : "Expand", systemImage: userExpandedReadyDetails ? "chevron.up" : "chevron.down")
+                            .font(.caption2)
+                    }
+                    .buttonStyle(.borderless)
+                }
+            }
+
+            if showDetails {
+                VStack(alignment: .leading, spacing: 6) {
+                    setupRow(title: "Speech Model", state: presentation.speechModel)
+                    setupRow(title: "Microphone", state: presentation.microphone)
+                    setupRow(title: "Accessibility", state: presentation.accessibility)
+                    setupRow(title: "Hotkey", state: presentation.hotkey)
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            } else {
+                // Compact ready state
+                HStack {
+                    Image(systemName: "checkmark.circle.fill")
+                        .foregroundColor(.green)
+                    Text("VoiceDock Ready")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                    Spacer()
+                }
+                .transition(.opacity.combined(with: .move(edge: .top)))
+            }
+        }
+        .padding(.vertical, 4)
+        .animation(.easeInOut(duration: 0.2), value: showDetails)
+    }
+
+    private func setupRow(title: String, state: VoiceDockSetupRowState) -> some View {
+        HStack(alignment: .top, spacing: 8) {
+            if state.isComplete {
+                Image(systemName: "checkmark.circle.fill")
+                    .foregroundColor(.green)
+                    .font(.caption)
+            } else {
+                Image(systemName: "circle")
+                    .foregroundColor(.orange)
+                    .font(.caption)
+            }
+
+            VStack(alignment: .leading, spacing: 2) {
+                Text(title)
+                    .font(.caption)
+                    .foregroundColor(.primary)
+                if !state.isComplete {
+                    Text(state.status)
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                } else {
+                    Text(completeStatusText(for: title))
+                        .font(.caption2)
+                        .foregroundColor(.green)
+                }
+            }
+
+            Spacer()
+
+            if !state.isComplete {
+                setupActionButton(for: state.action)
+            }
+        }
+        .padding(.vertical, 2)
+    }
+
+    private func completeStatusText(for title: String) -> String {
+        switch title {
+        case "Speech Model": return "Ready"
+        case "Microphone": return "Granted"
+        case "Accessibility": return "Granted"
+        case "Hotkey": return "Registered"
+        default: return "Complete"
         }
     }
+
+    @ViewBuilder
+    private func setupActionButton(for action: VoiceDockSetupAction) -> some View {
+        switch action {
+        case .downloadSelectedModel:
+            Button("Download") {
+                acquisition.download(modelStatus.selectedModel)
+            }
+            .buttonStyle(.bordered)
+            .disabled(acquisitionDisabled || isRecordOrTranscribeActive || restartInProgress)
+        case .cancelModelDownload:
+            Button("Cancel") {
+                acquisition.cancel()
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRecordOrTranscribeActive || restartInProgress)
+        case .retryModelDownload:
+            Button("Retry") {
+                acquisition.retry(modelStatus.selectedModel)
+            }
+            .buttonStyle(.borderedProminent)
+            .disabled(acquisitionDisabled)
+        case .allowMicrophone:
+            Button("Allow Microphone") {
+                Task { @MainActor in
+                    _ = await permissions.requestMicrophone()
+                }
+            }
+            .buttonStyle(.bordered)
+        case .openMicrophoneSettings:
+            Button("Open Settings") {
+                permissions.openMicrophoneSettings()
+            }
+            .buttonStyle(.bordered)
+        case .grantOrOpenAccessibility:
+            HStack(spacing: 4) {
+                Button("Grant Access") {
+                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                        appDelegate.requestAccessibilityFromUserAction()
+                    }
+                }
+                .buttonStyle(.bordered)
+                Button("Open Settings") {
+                    openAccessibilitySettings()
+                }
+                .buttonStyle(.bordered)
+            }
+        case .none:
+            // Hotkey notRegistered with AX true has no action here
+            // User can retry via AppDelegate method if needed
+            EmptyView()
+        }
+    }
+
+    // MARK: - Permissions (removed old permissionSection - folded into setupSection)
 
     // MARK: - Transcript (bounded, collapsible)
     private var transcriptSection: some View {
@@ -648,57 +835,6 @@ struct MenuBarView: View {
         .padding(.vertical, 4)
     }
 
-    // MARK: - Permissions (compact; expandable details hidden unless needed)
-    private var permissionSection: some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Text("Permissions")
-                .font(.caption.bold())
-                .foregroundColor(.secondary)
-
-            HStack {
-                Image(systemName: permissions.accessibilityStatus ? "checkmark.circle.fill" : "xmark.circle.fill")
-                    .foregroundColor(permissions.accessibilityStatus ? .green : .red)
-                Text("Accessibility")
-                    .font(.caption)
-                Spacer()
-                Text(permissions.accessibilityStatus ? "Granted" : "Denied")
-                    .font(.caption2)
-                    .foregroundColor(permissions.accessibilityStatus ? .green : .red)
-            }
-
-            if !permissions.accessibilityStatus {
-                Text("Accessibility required for automatic paste")
-                    .font(.caption)
-                    .foregroundColor(.orange)
-
-                HStack(spacing: 6) {
-                    Button("Grant Access") {
-                        if let appDelegate = NSApp.delegate as? AppDelegate {
-                            appDelegate.requestAccessibilityFromUserAction()
-                        } else {
-                            _ = permissions.requestAccessibilityIfNeeded()
-                        }
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.bordered)
-
-                    Button("Open Settings") {
-                        openAccessibilitySettings()
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.bordered)
-
-                    Button("Refresh") {
-                        permissions.refresh(reason: .manualRefresh)
-                    }
-                    .font(.caption2)
-                    .buttonStyle(.bordered)
-                }
-            }
-        }
-        .padding(.vertical, 4)
-    }
-
     // MARK: - Footer
     private var footerSection: some View {
         VStack(spacing: 0) {
@@ -861,5 +997,11 @@ struct MenuBarView: View {
         storage: storage,
         modelStatus: modelStatus
     )
-    return MenuBarView(coordinatorBox: CoordinatorBox(coordinator: coord), permissions: perm, modelStatus: modelStatus, acquisition: acquisition)
+    return MenuBarView(
+        coordinatorBox: CoordinatorBox(coordinator: coord),
+        permissions: perm,
+        modelStatus: modelStatus,
+        acquisition: acquisition,
+        hotKeyRegistration: HotKeyRegistrationObservable()
+    )
 }
