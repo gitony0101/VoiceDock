@@ -108,11 +108,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Test-only hook to override makeCoordinator. Only set by the test initializer above.
     private var testCoordinatorFactory: (@MainActor () -> SessionCoordinator?)?
 
-    /// Test-only flag to force production initialization even when VOICEDOCK_TEST_MODE=1.
-    /// Used by AppDelegateCompositionTests which run in the test bundle process
-    /// (which inherits the test host's environment).
-    internal var forceProductionInitialization = false
-
+    
     /// Test-only accessor for the coordinator (used by composition tests).
     /// Production code must not depend on this.
     internal var testCoordinator: SessionCoordinator? {
@@ -300,8 +296,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         // its own coordinators with injected mocks; the host exists only to
         // host XCTest and the minimal app shell. Production launches never
         // set VOICEDOCK_TEST_MODE and are unaffected.
-        // Tests that explicitly set forceProductionInitialization bypass this guard.
-        if VoiceDockRuntimeComposition.current.isTestHost && !forceProductionInitialization {
+        if VoiceDockRuntimeComposition.current.isTestHost {
             writeUIDiagnostic("fullInitialize_skipped_test_host")
             logger.info("Test host detected; skipping production coordinator/provider initialization")
             // Still wire the popover with nil coordinator for test host UI
@@ -323,7 +318,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // Wire acquisition completion handler
         self.acquisition.onInstalled = { [weak self] model in
-            self?.handleModelInstalled(model)
+            Task { @MainActor in
+                await self?.handleModelInstalledForComposition(model)
+            }
         }
 
         // Refresh model availability asynchronously (non-blocking).
@@ -357,7 +354,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     /// Called at launch and after authoritative install completion.
     /// Runs on MainActor; the coordinator == nil guard + MainActor serialization
     /// is the start-admission authority (no separate `started` flag needed).
-    private func checkAndStartRuntime() async {
+    internal func checkAndStartRuntime() async {
         // Snapshot the current selection before the async validity check.
         let snapshot = modelStatus.selectedModel
 
@@ -382,7 +379,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Start the speech runtime when prerequisites are met.
     /// Precondition: called on MainActor, coordinator == nil, model valid.
-    private func startRuntimeIfNeeded() async {
+    internal func startRuntimeIfNeeded() async {
         guard coordinator == nil else { return }
 
         writeUIDiagnostic("startRuntimeIfNeeded: constructing coordinator")
@@ -416,7 +413,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
     /// Handle authoritative install completion from ModelAcquisitionController.
     /// Fires only for successful, validated, non-cancelled, non-stale installs.
-    private func handleModelInstalled(_ model: ASRModelSelection) {
+    /// Returns an awaitable task that completes when the composition logic finishes.
+    @MainActor
+    internal func handleModelInstalledForComposition(_ model: ASRModelSelection) async {
         // A. Only the currently selected model matters.
         guard model == modelStatus.selectedModel else {
             writeUIDiagnostic("handleModelInstalled: installed model \(model.rawValue) != selected \(modelStatus.selectedModel.rawValue); ignoring")
@@ -425,27 +424,24 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         // B-C. Snapshot selection and revalidate authoritatively.
         let snapshot = modelStatus.selectedModel
-        Task { @MainActor [weak self] in
-            guard let self = self else { return }
 
-            let valid = await self.storage.isModelValid(snapshot.modelDescriptor)
+        let valid = await storage.isModelValid(snapshot.modelDescriptor)
 
-            // D. After await, RECHECK selection still matches.
-            guard self.modelStatus.selectedModel == snapshot else {
-                self.writeUIDiagnostic("handleModelInstalled: selection changed during revalidation; aborting")
-                return
-            }
+        // D. After await, RECHECK selection still matches.
+        guard modelStatus.selectedModel == snapshot else {
+            writeUIDiagnostic("handleModelInstalled: selection changed during revalidation; aborting")
+            return
+        }
 
-            // E. If valid and coordinator is nil, start the runtime.
-            if valid && self.coordinator == nil {
-                await self.startRuntimeIfNeeded()
-            }
-            // F. If coordinator already exists, DO NOTHING.
-            // An existing .failed coordinator belongs to the genuine runtime-failure domain.
-            // Do not reinterpret it as model-acquisition recovery.
-            else if self.coordinator != nil {
-                self.writeUIDiagnostic("handleModelInstalled: coordinator already exists (state=\(String(describing: self.coordinator?.state))); no action")
-            }
+        // E. If valid and coordinator is nil, start the runtime.
+        if valid && coordinator == nil {
+            await startRuntimeIfNeeded()
+        }
+        // F. If coordinator already exists, DO NOTHING.
+        // An existing .failed coordinator belongs to the genuine runtime-failure domain.
+        // Do not reinterpret it as model-acquisition recovery.
+        else if coordinator != nil {
+            writeUIDiagnostic("handleModelInstalled: coordinator already exists (state=\(String(describing: coordinator?.state))); no action")
         }
     }
 

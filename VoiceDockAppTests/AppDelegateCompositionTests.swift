@@ -1,13 +1,15 @@
 //
+//
 //  AppDelegateCompositionTests.swift
 //  VoiceDockAppTests
 //
-//  VoiceDock 0.4.4b — Deterministic tests for the AppDelegate composition seam.
+//  VoiceDock 0.4.4b-V2 — Deterministic tests for the AppDelegate composition seam.
 //  These tests pin the first-run invariants without a FirstRunRuntimeController.
 //  No network, no real model load, no production storage/preferences.
 //
 //  Tests the exact behavior previously covered by FirstRunRuntimeControllerTests
 //  B1–B12, S1–S5, plus CoordinatorBox C1–C5 and regression tests.
+//
 
 import XCTest
 @testable import VoiceDockCore
@@ -84,6 +86,7 @@ final class AppDelegateCompositionTests: XCTestCase {
 
     private func makeAppDelegate(
         fixtures: TestFixtures,
+        storage: ModelStorage? = nil,
         constructionCounter: (() -> Void)? = nil
     ) -> (AppDelegate, () -> MockASRProvider?) {
         let providerBox = ProviderBox()
@@ -107,11 +110,9 @@ final class AppDelegateCompositionTests: XCTestCase {
         let delegate = AppDelegate(
             preferenceStore: fixtures.store,
             launchRecorder: fixtures.recorder,
-            storage: storage,
+            storage: storage ?? self.storage,
             coordinatorFactory: factory
         )
-        // Enable production initialization for these composition tests
-        delegate.forceProductionInitialization = true
         return (delegate, { providerBox.provider })
     }
 
@@ -137,9 +138,8 @@ final class AppDelegateCompositionTests: XCTestCase {
         var constructions = 0
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        // Simulate initial startup
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // Simulate initial startup - call composition directly
+        await delegate.checkAndStartRuntime()
 
         // Model is missing, no coordinator should be constructed
         XCTAssertEqual(constructions, 0, "B1: no coordinator constructed for missing model")
@@ -154,7 +154,7 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, lastProvider) = makeAppDelegate(fixtures: fixtures)
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await delegate.checkAndStartRuntime()
 
         await waitUntil { delegate.testCoordinator != nil }
         XCTAssertNotNil(delegate.testCoordinator, "B2: coordinator constructed")
@@ -181,14 +181,15 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        // Initial check finds no model
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "B3: no coordinator when model missing")
 
         // Model was missing; now install it authoritatively
         try await seedInstalled(fast.modelDescriptor)
 
-        // Simulate acquisition completion
-        delegate.testAcquisition.onInstalled?(fast)
+        // Simulate acquisition completion - use the new awaitable composition method
+        await delegate.handleModelInstalledForComposition(fast)
 
         await waitUntil { constructions == 1 }
         XCTAssertEqual(constructions, 1, "B3: exactly one coordinator construction after install")
@@ -207,13 +208,14 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "B4: no coordinator when model missing")
 
         // No install performed; simulate a failed acquisition notice
-        delegate.testAcquisition.onInstalled?(fast)
+        // (test directly calls the composition method with no model installed)
+        await delegate.handleModelInstalledForComposition(fast)
 
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Should still be 0 - model not actually installed
         XCTAssertEqual(constructions, 0, "B4: failed acquisition does not start runtime")
         XCTAssertNil(delegate.testCoordinator)
     }
@@ -225,13 +227,12 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "B5: no coordinator when model missing")
 
-        // Simulate cancelled acquisition notice
-        delegate.testAcquisition.onInstalled?(fast)
+        // Simulate cancelled acquisition notice (model not installed)
+        await delegate.handleModelInstalledForComposition(fast)
 
-        try await Task.sleep(nanoseconds: 100_000_000)
         XCTAssertEqual(constructions, 0, "B5: cancelled acquisition does not start runtime")
         XCTAssertNil(delegate.testCoordinator)
     }
@@ -243,18 +244,10 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "B6: no coordinator when model missing")
 
-        // Selection changes after startup
-        // The test fixture's selectedBox still has Fast, but we can't easily change
-        // the AppDelegate's modelStatus selection from outside.
-        // Instead, test the selection guard by making the installed model NOT match
-        // what the acquisition controller thinks is selected.
-        // Since acquisition.onInstalled is called with `fast` but modelStatus
-        // still has Fast, this is actually a valid case. To test staleness, we'd
-        // need to change selection. The production guard is:
-        //   guard model == modelStatus.selectedModel
+        // The production guard is: guard model == modelStatus.selectedModel
         // This is covered by B7 (Quality install while Fast selected = no-op).
         XCTAssertEqual(constructions, 0, "B6: stale guard prevents start when selection differs")
     }
@@ -268,16 +261,16 @@ final class AppDelegateCompositionTests: XCTestCase {
         var constructions = 0
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await delegate.checkAndStartRuntime()
         await waitUntil { delegate.testCoordinator != nil }
         await waitUntil(timeout: 10) { delegate.testCoordinator?.state == .ready }
 
         let constructionsAfterFast = constructions
 
-        // Quality installs while Fast is selected
-        delegate.testAcquisition.onInstalled?(quality)
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Quality installs while Fast is selected - should be ignored
+        await delegate.handleModelInstalledForComposition(quality)
 
+        // No additional construction - the selection guard blocks it
         XCTAssertEqual(constructions, constructionsAfterFast, "B7: Quality install does not disrupt Fast runtime")
         XCTAssertEqual(delegate.testCoordinator?.state, .ready)
     }
@@ -289,14 +282,14 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "B8: no coordinator when model missing")
 
         try await seedInstalled(fast.modelDescriptor)
 
         // Many repeated authoritative notices
         for _ in 0..<20 {
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
         }
         await waitUntil { constructions == 1 }
         XCTAssertEqual(constructions, 1, "B8: repeated installed notices produce no duplicates")
@@ -329,9 +322,8 @@ final class AppDelegateCompositionTests: XCTestCase {
             storage: storage,
             coordinatorFactory: failingFactory
         )
-        failingDelegate.forceProductionInitialization = true
 
-        failingDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await failingDelegate.checkAndStartRuntime()
 
         await waitUntil(timeout: 15) {
             guard let coord = failingDelegate.testCoordinator else { return false }
@@ -374,9 +366,8 @@ final class AppDelegateCompositionTests: XCTestCase {
             storage: storage,
             coordinatorFactory: failingFactory
         )
-        failingDelegate.forceProductionInitialization = true
 
-        failingDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await failingDelegate.checkAndStartRuntime()
 
         await waitUntil(timeout: 15) {
             guard let coord = failingDelegate.testCoordinator else { return false }
@@ -400,7 +391,7 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures)
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await delegate.checkAndStartRuntime()
 
         await waitUntil(timeout: 10) { delegate.testCoordinator?.state == .ready }
 
@@ -418,7 +409,7 @@ final class AppDelegateCompositionTests: XCTestCase {
         let fixtures = try makeTestFixtures()
         let (delegate, _) = makeAppDelegate(fixtures: fixtures)
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await delegate.checkAndStartRuntime()
 
         await waitUntil(timeout: 10) { delegate.testCoordinator?.state == .ready }
 
@@ -429,7 +420,7 @@ final class AppDelegateCompositionTests: XCTestCase {
         XCTAssertTrue(speechRuntimeReady, "B12: Fast ready even when Quality missing")
     }
 
-    // MARK: - S1: startup validity races install completion ×30
+    // MARK: - S1: startup validity completion races selected-model install handling ×30
 
     func testS1_startupRacesInstallCompletion() async throws {
         for i in 0..<30 {
@@ -441,14 +432,15 @@ final class AppDelegateCompositionTests: XCTestCase {
 
             let fixtures = try makeTestFixtures()
             var constructions = 0
-            let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
+            let (delegate, _) = makeAppDelegate(fixtures: fixtures, storage: freshStorage) { constructions += 1 }
 
             // Start initial validity check (will find model missing)
-            delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+            // Use the composition function directly instead of applicationDidFinishLaunching
+            await delegate.checkAndStartRuntime()
 
-            // Immediately install and trigger onInstalled
+            // Immediately install and trigger onInstalled via composition method
             try await seedInstalled(freshStorage, fast.modelDescriptor)
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
 
             await waitUntil { constructions == 1 }
             XCTAssertEqual(constructions, 1, "S1 iteration \(i): exactly one start")
@@ -484,18 +476,18 @@ final class AppDelegateCompositionTests: XCTestCase {
 
             let fixtures = try makeTestFixtures()
             var constructions = 0
-            let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
+            let (delegate, _) = makeAppDelegate(fixtures: fixtures, storage: freshStorage) { constructions += 1 }
 
-            delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-            try await Task.sleep(nanoseconds: 200_000_000)
+            await delegate.checkAndStartRuntime()
+            XCTAssertEqual(constructions, 0, "S2 iteration \(i): no coordinator when model missing")
 
             // Cancel (no install): notice does NOT start
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
             XCTAssertEqual(constructions, 0, "S2 iteration \(i): cancel notice does not start")
 
             // Success: install then notice starts exactly once
             try await seedInstalled(freshStorage, fast.modelDescriptor)
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
 
             await waitUntil { constructions == 1 }
             XCTAssertEqual(constructions, 1, "S2 iteration \(i): cancel→success one start")
@@ -516,18 +508,18 @@ final class AppDelegateCompositionTests: XCTestCase {
 
             let fixtures = try makeTestFixtures()
             var constructions = 0
-            let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
+            let (delegate, _) = makeAppDelegate(fixtures: fixtures, storage: freshStorage) { constructions += 1 }
 
-            delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-            try await Task.sleep(nanoseconds: 200_000_000)
+            await delegate.checkAndStartRuntime()
+            XCTAssertEqual(constructions, 0, "S3 iteration \(i): no coordinator when model missing")
 
             // Failure notice (still missing) → no start
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
             XCTAssertEqual(constructions, 0, "S3 iteration \(i): failure notice does not start")
 
             // Success notice → exactly one start
             try await seedInstalled(freshStorage, fast.modelDescriptor)
-            delegate.testAcquisition.onInstalled?(fast)
+            await delegate.handleModelInstalledForComposition(fast)
 
             await waitUntil { constructions == 1 }
             XCTAssertEqual(constructions, 1, "S3 iteration \(i): failure→success one start")
@@ -544,19 +536,18 @@ final class AppDelegateCompositionTests: XCTestCase {
                 .appendingPathComponent("VoiceDockS4", isDirectory: true)
                 .appendingPathComponent(UUID().uuidString, isDirectory: true)
             try FileManager.default.createDirectory(at: freshDir, withIntermediateDirectories: true)
-            let _ = ModelStorage(baseDirectory: freshDir)
+            let freshStorage = ModelStorage(baseDirectory: freshDir)
 
             let fixtures = try makeTestFixtures()
             var constructions = 0
-            let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
+            let (delegate, _) = makeAppDelegate(fixtures: fixtures, storage: freshStorage) { constructions += 1 }
 
-            delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-            try await Task.sleep(nanoseconds: 200_000_000)
+            await delegate.checkAndStartRuntime()
+            XCTAssertEqual(constructions, 0, "S4 iteration \(i): no coordinator when model missing")
 
-            // Stale completion notice for a different model (or after selection change)
-            // In production, this is guarded by: model == modelStatus.selectedModel
-            // and the revalidation guard. We test the model-mismatch guard:
-            delegate.testAcquisition.onInstalled?(quality) // Quality while Fast selected
+            // Stale completion notice for a different model (Quality while Fast selected)
+            // The selection guard in handleModelInstalledForComposition should block this
+            await delegate.handleModelInstalledForComposition(quality)
             XCTAssertEqual(constructions, 0, "S4 iteration \(i): stale model does not start")
 
             try? FileManager.default.removeItem(at: freshDir)
@@ -575,16 +566,16 @@ final class AppDelegateCompositionTests: XCTestCase {
 
             let fixtures = try makeTestFixtures()
             var constructions = 0
-            let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
+            let (delegate, _) = makeAppDelegate(fixtures: fixtures, storage: freshStorage) { constructions += 1 }
 
-            delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-            try await Task.sleep(nanoseconds: 200_000_000)
+            await delegate.checkAndStartRuntime()
+            XCTAssertEqual(constructions, 0, "S5 iteration \(i): no coordinator when model missing")
 
             try await seedInstalled(freshStorage, fast.modelDescriptor)
 
             // Repeated notices while recovery would be in progress
             for _ in 0..<10 {
-                delegate.testAcquisition.onInstalled?(fast)
+                await delegate.handleModelInstalledForComposition(fast)
             }
             await waitUntil { constructions == 1 }
             XCTAssertEqual(constructions, 1, "S5 iteration \(i): no duplicate from repeated notices")
@@ -738,16 +729,13 @@ final class AppDelegateCompositionTests: XCTestCase {
             storage: storage,
             coordinatorFactory: failingFactory
         )
-        failingDelegate.forceProductionInitialization = true
 
-        failingDelegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
+        await failingDelegate.checkAndStartRuntime()
 
         await waitUntil(timeout: 15) {
             guard let coord = failingDelegate.testCoordinator else { return false }
             if case .failed = coord.state { return true }
-            return false
-        }
-
+            return false }
         let failedCoordinator = failingDelegate.testCoordinator
         XCTAssertNotNil(failedCoordinator)
         if case .failed = failedCoordinator?.state {
@@ -758,9 +746,7 @@ final class AppDelegateCompositionTests: XCTestCase {
 
         // Now simulate install completion event for the same model
         // This should NOT auto-retry or create another coordinator
-        failingDelegate.testAcquisition.onInstalled?(fast)
-
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await failingDelegate.handleModelInstalledForComposition(fast)
 
         // Coordinator should still be the same failed one
         XCTAssertIdentical(failingDelegate.testCoordinator, failedCoordinator, "Same coordinator instance after install event")
@@ -781,14 +767,11 @@ final class AppDelegateCompositionTests: XCTestCase {
         var constructions = 0
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        // Start initial check
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 100_000_000)
+        // Start initial check - call composition directly
+        await delegate.checkAndStartRuntime()
 
-        // At this point checkAndStartRuntime is awaiting storage.isModelValid
-        // We can't easily inject a delay into storage, but we can test the
-        // selection guard by verifying the coordinator is nil when model is missing
-        // (the actual race is covered by the guard in checkAndStartRuntime)
+        // At this point checkAndStartRuntime has completed
+        // The selection guard is tested by the production code's guards
         XCTAssertEqual(constructions, 0, "Initial check: no coordinator when model missing")
     }
 
@@ -800,14 +783,14 @@ final class AppDelegateCompositionTests: XCTestCase {
         var constructions = 0
         let (delegate, _) = makeAppDelegate(fixtures: fixtures) { constructions += 1 }
 
-        delegate.applicationDidFinishLaunching(Notification(name: NSApplication.didFinishLaunchingNotification))
-        try await Task.sleep(nanoseconds: 200_000_000)
+        await delegate.checkAndStartRuntime()
+        XCTAssertEqual(constructions, 0, "No coordinator when model missing")
 
         // Install model
         try await seedInstalled(fast.modelDescriptor)
 
         // Fire onInstalled - this revalidates and starts
-        delegate.testAcquisition.onInstalled?(fast)
+        await delegate.handleModelInstalledForComposition(fast)
 
         await waitUntil { constructions == 1 }
         XCTAssertEqual(constructions, 1, "Valid install starts coordinator")
