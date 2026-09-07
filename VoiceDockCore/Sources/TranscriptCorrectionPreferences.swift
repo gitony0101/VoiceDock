@@ -23,18 +23,23 @@ public struct TranscriptCorrectionPreferences: Equatable, Sendable {
     /// Whether to load user corrections from file (in addition to builtin rules)
     public var loadUserCorrections: Bool
 
-    public init(mode: TranscriptCorrectionMode = .personalCorrection, loadUserCorrections: Bool = true) {
+    public init(mode: TranscriptCorrectionMode = .off, loadUserCorrections: Bool = true) {
         self.mode = mode
         self.loadUserCorrections = loadUserCorrections
     }
 
     /// Load preferences from UserDefaults.
     ///
+    /// VoiceDock product target: Correction OFF by default. When no correction
+    /// mode key has been persisted (clean install / cleared preference), the
+    /// fallback resolves to `.off`. An explicitly saved `.personalCorrection`
+    /// is preserved verbatim, as is an explicitly saved `.off`.
+    ///
     /// - Parameter defaults: The UserDefaults instance to use (defaults to .standard)
     /// - Returns: The current preferences, using defaults for any missing keys.
     public static func load(from defaults: UserDefaults = .standard) -> TranscriptCorrectionPreferences {
         let modeRaw = defaults.string(forKey: correctionModeKey)
-        let mode = TranscriptCorrectionMode(rawValue: modeRaw ?? "") ?? .personalCorrection
+        let mode = TranscriptCorrectionMode(rawValue: modeRaw ?? "") ?? .off
 
         let loadUser = defaults.object(forKey: userCorrectionsFileKey) as? Bool ?? true
 
