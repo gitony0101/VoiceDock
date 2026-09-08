@@ -132,6 +132,7 @@ struct MenuBarView: View {
         .onAppear {
             permissions.refresh(reason: .popoverWillOpen)
             Task { await acquisition.refreshInstalled() }
+            Task { await modelStatus.refreshAvailability() }
         }
         // Cross-report coordinator load failures into ModelStatus so a Fast
         // load failure surfaces as a visible error AND keeps the Fast
@@ -433,9 +434,36 @@ struct MenuBarView: View {
                 }
                 .buttonStyle(.bordered)
             }
+        case .useFast:
+            // Refine: only show "Use Fast" if Fast is actually installed.
+            // If Fast is missing, fall back to "Download" for Quality.
+            let fastValid = modelStatus.availabilityFor(.qwen3_0_6B_8bit) == .installed
+            if fastValid {
+                Button("Use Fast") {
+                    Task { @MainActor in
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            await appDelegate.selectModelForSetup(.qwen3_0_6B_8bit)
+                        }
+                    }
+                }
+                .buttonStyle(.borderedProminent)
+                .disabled(restartInProgress || isRecordOrTranscribeActive)
+            } else {
+                Button("Download") {
+                    acquisition.download(modelStatus.selectedModel)
+                }
+                .buttonStyle(.bordered)
+                .disabled(acquisitionDisabled || isRecordOrTranscribeActive || restartInProgress)
+            }
+        case .retryHotkey:
+            Button("Retry") {
+                if let appDelegate = NSApp.delegate as? AppDelegate {
+                    appDelegate.retryHotKeyRegistrationFromUserAction()
+                }
+            }
+            .buttonStyle(.bordered)
+            .disabled(isRecordOrTranscribeActive || restartInProgress)
         case .none:
-            // Hotkey notRegistered with AX true has no action here
-            // User can retry via AppDelegate method if needed
             EmptyView()
         }
     }
@@ -687,6 +715,13 @@ struct MenuBarView: View {
         return true
     }
 
+    /// True when setup's speech model row is incomplete and would show acquisition UI.
+    /// Used to suppress duplicate selected-model download action in the normal Model Downloads section.
+    private var setupSpeechModelIncomplete: Bool {
+        let presentation = makeSetupPresentation()
+        return !presentation.speechModel.isComplete
+    }
+
     private var activeModelDisplayName: String {
         // activeModel is nil until the provider is actually created (captureActive).
         // Do not force-unwrap and do not infer a display name from selectedModel
@@ -711,7 +746,12 @@ struct MenuBarView: View {
                 .foregroundColor(.secondary)
 
             ForEach(ModelAcquisitionController.presentationOrder, id: \.self) { model in
-                acquisitionRow(for: model)
+                // Suppress the selected model's row while Setup shows its acquisition UI.
+                if setupSpeechModelIncomplete && model == modelStatus.selectedModel {
+                    EmptyView()
+                } else {
+                    acquisitionRow(for: model)
+                }
             }
         }
         .padding(.vertical, 4)

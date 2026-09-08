@@ -231,9 +231,9 @@ struct VoiceDockSetupPresentationTests {
             accessibilityTrusted: true, hotkeyRegistration: .registered
         )
         #expect(r.speechModel.isComplete == false)
-        // Download is the surfaced action; the future UI also offers a switch
-        // back to Fast (Recommended), but that is not forced here.
-        #expect(r.speechModel.action == .downloadSelectedModel)
+        // The pure presentation layer surfaces "Use Fast" for Quality missing,
+        // deferring to the UI layer to refine based on Fast's actual validity.
+        #expect(r.speechModel.action == .useFast)
         // Quality is now the required model → speech runtime not ready.
         #expect(r.isReady == false)
     }
@@ -349,7 +349,8 @@ struct VoiceDockSetupPresentationTests {
     func hk2_axTrueNotRegistered() {
         let r = make(accessibilityTrusted: true, hotkeyRegistration: .notRegistered)
         #expect(r.hotkey.isComplete == false)
-        #expect(r.hotkey.action == .none)
+        // HK2 now surfaces "Retry" affordance when AX is true but hotkey not registered.
+        #expect(r.hotkey.action == .retryHotkey)
         #expect(r.hotkey.status.contains("not registered"))
     }
 
@@ -386,7 +387,9 @@ struct VoiceDockSetupPresentationTests {
                      coordinatorState: .starting, microphone: .granted,
                      accessibilityTrusted: true, hotkeyRegistration: .registered)
         #expect(r.speechModel.isComplete == false)
-        #expect(r.speechModel.action == .downloadSelectedModel)
+        // The pure presentation layer surfaces "Use Fast" for Quality missing,
+        // deferring to the UI layer to refine based on Fast's actual validity.
+        #expect(r.speechModel.action == .useFast)
         #expect(r.isReady == false)
     }
 

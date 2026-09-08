@@ -61,12 +61,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let composition = VoiceDockRuntimeComposition.current
         self.preferenceStore = composition.preferenceStore
         self.launchRecorder = composition.launchRecorder
+        let storage = ModelStorage()
+        self.storage = storage
         self.modelStatus = ModelStatus(
+            storage: storage,
             preferenceStore: self.preferenceStore,
             recorder: self.launchRecorder
         )
-        self.storage = ModelStorage()
-        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: self.storage)
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: storage)
         super.init()
     }
 
@@ -80,12 +82,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
     init(preferenceStore: ASRPreferenceStore, launchRecorder: ModelLaunchRecorder) {
         self.preferenceStore = preferenceStore
         self.launchRecorder = launchRecorder
+        let storage = ModelStorage()
+        self.storage = storage
         self.modelStatus = ModelStatus(
+            storage: storage,
             preferenceStore: preferenceStore,
             recorder: launchRecorder
         )
-        self.storage = ModelStorage()
-        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: self.storage)
+        self.acquisition = Self.makeAcquisition(modelStatus: self.modelStatus, storage: storage)
         super.init()
     }
 
@@ -103,6 +107,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         self.preferenceStore = preferenceStore
         self.launchRecorder = launchRecorder
         self.modelStatus = ModelStatus(
+            storage: storage,
             preferenceStore: preferenceStore,
             recorder: launchRecorder
         )
@@ -440,6 +445,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             return
         }
 
+        // Refresh authoritative ModelStatus availability after validated install.
+        await modelStatus.refreshAvailability()
+
         // E. If valid and coordinator is nil, start the runtime.
         if valid && coordinator == nil {
             await startRuntimeIfNeeded()
@@ -450,6 +458,31 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         else if coordinator != nil {
             writeUIDiagnostic("handleModelInstalled: coordinator already exists (state=\(String(describing: coordinator?.state))); no action")
         }
+    }
+
+    /// User-initiated model selection for setup recovery (e.g., "Use Fast" when Quality is missing).
+    /// 1. Updates selection through existing ModelStatus preference owner.
+    /// 2. Refreshes authoritative ModelStatus availability.
+    /// 3. If coordinator == nil: calls existing checkAndStartRuntime() to admit runtime.
+    /// 4. If coordinator already exists: DOES NOT live-switch coordinator; preserves existing Apply & Restart semantics.
+    @MainActor
+    func selectModelForSetup(_ model: ASRModelSelection) async {
+        writeUIDiagnostic("selectModelForSetup: \(model.rawValue)")
+        modelStatus.updateSelection(model)
+        await modelStatus.refreshAvailability()
+        if coordinator == nil {
+            await checkAndStartRuntime()
+        } else {
+            writeUIDiagnostic("selectModelForSetup: coordinator exists; preserving Apply & Restart semantics")
+        }
+    }
+
+    /// User-initiated hotkey registration retry.
+    /// Delegates to existing AppDelegate permission refresh + registration path.
+    @MainActor
+    func retryHotKeyRegistrationFromUserAction() {
+        writeUIDiagnostic("retryHotKeyRegistrationFromUserAction")
+        refreshPermissions(reason: .retry)
     }
 
     /// Translate one observed `SessionCoordinator.State` into the

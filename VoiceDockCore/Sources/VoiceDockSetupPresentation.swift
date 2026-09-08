@@ -38,6 +38,8 @@ public enum VoiceDockSetupAction: String, Sendable, Equatable, CaseIterable {
     case allowMicrophone
     case openMicrophoneSettings
     case grantOrOpenAccessibility
+    case useFast
+    case retryHotkey
     case none
 }
 
@@ -251,9 +253,17 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
             // M3: download failed → Retry.
             return .incomplete(status: Self.modelName(selectedModel) + " download failed", action: .retryModelDownload)
         case .idle, .checking, .installed:
-            // M1: missing (and M8: Quality selected but missing) → Download.
-            // The row is "required" because the selected model is the required
-            // model; the future UI also surfaces a way back to Fast/Recommended.
+            // M1/M8: missing (and M8: Quality selected but missing).
+            // If Quality is selected but missing AND Fast is the other model,
+            // surface "Use Fast" as an alternative recovery action.
+            // NOTE: The pure presentation layer doesn't know Fast's install state.
+            // The UI layer will refine this based on authoritative ModelStatus validity.
+            if selectedModel == .qwen3_1_7B_4bit {
+                // Quality selected but not validly installed.
+                // Return a special state that UI can refine to "Use Fast" if Fast is installed.
+                return .incomplete(status: "Quality not installed", action: .useFast)
+            }
+            // Fast selected or other → Download.
             return .incomplete(status: Self.modelName(selectedModel) + " not installed", action: .downloadSelectedModel)
         }
     }
@@ -299,7 +309,7 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
                 return .incomplete(status: "Waiting for Accessibility", action: .grantOrOpenAccessibility)
             }
             // HK2: AX true + notRegistered → genuinely not registered.
-            return .incomplete(status: "Hotkey not registered", action: .none)
+            return .incomplete(status: "Hotkey not registered", action: .retryHotkey)
         }
     }
 
