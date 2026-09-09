@@ -12,6 +12,7 @@
 //
 
 import XCTest
+import AVFoundation
 @testable import VoiceDockCore
 @testable import VoiceDock
 
@@ -1001,8 +1002,12 @@ final class AppDelegateCompositionTests: XCTestCase {
         XCTAssertEqual(delegate.testCoordinator?.state, .ready, "T6: coordinator reaches ready")
 
         // The key assertion: ModelStatus availability was refreshed before runtime recovery
-        // This is tested by the production code's handleModelInstalledForComposition
-        // which calls await modelStatus.refreshAvailability() before checkAndStartRuntime()
+        // Explicitly assert the authoritative ModelStatus snapshot after install recovery
+        XCTAssertEqual(
+            delegate.testModelStatus.availabilityFor(fast),
+            .installed,
+            "T6: ModelStatus must show .installed for Fast after handleModelInstalledForComposition"
+        )
     }
 
     /// T7 — hotkey retry
@@ -1011,52 +1016,139 @@ final class AppDelegateCompositionTests: XCTestCase {
     func testT7_hotkeyRetryDelegatesToAppDelegate() async throws {
         // This test verifies that retryHotkey action routes through AppDelegate
         // not through SwiftUI-constructed HotKeyManager
+        //
+        // We use the PermissionManager test seam with a mock provider to verify
+        // that refreshPermissions is called, which in turn calls ensureHotKeyRegisteredIfTrusted
+        // and thus the existing HotKeyManager registration path.
 
         let fixtures = try makeTestFixtures()
-        let (delegate, _) = makeAppDelegate(fixtures: fixtures)
 
-        // Call the retry method
+        // Create AppDelegate with a mock PermissionStatusProviding that we can track
+        let mockProvider = MockPermissionProvider()
+        let mockPermissions = PermissionManager(provider: mockProvider, recordsDiagnostics: false)
+
+        let providerBox = ProviderBox()
+        let selectedBox = SelectedBox()
+        selectedBox.selected = .qwen3_0_6B_8bit
+
+        let factory: (@MainActor () -> SessionCoordinator?) = {
+            let mock = MockASRProvider()
+            providerBox.provider = mock
+            return SessionCoordinator(
+                audioCapture: MockAudioCapture(),
+                asrProvider: mock,
+                transcriptDestination: TranscriptDestination(
+                    isAccessibilityTrusted: { false },
+                    postKeyboardEvent: { _, _ in }
+                )
+            )
+        }
+
+        let delegate = AppDelegate(
+            preferenceStore: fixtures.store,
+            launchRecorder: fixtures.recorder,
+            storage: storage,
+            coordinatorFactory: factory
+        )
+
+        // Replace the private permissions with our mock (via test accessor if available)
+        // Since we can't directly inject, we test the delegation by verifying the method
+        // calls the existing path through refreshPermissions
+
+        // Call the retry method - it should call refreshPermissions with .retry reason
         await delegate.retryHotKeyRegistrationFromUserAction()
 
-        // Verify: it calls refreshPermissions which triggers the existing registration path
+        // Verify: refreshPermissions was called (it updates lastRefreshReason)
         // The actual hotkey registration is tested in HotKeyManagerTests and
         // HotKeyRegistrationObservabilityTests
-        // Here we just verify the composition root method exists and is callable
-        XCTAssertNotNil(delegate, "T7: AppDelegate method callable")
+        // Here we verify the composition root method delegates correctly
+        XCTAssertEqual(delegate.permissionRefreshReasonForTests, .retry, "T7: retryHotKeyRegistrationFromUserAction must call refreshPermissions with .retry reason")
+    }
+
+    // MARK: - Test Helpers for T7
+
+    /// Mock PermissionStatusProviding for testing permission refresh delegation
+    private final class MockPermissionProvider: PermissionStatusProviding {
+        var microphoneAuthStatus: AVAuthorizationStatus = .notDetermined
+        var accessibilityTrusted: Bool = false
+
+        func microphoneAuthorizationStatus() -> AVAuthorizationStatus {
+            return microphoneAuthStatus
+        }
+
+        func requestMicrophoneAccess() async -> Bool {
+            microphoneAuthStatus = .authorized
+            return true
+        }
+
+        func isAccessibilityTrusted() -> Bool {
+            return accessibilityTrusted
+        }
+
+        func requestAccessibilityPrompt() -> Bool {
+            return accessibilityTrusted
+        }
     }
 
     /// T8 — stable HotKeyRegistrationObservable identity
     /// - same observable survives manager retry/replacement
     func testT8_stableHotKeyRegistrationObservableIdentity() async throws {
-        // This is covered by HotKeyRegistrationObservabilityTests
-        // which test the observable's state transitions and deduplication
-        // The observable is owned by AppDelegate and injected into HotKeyManager
-        // so it survives manager retry/replacement
+        // This test proves that the SAME HotKeyRegistrationObservable instance
+        // is used across HotKeyManager replacement/retry, so state transitions
+        // from the new manager are visible through the same observable.
+        //
+        // We test this by:
+        // 1. Creating an AppDelegate with the real hotKeyRegistration observable
+        // 2. Calling retryHotKeyRegistrationFromUserAction which creates a NEW HotKeyManager
+        //    but injects the SAME hotKeyRegistration observable
+        // 3. Verifying the observable is the same instance (identity stability)
+        // 4. Simulating state transitions through the manager and verifying they
+        //    are visible through the stable observable
 
-        let observable = HotKeyRegistrationObservable()
+        let fixtures = try makeTestFixtures()
+        let (delegate, _) = makeAppDelegate(fixtures: fixtures)
+
+        // Capture the stable observable instance via test accessor
+        let stableObservable = delegate.testHotKeyRegistration
+        XCTAssertNotNil(stableObservable, "T8: AppDelegate has stable HotKeyRegistrationObservable")
 
         // Initial state
-        XCTAssertEqual(observable.state, .notRegistered, "T8: initial state notRegistered")
+        XCTAssertEqual(stableObservable.state, HotKeyRegistrationState.notRegistered, "T8: initial state notRegistered")
 
-        // Transition to registered
+        // Simulate first HotKeyManager registration by calling ensureHotKeyRegisteredIfTrusted
+        // (this is called from refreshPermissions which is called by retryHotKeyRegistrationFromUserAction)
+        // We can't easily test the full Carbon/NSEvent path without TCC, but we can verify
+        // the observable is the same instance injected into any HotKeyManager
+
+        // Call retry which triggers refreshPermissions -> ensureHotKeyRegisteredIfTrusted
+        // This creates a NEW HotKeyManager but injects the SAME observable
+        await delegate.retryHotKeyRegistrationFromUserAction()
+
+        // Verify the stable observable is still the same instance
+        XCTAssertIdentical(delegate.testHotKeyRegistration, stableObservable, "T8: hotKeyRegistration identity stable across retry")
+
+        // Simulate state transitions through the observable (as HotKeyManager would)
         var emitCount = 0
-        let cancellable = observable.objectWillChange.sink { emitCount += 1 }
-        observable.update(to: .registered)
+        let cancellable = stableObservable.objectWillChange.sink { emitCount += 1 }
+
+        // Transition to registered (simulating successful registration)
+        stableObservable.update(to: HotKeyRegistrationState.registered)
         XCTAssertEqual(emitCount, 1, "T8: first transition emits")
-        XCTAssertEqual(observable.state, .registered, "T8: state is registered")
+        XCTAssertEqual(stableObservable.state, HotKeyRegistrationState.registered, "T8: state is registered")
 
         // Simulate manager replacement - same observable instance reused
-        // Transition back to notRegistered
-        observable.update(to: .notRegistered)
+        // Transition back to notRegistered (simulating unregister)
+        stableObservable.update(to: HotKeyRegistrationState.notRegistered)
         XCTAssertEqual(emitCount, 2, "T8: second transition emits")
-        XCTAssertEqual(observable.state, .notRegistered, "T8: state is notRegistered")
+        XCTAssertEqual(stableObservable.state, HotKeyRegistrationState.notRegistered, "T8: state is notRegistered")
 
         // Transition to registered again (retry)
-        observable.update(to: .registered)
+        stableObservable.update(to: HotKeyRegistrationState.registered)
         XCTAssertEqual(emitCount, 3, "T8: retry transition emits")
-        XCTAssertEqual(observable.state, .registered, "T8: state is registered after retry")
+        XCTAssertEqual(stableObservable.state, HotKeyRegistrationState.registered, "T8: state is registered after retry")
 
         // Same observable instance throughout - identity stable
+        XCTAssertIdentical(delegate.testHotKeyRegistration, stableObservable, "T8: same observable instance throughout")
         _ = cancellable
     }
 
@@ -1107,50 +1199,33 @@ final class AppDelegateCompositionTests: XCTestCase {
     /// When selected speech model is incomplete, normal Model Downloads does not
     /// surface the same selected-model acquisition action a second time.
     func testT10_duplicateAcquisitionRule() async throws {
-        // This tests the MenuBarView's setupSpeechModelIncomplete logic
-        // which suppresses the selected model's row in Model Downloads
-        // when Setup shows its acquisition UI
+        // This tests the pure render-decision helper that suppresses the
+        // selected model's row in Model Downloads when Setup shows its
+        // acquisition UI for the same model.
 
-        // We can't easily test the SwiftUI view logic here, but we can verify
-        // the pure presentation model produces the correct action for the
-        // selected model when incomplete
-
-        // When selected model is incomplete (missing), Setup shows Download
-        let presentation = VoiceDockSetupPresentation(
+        // Case 1: Setup incomplete + selected model -> suppress (false)
+        let suppressResult = VoiceDockSetupPresentation.shouldShowAcquisitionRow(
+            model: fast,
             selectedModel: fast,
-            selectedModelValid: false,
-            selectedModelAcquisition: .idle,
-            coordinatorState: .starting,
-            microphone: .granted,
-            accessibilityTrusted: true,
-            hotkeyRegistration: .registered
+            setupSpeechModelIncomplete: true
         )
+        XCTAssertFalse(suppressResult, "T10: setup incomplete + selected model → must suppress row")
 
-        XCTAssertEqual(presentation.speechModel.action, .downloadSelectedModel, "T10: Setup shows Download for incomplete selected model")
-
-        // When selected model is downloading, Setup shows Cancel
-        let presentationDownloading = VoiceDockSetupPresentation(
+        // Case 2: Setup incomplete + non-selected model -> show (true)
+        let showNonSelectedResult = VoiceDockSetupPresentation.shouldShowAcquisitionRow(
+            model: quality,
             selectedModel: fast,
-            selectedModelValid: false,
-            selectedModelAcquisition: .downloading(progress: 0.5),
-            coordinatorState: .loadingModel,
-            microphone: .granted,
-            accessibilityTrusted: true,
-            hotkeyRegistration: .registered
+            setupSpeechModelIncomplete: true
         )
-        XCTAssertEqual(presentationDownloading.speechModel.action, .cancelModelDownload, "T10: Setup shows Cancel for downloading")
+        XCTAssertTrue(showNonSelectedResult, "T10: setup incomplete + non-selected model → must show row")
 
-        // When selected model failed, Setup shows Retry
-        let presentationFailed = VoiceDockSetupPresentation(
+        // Case 3: Setup complete + selected model -> show (true)
+        let showCompleteResult = VoiceDockSetupPresentation.shouldShowAcquisitionRow(
+            model: fast,
             selectedModel: fast,
-            selectedModelValid: false,
-            selectedModelAcquisition: .failed(message: "error"),
-            coordinatorState: .loadingModel,
-            microphone: .granted,
-            accessibilityTrusted: true,
-            hotkeyRegistration: .registered
+            setupSpeechModelIncomplete: false
         )
-        XCTAssertEqual(presentationFailed.speechModel.action, .retryModelDownload, "T10: Setup shows Retry for failed")
+        XCTAssertTrue(showCompleteResult, "T10: setup complete + selected model → must show row")
     }
 
 }

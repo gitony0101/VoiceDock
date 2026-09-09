@@ -139,6 +139,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return modelStatus
     }
 
+    /// Test-only accessor for the hot key registration observable (used by composition tests).
+    /// Production code must not depend on this.
+    internal var testHotKeyRegistration: HotKeyRegistrationObservable {
+        return hotKeyRegistration
+    }
+
     /// Internal makeCoordinator used by startRuntimeIfNeeded.
     /// Production path calls the real factory; test path uses injected factory.
     private func makeCoordinator() -> SessionCoordinator? {

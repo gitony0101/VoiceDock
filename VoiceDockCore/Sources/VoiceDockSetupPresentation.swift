@@ -319,6 +319,35 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
         case .qwen3_1_7B_4bit: return "Quality"
         }
     }
+
+    // MARK: - Pure Render Decision Helpers
+
+    /// Determines whether the Model Downloads section should show the acquisition
+    /// row for a given model.
+    ///
+    /// This is a PURE render-decision helper — no lifecycle, task, state ownership,
+    /// or side effects. It encapsulates the duplicate acquisition suppression rule:
+    /// when Setup's speech model row is incomplete (showing acquisition UI), the
+    /// normal Model Downloads section must suppress the same selected-model row.
+    ///
+    /// - Parameters:
+    ///   - model: The model being considered for display in Model Downloads.
+    ///   - selectedModel: The currently selected model (from ModelStatus).
+    ///   - setupSpeechModelIncomplete: Whether Setup's speech model row is incomplete.
+    /// - Returns: true if the row should be shown, false if it should be suppressed.
+    internal static func shouldShowAcquisitionRow(
+        model: ASRModelSelection,
+        selectedModel: ASRModelSelection,
+        setupSpeechModelIncomplete: Bool
+    ) -> Bool {
+        // If Setup's speech model row is incomplete, suppress the selected model's
+        // row in Model Downloads to avoid duplicate acquisition UI.
+        if setupSpeechModelIncomplete && model == selectedModel {
+            return false
+        }
+        // Otherwise show the row (for non-selected models, or when Setup is complete)
+        return true
+    }
 }
 
 /// The compact header/setup status. Intentionally small: three meaningful
