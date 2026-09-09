@@ -335,7 +335,7 @@ public struct VoiceDockSetupPresentation: Sendable, Equatable {
     ///   - selectedModel: The currently selected model (from ModelStatus).
     ///   - setupSpeechModelIncomplete: Whether Setup's speech model row is incomplete.
     /// - Returns: true if the row should be shown, false if it should be suppressed.
-    internal static func shouldShowAcquisitionRow(
+    public static func shouldShowAcquisitionRow(
         model: ASRModelSelection,
         selectedModel: ASRModelSelection,
         setupSpeechModelIncomplete: Bool

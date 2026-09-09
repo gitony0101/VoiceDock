@@ -1152,6 +1152,45 @@ final class AppDelegateCompositionTests: XCTestCase {
         _ = cancellable
     }
 
+    /// T8b — HotKeyManager injection identity
+    /// - proves that multiple HotKeyManager instances constructed with the
+    ///   SAME observable actually retain that exact instance
+    func testT8b_hotKeyManagerInjectionIdentity() {
+        // This test proves deterministic evidence that any HotKeyManager
+        // constructed with a shared observable retains that exact instance.
+        // No real hotkey registration is required — just initializer wiring.
+
+        let sharedObservable = HotKeyRegistrationObservable()
+
+        // Construct two manager instances with the SAME observable
+        let managerA = HotKeyManager(
+            registration: sharedObservable,
+            onStart: {},
+            onStop: {}
+        )
+
+        let managerB = HotKeyManager(
+            registration: sharedObservable,
+            onStart: {},
+            onStop: {}
+        )
+
+        // A. Each manager's internal `registration` property MUST be the
+        //    exact same instance that was passed in.
+        XCTAssertIdentical(managerA.registration, sharedObservable, "T8b: managerA retains shared observable")
+        XCTAssertIdentical(managerB.registration, sharedObservable, "T8b: managerB retains shared observable")
+
+        // B. Both managers share the SAME observable instance.
+        XCTAssertIdentical(managerA.registration, managerB.registration, "T8b: both managers share the same observable instance")
+
+        // C. AppDelegate-level proof: its app-lifetime observable identity
+        //    remains stable (already tested in testT8_stableHotKeyRegistrationObservableIdentity).
+        //    This test establishes B: any HotKeyManager constructed with X
+        //    actually retains X. Combined with the production code path:
+        //    HotKeyManager(registration: hotKeyRegistration, ...)
+        //    this pins replacement identity without real OS registration.
+    }
+
     /// T9 — UI/render decision
     /// Quality missing must surface `.useFast` independently of whether Fast is
     /// currently valid.

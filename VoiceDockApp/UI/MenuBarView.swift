@@ -749,9 +749,13 @@ struct MenuBarView: View {
 
             ForEach(ModelAcquisitionController.presentationOrder, id: \.self) { model in
                 // Suppress the selected model's row while Setup shows its acquisition UI.
-                if setupSpeechModelIncomplete && model == modelStatus.selectedModel {
-                    EmptyView()
-                } else {
+                // Use the pure render-decision helper from VoiceDockSetupPresentation
+                // so the suppression logic is exactly the same as the tested behavior.
+                if VoiceDockSetupPresentation.shouldShowAcquisitionRow(
+                    model: model,
+                    selectedModel: modelStatus.selectedModel,
+                    setupSpeechModelIncomplete: setupSpeechModelIncomplete
+                ) {
                     acquisitionRow(for: model)
                 }
             }
