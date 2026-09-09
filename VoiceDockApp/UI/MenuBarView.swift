@@ -435,26 +435,19 @@ struct MenuBarView: View {
                 .buttonStyle(.bordered)
             }
         case .useFast:
-            // Refine: only show "Use Fast" if Fast is actually installed.
-            // If Fast is missing, fall back to "Download" for Quality.
-            let fastValid = modelStatus.availabilityFor(.qwen3_0_6B_8bit) == .installed
-            if fastValid {
-                Button("Use Fast") {
-                    Task { @MainActor in
-                        if let appDelegate = NSApp.delegate as? AppDelegate {
-                            await appDelegate.selectModelForSetup(.qwen3_0_6B_8bit)
-                        }
+            // "Use Fast" ALWAYS switches the selected model to Fast.
+            // The semantics of "Use Fast" are: switch to Fast regardless of
+            // whether Fast is currently installed. The downstream flow will
+            // handle validity and runtime admission.
+            Button("Use Fast") {
+                Task { @MainActor in
+                    if let appDelegate = NSApp.delegate as? AppDelegate {
+                        await appDelegate.selectModelForSetup(.qwen3_0_6B_8bit)
                     }
                 }
-                .buttonStyle(.borderedProminent)
-                .disabled(restartInProgress || isRecordOrTranscribeActive)
-            } else {
-                Button("Download") {
-                    acquisition.download(modelStatus.selectedModel)
-                }
-                .buttonStyle(.bordered)
-                .disabled(acquisitionDisabled || isRecordOrTranscribeActive || restartInProgress)
             }
+            .buttonStyle(.borderedProminent)
+            .disabled(restartInProgress || isRecordOrTranscribeActive)
         case .retryHotkey:
             Button("Retry") {
                 if let appDelegate = NSApp.delegate as? AppDelegate {
@@ -574,7 +567,16 @@ struct MenuBarView: View {
             // Segmented picker
             Picker("Model selection", selection: Binding(
                 get: { modelStatus.selectedModel },
-                set: { nv in if nv != modelStatus.selectedModel { modelStatus.updateSelection(nv) } }
+                set: { nv in if nv != modelStatus.selectedModel {
+                    Task { @MainActor in
+                        if let appDelegate = NSApp.delegate as? AppDelegate {
+                            await appDelegate.selectModelForSetup(nv)
+                        } else {
+                            // Preview/test fallback when NSApp.delegate is unavailable
+                            modelStatus.updateSelection(nv)
+                        }
+                    }
+                } }
             )) {
                 Text("Fast 0.6B").tag(ASRModelSelection.qwen3_0_6B_8bit)
                 Text("Quality 1.7B").tag(ASRModelSelection.qwen3_1_7B_4bit)

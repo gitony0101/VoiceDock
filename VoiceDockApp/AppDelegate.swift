@@ -133,6 +133,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         return acquisition
     }
 
+    /// Test-only accessor for the model status (used by composition tests).
+    /// Production code must not depend on this.
+    internal var testModelStatus: ModelStatus {
+        return modelStatus
+    }
+
     /// Internal makeCoordinator used by startRuntimeIfNeeded.
     /// Production path calls the real factory; test path uses injected factory.
     private func makeCoordinator() -> SessionCoordinator? {
